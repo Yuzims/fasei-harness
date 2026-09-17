@@ -186,6 +186,18 @@ export function nextInvestigationAction(state: InvestigationState): DriverAction
     };
   }
 
+  if (
+    (state.retrievalStrategy === "comments" || state.retrievalStrategy === "broaden") &&
+    !state.investigatedResources.has(commentsKey)
+  ) {
+    return {
+      type: "tool_call",
+      name: "github_get_issue_comments",
+      arguments: target,
+      reason: "Retrieval strategy changed; inspect comments instead of replaying the previous path.",
+    };
+  }
+
   if (!state.investigatedResources.has(timelineKey)) {
     return {
       type: "tool_call",

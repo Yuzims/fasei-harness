@@ -13,10 +13,12 @@ import type { Tool } from "../tools/tool.js";
 import { createInvestigationGithubTools } from "../tools/github.js";
 import { TraceCollector } from "../trace/trace-collector.js";
 import { UNTRUSTED_NOTICE } from "./policy.js";
+import { GitHubProviderError } from "../github/errors.js";
 import {
   InvestigationState,
   pullResource,
   resourceKey,
+  resourceKeyForTool,
 } from "./state.js";
 
 const POLARITIES: ClaimPolarity[] = ["resolved", "unresolved", "partial", "unknown"];
@@ -372,12 +374,40 @@ export function ingestObservation(
   }
 }
 
+function cachedPayload(session: InvestigationSession, key: string): unknown {
+  return session.state.run.evidence.find((item) => item.contentRef === key)?.payload;
+}
+
 function wrapGithubTool(tool: Tool, session: InvestigationSession): Tool {
   return {
     name: tool.name,
     description: `${tool.description} ${UNTRUSTED_NOTICE}`,
     parameters: tool.parameters,
     async execute(args) {
+      const key = resourceKeyForTool(tool.name, args);
+      const refetch = Boolean(key && session.state.refetchResources.has(key));
+      if (key && session.state.investigatedResources.has(key) && !refetch) {
+        const existing = session.state.run.evidence.find((item) => item.contentRef === key);
+        session.state.recordTool({
+          tool: tool.name,
+          arguments: args,
+          success: true,
+          evidenceIds: existing ? [existing.id] : [],
+          cached: true,
+          reason: session.state.lastDecisionReason,
+        });
+        return {
+          observation: cachedPayload(session, key),
+          evidenceIds: existing ? [existing.id] : [],
+          cached: true,
+          trust: "external_untrusted",
+          notice: UNTRUSTED_NOTICE,
+          investigation: session.state.hint(),
+        };
+      }
+      if (key) {
+        session.state.refetchResources.delete(key);
+      }
       try {
         const output = await tool.execute(args);
         const evidenceIds = ingestObservation(session, tool.name, args, output);
@@ -396,12 +426,16 @@ function wrapGithubTool(tool: Tool, session: InvestigationSession): Tool {
           investigation: session.state.hint(),
         };
       } catch (error) {
+        const providerError = error instanceof GitHubProviderError ? error : undefined;
         session.state.recordTool({
           tool: tool.name,
           arguments: args,
           success: false,
           evidenceIds: [],
           error: error instanceof Error ? error.message : String(error),
+          errorCode: providerError?.code,
+          httpStatus: providerError?.status,
+          retryable: providerError?.retryable,
           reason: session.state.lastDecisionReason,
         });
         throw error;

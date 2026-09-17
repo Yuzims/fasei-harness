@@ -25,6 +25,8 @@ License: MIT。Node 20+（`.nvmrc` 22.14.0）。
 
 **Phase 4 — Independent Completion Verifier — DONE：** `IndependentCompletionVerifier` 在 Agent 之后独立判定。Agent conclusion ≠ verification result。`VerificationResult` 由 Harness 产生，不看 Agent 终答，不接受 Agent 自报完成。确定性检查：issue identity / issue state / resolution candidate / PR merged / code-commit evidence / claims / EvidenceRequirement。三个 fixture：`resolved.json` → `verified_complete`，`closed-unmerged.json` → `not_verified`，`insufficient-evidence.json` → `insufficient_evidence`。
 
+**Phase 5 — Failure-aware recovery — DONE：** Failure 先分类再恢复，不是统一 Retry。`FailureAnalyzer` 根据 tool metadata / investigation state / verifier 结果产生 `FailureEvent`。`RecoveryPlanner` 按失败类型给出 `RecoveryPlan`（timeout → bounded backoff；401/404 → stop；retrieval → 换策略；premature completion → 继续补证据；loop → replan/stop；invalid evidence → revalidate；wrong target → recheck）。Recovery 有次数上限，追加新 Attempt，不覆盖旧 Attempt。恢复后重新走 Independent Verifier；只有 Verifier 能给出 `verified_complete`。这是 failure-aware recovery foundation，不是全自动自愈 Agent。
+
 ```text
 InvestigationTask → InvestigationRun → Attempt
 Evidence / Claim / ClaimEvidence / EvidenceRequirement

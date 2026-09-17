@@ -40,3 +40,9 @@ export type { IndependentVerifyInput } from "./verification/independent-completi
 export * from "./failure/failure-types.js";
 export * from "./failure/failure-analyzer.js";
 export * from "./recovery/recovery-planner.js";
+export {
+  FailureAnalyzer as InvestigationFailureAnalyzer,
+} from "./investigation/failure-analyzer.js";
+export {
+  RecoveryPlanner as InvestigationRecoveryPlanner,
+} from "./investigation/recovery-planner.js";

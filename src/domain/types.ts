@@ -172,6 +172,12 @@ export interface FailureEvent {
   evidenceIds: string[];
   missingRequirementIds?: string[];
   confidence: number;
+  /** Structured tool / HTTP metadata; not parsed from error.message. */
+  tool?: string;
+  errorCode?: string;
+  httpStatus?: number;
+  retryable?: boolean;
+  details?: Record<string, unknown>;
 }
 
 export interface RecoveryPlan {
@@ -179,6 +185,12 @@ export interface RecoveryPlan {
   reason: string;
   resetEvidence?: boolean;
   nextRequirementIds?: string[];
+  /** What the next investigation attempt should focus on. Not a full tool script. */
+  nextStep?: string;
+  maxRetries?: number;
+  backoffMs?: number;
+  discardEvidenceIds?: string[];
+  retrievalStrategy?: string;
 }
 
 export interface InvestigationReport {

@@ -25,6 +25,8 @@ export interface IndependentVerifyInput {
   /** Agent prose is ignored for the verdict. */
   agentFinalAnswer?: string;
   agentConclusion?: string;
+  /** Metadata only. Never used as the completion verdict. */
+  agentClaimedComplete?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -628,7 +630,7 @@ export class IndependentCompletionVerifier {
       ),
       claimEvidence: run.claimEvidence,
       evidence: run.evidence,
-      agentClaimedComplete: false,
+      agentClaimedComplete: input.agentClaimedComplete === true,
     });
 
     trace?.record(run.id, step, "verification_completed", {

@@ -51,4 +51,10 @@ export {
   unsupportedClaims,
 } from "./queries.js";
 
-export { planRecovery, recoveryActionFor } from "./recovery-policy.js";
+export {
+  RECOVERY_BOUNDS,
+  isRetryableToolCode,
+  planRecovery,
+  recoveryActionFor,
+} from "./recovery-policy.js";
+export type { RecoveryBounds } from "./recovery-policy.js";

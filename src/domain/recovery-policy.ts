@@ -4,6 +4,45 @@ import type {
   RecoveryPlan,
 } from "./types.js";
 
+/** Hard caps so recovery cannot loop forever. */
+export const RECOVERY_BOUNDS = {
+  maxInvestigationAttempts: 3,
+  maxRecoveryAttempts: 3,
+  maxToolRetries: 2,
+} as const;
+
+export type RecoveryBounds = {
+  maxInvestigationAttempts: number;
+  maxRecoveryAttempts: number;
+  maxToolRetries: number;
+};
+
+const NON_RETRYABLE_TOOL_CODES = new Set([
+  "unauthorized",
+  "forbidden",
+  "not_found",
+  "invalid_argument",
+  "malformed_response",
+  "invalid_snapshot",
+]);
+
+const RETRYABLE_TOOL_CODES = new Set([
+  "timeout",
+  "rate_limited",
+  "server_error",
+  "network_error",
+]);
+
+export function isRetryableToolCode(code: string | undefined): boolean {
+  if (!code) {
+    return false;
+  }
+  if (NON_RETRYABLE_TOOL_CODES.has(code)) {
+    return false;
+  }
+  return RETRYABLE_TOOL_CODES.has(code);
+}
+
 const POLICY: Record<InvestigationFailureType, Omit<RecoveryPlan, "reason"> & { reason: string }> =
   {
     tool_failure: {

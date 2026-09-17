@@ -68,6 +68,57 @@ Trace events: `verification_started`, `verification_check`, `verification_comple
 
 Existing workspace `CompletionVerifier` (file/count/citation for synthetic demos) is unchanged.
 
+## Phase 5 — Failure Analyzer + Failure-Specific Recovery Planner — DONE
+
+Investigation failures are classified, then recovered by type. Not:
+
+```text
+if failure: retry()
+```
+
+```text
+Investigation Agent
+        |
+        v
+Independent Completion Verifier
+        |
+        v
+FailureAnalyzer  →  FailureEvent (Phase 1 taxonomy)
+        |
+        v
+RecoveryPlanner  →  RecoveryPlan
+        |
+        v
+Harness executes plan as a new append-only InvestigationAttempt
+        |
+        v
+Agent continues / stops
+        |
+        v
+Verifier runs again
+```
+
+`FailureAnalyzer` and `RecoveryPlanner` in `src/investigation/` use the Phase 1 domain types (`InvestigationFailureType`, `FailureEvent`, `RecoveryPlan`). They do not call GitHub or the LLM. Workspace demo `src/failure/` + `src/recovery/` remain for synthetic harness tests.
+
+Classification uses structured tool metadata, investigation state, fingerprints, and `VerificationResult` — not `error.message.includes(...)`.
+
+| Failure | Typical recovery |
+|---|---|
+| `tool_failure` (timeout / 429 / 5xx / network) | `retry_with_backoff` (bounded) |
+| `tool_failure` (401 / 404 / non-retryable) | `stop` (no blind retry) |
+| `retrieval_failure` | `change_retrieval_strategy` / `refine_query` |
+| `premature_completion` | `continue_investigation` + missing requirements |
+| `loop_failure` (same-state / repeated actions) | `replan` once, then `stop` |
+| `insufficient_evidence` | `gather_missing_evidence`, or `stop` if no sources remain |
+| `invalid_evidence` | `revalidate_evidence` (discard; never upgrade to trusted) |
+| `wrong_target` | `recheck_target` (reset evidence; do not keep collecting on the wrong issue) |
+
+Bounds: `RECOVERY_BOUNDS.maxInvestigationAttempts` / `maxRecoveryAttempts` / `maxToolRetries`.
+
+Trace events: `failure_detected`, `failure_analyzed`, `recovery_planned`, `recovery_started`, `recovery_completed`.
+
+Recovery never writes `verified_complete`. After recovery the verifier runs on the new evidence.
+
 ## Not started
 
-Phase 5+ (recovery redesign, benchmark expansion, semantic judge, UI redesign) waits for a new task.
+Phase 6+ (evidence graph, benchmark expansion, semantic judge, UI redesign) waits for a new task.

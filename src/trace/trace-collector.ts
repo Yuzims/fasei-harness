@@ -17,7 +17,12 @@ export type TraceEventType =
   | "investigation_completed"
   | "verification_started"
   | "verification_check"
-  | "verification_completed";
+  | "verification_completed"
+  | "failure_detected"
+  | "failure_analyzed"
+  | "recovery_planned"
+  | "recovery_started"
+  | "recovery_completed";
 
 export interface TraceEvent {
   id: string;

@@ -4,9 +4,13 @@ import type {
   ClaimPolarity,
   Evidence,
   EvidenceRelation,
+  FailureEvent,
   InvestigationRun,
   InvestigationTask,
+  RecoveryPlan,
 } from "../domain/index.js";
+
+export type RetrievalStrategy = "default" | "timeline" | "comments" | "linked_pr" | "broaden";
 
 export interface ToolHistoryEntry {
   tool: string;
@@ -14,6 +18,10 @@ export interface ToolHistoryEntry {
   success: boolean;
   evidenceIds: string[];
   error?: string;
+  errorCode?: string;
+  httpStatus?: number;
+  retryable?: boolean;
+  cached?: boolean;
   reason?: string;
 }
 
@@ -33,6 +41,14 @@ export class InvestigationState {
   readonly filesByPr = new Map<number, string[]>();
 
   issueState?: "open" | "closed";
+  retrievalStrategy: RetrievalStrategy = "default";
+  recoveryCount = 0;
+  toolRetryCount = 0;
+  readonly fingerprints: string[] = [];
+  readonly refetchResources = new Set<string>();
+  readonly invalidEvidenceIds = new Set<string>();
+  lastFailure?: FailureEvent;
+  lastRecovery?: RecoveryPlan;
 
   constructor(
     readonly task: InvestigationTask,
@@ -93,6 +109,7 @@ export class InvestigationState {
         summary: item.summary,
         resource: item.provenance.resource,
         operation: item.provenance.operation,
+        trust: item.provenance.trust,
       })),
       claims: this.run.claims.map((item) => ({
         id: item.id,
@@ -104,6 +121,11 @@ export class InvestigationState {
       unmergedPrs: [...this.unmergedPrs],
       unresolvedQuestions: [...this.unresolvedQuestions],
       investigatedResources: [...this.investigatedResources],
+      remainingSources: remainingEvidenceSources(this),
+      retrievalStrategy: this.retrievalStrategy,
+      lastFailureType: this.lastFailure?.type,
+      lastRecoveryAction: this.lastRecovery?.action,
+      nextStep: this.lastRecovery?.nextStep,
     };
   }
 }
@@ -114,6 +136,85 @@ export function formatStateForModel(state: InvestigationState): string {
     JSON.stringify(state.hint(), null, 2),
     "You still cannot set VERIFIED_COMPLETE.",
   ].join("\n");
+}
+
+export function investigationFingerprint(state: InvestigationState): string {
+  return JSON.stringify({
+    resources: [...state.investigatedResources].sort(),
+    kinds: state.run.evidence.map((item) => item.kind).sort(),
+    evidenceCount: state.run.evidence.length,
+    claimCount: state.run.claims.length,
+    candidates: [...state.candidatePrs].sort((a, b) => a - b),
+    merged: [...state.mergedPrs].sort((a, b) => a - b),
+    issueState: state.issueState ?? null,
+    retrievalStrategy: state.retrievalStrategy,
+  });
+}
+
+export function remainingEvidenceSources(state: InvestigationState): string[] {
+  const issueNumber = state.task.target.issueNumber;
+  const missing: string[] = [];
+  if (!state.investigatedResources.has(resourceKey("issue", String(issueNumber)))) {
+    missing.push("issue");
+  }
+  if (!state.investigatedResources.has(resourceKey("timeline", String(issueNumber)))) {
+    missing.push("timeline");
+  }
+  if (!state.investigatedResources.has(resourceKey("comments", String(issueNumber)))) {
+    missing.push("comments");
+  }
+  for (const pullNumber of state.candidatePrs) {
+    if (!state.investigatedResources.has(resourceKey("pull", String(pullNumber)))) {
+      missing.push(`pull/${pullNumber}`);
+    }
+    if (
+      state.mergedPrs.has(pullNumber) &&
+      !state.investigatedResources.has(resourceKey("files", String(pullNumber)))
+    ) {
+      missing.push(`files/${pullNumber}`);
+    }
+    if (
+      state.mergedPrs.has(pullNumber) &&
+      !state.investigatedResources.has(resourceKey("commits", String(pullNumber)))
+    ) {
+      missing.push(`commits/${pullNumber}`);
+    }
+  }
+  return missing;
+}
+
+export function resourceKeyForTool(
+  tool: string,
+  args: Record<string, unknown>,
+): string | undefined {
+  const issueNumber = args.issueNumber;
+  const pullNumber = args.pullNumber;
+  switch (tool) {
+    case "github_get_issue":
+      return typeof issueNumber === "number" ? resourceKey("issue", String(issueNumber)) : undefined;
+    case "github_get_issue_comments":
+      return typeof issueNumber === "number"
+        ? resourceKey("comments", String(issueNumber))
+        : undefined;
+    case "github_get_issue_timeline":
+      return typeof issueNumber === "number"
+        ? resourceKey("timeline", String(issueNumber))
+        : undefined;
+    case "github_get_pull_request":
+      return typeof pullNumber === "number" ? resourceKey("pull", String(pullNumber)) : undefined;
+    case "github_get_pull_request_reviews":
+      return typeof pullNumber === "number" ? resourceKey("reviews", String(pullNumber)) : undefined;
+    case "github_get_pull_request_files":
+      return typeof pullNumber === "number" ? resourceKey("files", String(pullNumber)) : undefined;
+    case "github_list_commits":
+      return typeof pullNumber === "number" ? resourceKey("commits", String(pullNumber)) : undefined;
+    default:
+      return undefined;
+  }
+}
+
+export function toolSignature(entry: Pick<ToolHistoryEntry, "tool" | "arguments">): string {
+  return `${entry.tool}:${JSON.stringify(entry.arguments)}`;
 }
 
 export function issueResource(owner: string, repo: string, issueNumber: number): string {

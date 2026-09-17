@@ -3459,7 +3459,7 @@ Agent 可以调查、收集 Evidence、记录 Claim，但不能设置 `verified_
 
 ---
 
-## Phase 5 — Failure-Aware Harness
+## Phase 5 — Failure-Aware Harness — DONE
 
 把：
 
@@ -3468,7 +3468,7 @@ Failure Analyzer
 Recovery Planner
 ```
 
-接入完整 Investigation Loop。
+接入完整 Investigation Loop。Failure 先分类再按类型恢复；recovery 有界、追加 Attempt、恢复后重新独立验证。详见 `docs/design.md` / `docs/implementation-status.md`。
 
 ---
 

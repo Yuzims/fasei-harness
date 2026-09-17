@@ -108,7 +108,7 @@ export interface EvidenceRequirement {
   kind: EvidenceKind;
   severity: RequirementSeverity;
   description: string;
-  /** When set, these evidence IDs satisfy the requirement regardless of kind. */
+  /** Optional evidence IDs associated with this requirement. Never overrides `condition`. */
   satisfiedBy?: string[];
   /**
    * Explicit optional flag. If omitted, `severity === "optional"` is treated as optional.

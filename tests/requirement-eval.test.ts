@@ -332,3 +332,42 @@ test("Requirement evaluator：random merged PR without graph link does not satis
   const evaluation = evalReq(mergedReq, { evidence: [issue, other], relations: [] });
   assert.equal(evaluation.satisfied, false);
 });
+
+test("satisfiedBy cannot bypass resolution_merged when the PR is not merged", () => {
+  const issue = issueEvidence({ state: "closed" });
+  const pr = prEvidence({ merged: false });
+  const evaluation = evalReq(
+    {
+      id: "merged-requirement",
+      kind: "pull_request",
+      severity: "required",
+      description: "PR merged",
+      condition: "resolution_merged",
+      satisfiedBy: [issue.id],
+      optional: false,
+    },
+    {
+      evidence: [issue, pr],
+      relations: [createRelation({ fromEvidenceId: pr.id, toEvidenceId: issue.id, type: "references" })],
+    },
+  );
+  assert.equal(evaluation.satisfied, false);
+});
+
+test("satisfiedBy cannot bypass issue_closed when the issue is open", () => {
+  const issue = issueEvidence({ state: "open" });
+  const pr = prEvidence({ merged: true });
+  const evaluation = evalReq(
+    {
+      id: "closed-requirement",
+      kind: "issue",
+      severity: "required",
+      description: "issue closed",
+      condition: "issue_closed",
+      satisfiedBy: [pr.id],
+      optional: false,
+    },
+    { evidence: [issue, pr] },
+  );
+  assert.equal(evaluation.satisfied, false);
+});

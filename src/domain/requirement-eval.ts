@@ -424,27 +424,12 @@ export function requirementEvalContext(input: {
 /**
  * Single semantic definition of whether an EvidenceRequirement is satisfied.
  * Optional vs required is not evaluated here; the verifier applies that to the verdict.
+ * `satisfiedBy` is metadata only and cannot bypass `condition`.
  */
 export function evaluateEvidenceRequirement(
   requirement: EvidenceRequirement,
   context: RequirementEvalContext,
 ): RequirementEvaluation {
-  if (requirement.satisfiedBy && requirement.satisfiedBy.length > 0) {
-    const have = new Set(context.graph.evidence.map((item) => item.id));
-    const hits = requirement.satisfiedBy.filter((id) => have.has(id));
-    if (hits.length > 0) {
-      return result(requirement, requirement.condition ?? "has_kind", {
-        outcome: "satisfied",
-        reason: "Requirement satisfiedBy evidence IDs are present.",
-        evidenceIds: hits,
-      });
-    }
-    return result(requirement, requirement.condition ?? "has_kind", {
-      outcome: "missing",
-      reason: "satisfiedBy evidence IDs are not present in the graph.",
-      evidenceIds: [],
-    });
-  }
   const condition = requirement.condition ?? "has_kind";
   return EVALUATORS[condition](requirement, context);
 }

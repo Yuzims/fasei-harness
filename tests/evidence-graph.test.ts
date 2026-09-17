@@ -141,8 +141,12 @@ test("Evidence Graph：optional requirement absence does not count as required",
   });
   const issue = evidence("issue", "Issue #42");
   assert.equal(isOptionalRequirement(task.requirements[1]!), true);
-  assert.equal(requirementSatisfied(task.requirements[0]!, [issue]), true);
-  assert.equal(requirementSatisfied(task.requirements[1]!, [issue]), false);
+  const context = {
+    task,
+    graph: { evidence: [issue], relations: [], claims: [], claimEvidence: [] },
+  };
+  assert.equal(requirementSatisfied(task.requirements[0]!, context), true);
+  assert.equal(requirementSatisfied(task.requirements[1]!, context), false);
 });
 
 test("Evidence Graph：relation types include GitHub investigation edges", () => {

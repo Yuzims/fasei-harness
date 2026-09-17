@@ -27,7 +27,7 @@ License: MIT。Node 20+（`.nvmrc` 22.14.0）。
 
 **Phase 5 — Failure-aware recovery — DONE：** Failure 先分类再恢复，不是统一 Retry。`FailureAnalyzer` 根据 tool metadata / investigation state / verifier 结果产生 `FailureEvent`。`RecoveryPlanner` 按失败类型给出 `RecoveryPlan`（timeout → bounded backoff；401/404 → stop；retrieval → 换策略；premature completion → 继续补证据；loop → replan/stop；invalid evidence → revalidate；wrong target → recheck）。Recovery 有次数上限，追加新 Attempt，不覆盖旧 Attempt。恢复后重新走 Independent Verifier；只有 Verifier 能给出 `verified_complete`。这是 failure-aware recovery foundation，不是全自动自愈 Agent。
 
-**Phase 6 — Evidence Graph — DONE：** Evidence / EvidenceRelation / Claim / ClaimEvidence / EvidenceRequirement 是一等域数据。Verifier 沿图检查 Issue 身份、关闭状态、resolution candidate、PR merged、commit/file 证据和 Claim 支持，不靠任意 payload 猜边。Agent conclusion ≠ truth。三个 fixture 行为不变。这只覆盖当前 GitHub Issue 调查证据链，不宣称任意软件问题已被证明解决。
+**Phase 6 — Evidence Graph — DONE：** Evidence / EvidenceRelation / Claim / ClaimEvidence / EvidenceRequirement 是一等域数据。`evaluateEvidenceRequirement()` 是 requirement 是否满足的唯一语义层；Verifier 编排检查和终局，不另写一套 condition。Agent conclusion ≠ truth。三个 fixture 行为不变。这只覆盖当前 GitHub Issue 调查证据链，不宣称任意软件问题已被证明解决。
 
 产品主路径：
 

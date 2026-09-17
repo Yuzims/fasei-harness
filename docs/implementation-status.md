@@ -185,6 +185,20 @@ Fixture behavior is unchanged:
 | `fixtures/github/closed-unmerged.json` | acme/box#99 | `not_verified` |
 | `fixtures/github/insufficient-evidence.json` | acme/box#7 | `insufficient_evidence` |
 
+```text
+Evidence Graph
+      ↓
+EvidenceRequirement
+      ↓
+evaluateEvidenceRequirement
+      ↓
+IndependentCompletionVerifier
+      ↓
+VerificationResult
+```
+
+EvidenceRequirement conditions are evaluated by a canonical deterministic `evaluateEvidenceRequirement()`. IndependentCompletionVerifier orchestrates checks and the final verdict; it does not reimplement `issue_closed` / `resolution_candidate` / `resolution_merged` / `resolution_code_evidence` / `claim_support`.
+
 GitHub issue/comment/PR/commit prose remains `external_untrusted`. Prompt injection in fixture text does not become trusted completion evidence.
 
 ## Not started

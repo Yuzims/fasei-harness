@@ -41,6 +41,7 @@ test("Trust：Issue/Comment 注入文本不能改变 recovery 或 verification",
     claims: [claim],
     claimEvidence: [],
     evidence: [],
+    task,
     agentClaimedComplete: true,
   });
 

@@ -398,15 +398,3 @@ export function claimSupportStatus(
   }
   return "unsupported";
 }
-
-export function requirementSatisfied(
-  requirement: EvidenceRequirement,
-  evidence: Evidence[],
-): boolean {
-  if (requirement.satisfiedBy && requirement.satisfiedBy.length > 0) {
-    const have = new Set(evidence.map((item) => item.id));
-    return requirement.satisfiedBy.some((id) => have.has(id));
-  }
-  const kinds = new Set(requirementKinds(requirement));
-  return evidence.some((item) => kinds.has(item.kind));
-}

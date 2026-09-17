@@ -89,7 +89,6 @@ export {
   mergeContradiction,
   relatedEvidence,
   requirementKinds,
-  requirementSatisfied,
   resolutionCandidateEvidence,
   targetIssueEvidence,
 } from "./evidence-graph.js";
@@ -99,3 +98,15 @@ export type {
   EvidenceGraphErrorCode,
   RelationInput,
 } from "./evidence-graph.js";
+
+export {
+  evaluateEvidenceRequirement,
+  isOptionalRequirementAbsent,
+  requirementEvalContext,
+  requirementSatisfied,
+} from "./requirement-eval.js";
+export type {
+  RequirementEvalContext,
+  RequirementEvaluation,
+  RequirementOutcome,
+} from "./requirement-eval.js";

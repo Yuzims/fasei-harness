@@ -26,10 +26,12 @@ function issueEvidence() {
   return createEvidence({
     kind: "issue",
     summary: "Issue #42 is closed",
+    payload: { number: 42, repository: "acme/box", state: "closed", title: "bug", body: "" },
     provenance: {
       source: "github",
       url: "https://github.com/acme/box/issues/42",
       repository: "acme/box",
+      resource: "issues/42",
       retrievedAt: now,
       trust: "external_untrusted",
     },
@@ -40,10 +42,12 @@ function prEvidence() {
   return createEvidence({
     kind: "pull_request",
     summary: "PR #7 merged",
+    payload: { number: 7, repository: "acme/box", merged: true, state: "closed" },
     provenance: {
       source: "github",
       url: "https://github.com/acme/box/pull/7",
       repository: "acme/box",
+      resource: "pull/7",
       retrievedAt: now,
       trust: "external_untrusted",
     },
@@ -132,6 +136,7 @@ test("Domain：没有 supporting evidence 的关键 Claim 不能过验证", () =
     claims: [claim],
     claimEvidence: [],
     evidence: [],
+    task,
     agentClaimedComplete: true,
   });
 
@@ -149,10 +154,12 @@ test("Domain：Agent 结论不是真相，检查与证据齐了才 verified_comp
   const commit = createEvidence({
     kind: "commit",
     summary: "abc123 merges the fix",
+    payload: { sha: "abc123", repository: "acme/box" },
     provenance: {
       source: "github",
       url: "https://github.com/acme/box/commit/abc123",
       repository: "acme/box",
+      resource: "commit/abc123",
       retrievedAt: now,
       trust: "external_untrusted",
     },
@@ -169,8 +176,14 @@ test("Domain：Agent 结论不是真相，检查与证据齐了才 verified_comp
     toEvidenceId: issue.id,
     type: "fixes",
   });
+  const codeLink = createRelation({
+    fromEvidenceId: commit.id,
+    toEvidenceId: pr.id,
+    type: "derived_from",
+  });
   assert.equal(relation.type, "fixes");
   const allEvidence = [issue, pr, commit];
+  const relations = [relation, codeLink];
 
   const incomplete = buildVerificationResult({
     checks: passingChecks([issue.id]),
@@ -178,6 +191,8 @@ test("Domain：Agent 结论不是真相，检查与证据齐了才 verified_comp
     claims: [claim],
     claimEvidence: links,
     evidence: [issue],
+    task,
+    relations,
     agentClaimedComplete: true,
   });
   assert.equal(incomplete.status, "insufficient_evidence");
@@ -189,6 +204,8 @@ test("Domain：Agent 结论不是真相，检查与证据齐了才 verified_comp
     claims: [claim],
     claimEvidence: links,
     evidence: allEvidence,
+    task,
+    relations,
     agentClaimedComplete: true,
   });
   assert.equal(complete.status, "verified_complete");
@@ -198,12 +215,17 @@ test("Domain：Agent 结论不是真相，检查与证据齐了才 verified_comp
 });
 
 test("Domain：空检查列表不能 verified_complete", () => {
+  const task = createInvestigationTask({
+    target: { owner: "acme", repository: "box", issueNumber: 1 },
+    requirements: [],
+  });
   const result = buildVerificationResult({
     checks: [],
     requirements: [],
     claims: [],
     claimEvidence: [],
     evidence: [],
+    task,
     agentClaimedComplete: true,
   });
   assert.equal(result.status, "not_verified");
@@ -211,9 +233,15 @@ test("Domain：空检查列表不能 verified_complete", () => {
 
 test("Domain：evidenceCoverage 按 requirement 满足比例计算", () => {
   const task = createInvestigationTask({
-    target: { owner: "acme", repository: "box", issueNumber: 1 },
+    target: { owner: "acme", repository: "box", issueNumber: 42 },
   });
-  assert.equal(evidenceCoverage(task.requirements, [issueEvidence()]), 1 / 3);
+  assert.equal(
+    evidenceCoverage(task.requirements, {
+      task,
+      graph: { evidence: [issueEvidence()], relations: [], claims: [], claimEvidence: [] },
+    }),
+    1 / 3,
+  );
 });
 
 test("Domain：Failure Type 映射到不同 Recovery，没有统一 retry", () => {

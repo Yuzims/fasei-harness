@@ -1,7 +1,11 @@
 import {
   isOptionalRequirement,
-  requirementSatisfied,
 } from "./evidence-graph.js";
+import {
+  evaluateEvidenceRequirement,
+  requirementEvalContext,
+  type RequirementEvalContext,
+} from "./requirement-eval.js";
 import type {
   Claim,
   ClaimEvidence,
@@ -9,6 +13,7 @@ import type {
   EvidenceRequirement,
   InvestigationAttempt,
   InvestigationRun,
+  InvestigationTask,
   VerificationCheck,
   VerificationResult,
 } from "./types.js";
@@ -36,19 +41,21 @@ export function unsupportedClaims(
 
 export function missingRequirements(
   requirements: EvidenceRequirement[],
-  evidence: Evidence[],
+  context: RequirementEvalContext,
 ): EvidenceRequirement[] {
-  return requirements.filter((requirement) => !requirementSatisfied(requirement, evidence));
+  return requirements.filter(
+    (requirement) => !evaluateEvidenceRequirement(requirement, context).satisfied,
+  );
 }
 
 export function evidenceCoverage(
   requirements: EvidenceRequirement[],
-  evidence: Evidence[],
+  context: RequirementEvalContext,
 ): number {
   if (requirements.length === 0) {
     return 1;
   }
-  const missing = missingRequirements(requirements, evidence).length;
+  const missing = missingRequirements(requirements, context).length;
   return (requirements.length - missing) / requirements.length;
 }
 
@@ -77,9 +84,20 @@ export function buildVerificationResult(input: {
   claims: Claim[];
   claimEvidence: ClaimEvidence[];
   evidence: Evidence[];
+  task: InvestigationTask;
+  relations?: InvestigationRun["relations"];
+  graph?: RequirementEvalContext["graph"];
   agentClaimedComplete?: boolean;
 }): VerificationResult {
-  const missing = missingRequirements(input.requirements, input.evidence);
+  const context = requirementEvalContext({
+    task: input.task,
+    graph: input.graph,
+    evidence: input.evidence,
+    relations: input.relations,
+    claims: input.claims,
+    claimEvidence: input.claimEvidence,
+  });
+  const missing = missingRequirements(input.requirements, context);
   const unsupported = unsupportedClaims(
     input.claims.filter((claim) => claim.critical),
     input.claimEvidence,
@@ -109,7 +127,7 @@ export function buildVerificationResult(input: {
   return {
     status,
     checks: input.checks,
-    evidenceCoverage: evidenceCoverage(input.requirements, input.evidence),
+    evidenceCoverage: evidenceCoverage(input.requirements, context),
     unsupportedClaimIds: unsupported.map((claim) => claim.id),
     missingRequirementIds: missing.map((item) => item.id),
     prematureCompletion: Boolean(input.agentClaimedComplete) && !complete && !anyFail,

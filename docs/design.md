@@ -96,7 +96,21 @@ Independent Completion Verifier
 VerificationResult
 ```
 
+```text
+Evidence Graph
+      ↓
+EvidenceRequirement
+      ↓
+evaluateEvidenceRequirement
+      ↓
+IndependentCompletionVerifier
+      ↓
+VerificationResult
+```
+
 `createEvidenceRelation` validates source/target evidence IDs, relation type, and rejects self-edges. Duplicate `(from, to, type)` is reused. `ClaimEvidence` is the only claim→evidence support; Agent prose is not evidence.
+
+EvidenceRequirement conditions (`has_kind`, `issue_identity`, `issue_closed`, `resolution_candidate`, `resolution_merged`, `resolution_code_evidence`, `claim_support`) are evaluated by a canonical deterministic `evaluateEvidenceRequirement()`. IndependentCompletionVerifier orchestrates the checks and final verdict; it does not reimplement those conditions.
 
 A merged PR alone is not a complete resolution chain. Commit/file evidence must be linked with `derived_from` (or `parents` / `merges`). Contradictory evidence cannot yield `verified_complete`. Optional requirements do not block completion.
 

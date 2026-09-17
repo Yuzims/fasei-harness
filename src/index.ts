@@ -30,6 +30,7 @@ export * from "./retrieval/ablation.js";
 export * from "./trace/html-report.js";
 export * from "./eval/cases.js";
 export * from "./eval/benchmark.js";
+export * as investigationBenchmark from "./benchmark/index.js";
 export * from "./trace/trace-collector.js";
 export * from "./verification/types.js";
 export { WorkspaceCompletionVerifier } from "./verification/completion-verifier.js";

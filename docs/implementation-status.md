@@ -201,6 +201,69 @@ EvidenceRequirement conditions are evaluated by a canonical deterministic `evalu
 
 GitHub issue/comment/PR/commit prose remains `external_untrusted`. Prompt injection in fixture text does not become trusted completion evidence.
 
+## Phase 7.0 — Benchmark Foundation — DONE
+
+Deterministic Benchmark/Evaluation Harness around the existing investigation pipeline. Measurement infrastructure only — this phase does not claim that the Harness improves Agent performance.
+
+```text
+BenchmarkScenario
+        ↓
+SnapshotGitHubProvider
+        ↓
+investigate() + SnapshotInvestigationDriver
+        ↓
+IndependentCompletionVerifier
+        ↓
+FailureAnalyzer / RecoveryPlanner (existing)
+        ↓
+ScenarioResult
+        ↓
+BenchmarkReport + metrics
+```
+
+Location: `src/benchmark/`. The benchmark depends on the production Harness. Investigation / verifier / domain / GitHub code do not import the benchmark.
+
+Contract:
+
+- `BenchmarkScenario` — id, description, fixture, target, expectedOutcome
+- `ScenarioResult` — expected vs observed verifier status, passed, attempts, tool calls, failure types
+- `BenchmarkReport` — name/version, scenario counts, metrics, per-scenario results
+- `BenchmarkMetrics` — `taskSuccessRate`, `falseCompletionRate`, `insufficientEvidenceRate`, `evidenceCoverage`, `unsupportedClaimRate`, `recoveryRate`, `averageAttempts`, `averageToolCalls`
+
+`taskSuccessRate` uses `VerificationResult.status === verified_complete`. Agent prose is not success.
+
+`falseCompletionRate` counts:
+
+```text
+critical Claim polarity === resolved
+        AND
+verifier status !== verified_complete
+```
+
+Current:
+
+```text
+3 deterministic snapshot scenarios
+```
+
+| Scenario | Fixture | Expected |
+|---|---|---|
+| `resolved` | `fixtures/github/resolved.json` (acme/box#42) | `verified_complete` |
+| `closed-unmerged` | `fixtures/github/closed-unmerged.json` (acme/box#99) | `not_verified` |
+| `insufficient-evidence` | `fixtures/github/insufficient-evidence.json` (acme/box#7) | `insufficient_evidence` |
+
+Runnable without `GITHUB_TOKEN` or an LLM API key (`useTestDriver: true` + recorded snapshots). Same fixture + same scenario + same Harness version → same benchmark result (verifier outcomes, pass/fail, metrics).
+
+This is a regression/evaluation foundation, not a representative real-world GitHub benchmark.
+
+Future:
+
+```text
+larger real-world GitHub snapshot benchmark
+```
+
+CLI: `npm run fasei-benchmark` prints a JSON `BenchmarkReport`.
+
 ## Not started
 
-Phase 6+ (benchmark expansion, semantic judge, UI redesign) waits for a new task.
+Phase 7.1+ (larger real-world GitHub snapshot benchmark, baseline comparison, semantic judge, UI redesign) waits for a new task.

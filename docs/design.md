@@ -117,3 +117,57 @@ A merged PR alone is not a complete resolution chain. Commit/file evidence must 
 This verifies the GitHub Issue investigation evidence chain. It does not prove arbitrary software defects are fixed.
 
 See [`implementation-status.md`](implementation-status.md).
+
+## Phase 7.0 — Benchmark Foundation — DONE
+
+A deterministic evaluation layer around the existing Harness. It does not add Agent intelligence.
+
+```text
+BenchmarkScenario
+        ↓
+Snapshot Provider
+        ↓
+Investigation Agent / Test Driver
+        ↓
+Independent Completion Verifier
+        ↓
+Failure / Recovery (existing path)
+        ↓
+Observed Result
+        ↓
+Metrics / Report
+```
+
+The benchmark calls the production pipeline (`investigate` + `SnapshotGitHubProvider` + `IndependentCompletionVerifier`). It does not reimplement verification semantics. Success is the verifier status, not Agent final-answer prose.
+
+False completion is specifically:
+
+```text
+Agent claims completion (critical resolved claims)
+        +
+Independent Verifier rejects completion
+```
+
+Current scope:
+
+```text
+3 deterministic snapshot scenarios
+```
+
+| Scenario | Fixture | Expected verifier outcome |
+|---|---|---|
+| `resolved` | `fixtures/github/resolved.json` | `verified_complete` |
+| `closed-unmerged` | `fixtures/github/closed-unmerged.json` | `not_verified` |
+| `insufficient-evidence` | `fixtures/github/insufficient-evidence.json` | `insufficient_evidence` |
+
+This is a regression/evaluation foundation. It is not a representative real-world GitHub benchmark.
+
+Future:
+
+```text
+larger real-world GitHub snapshot benchmark
+```
+
+The production Harness does not depend on the benchmark layer.
+
+See [`implementation-status.md`](implementation-status.md).

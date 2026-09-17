@@ -1,0 +1,33 @@
+---
+description: Commit and push only with the user's GitHub account, never as Cursor Agent
+alwaysApply: true
+---
+
+# GitHub 账号提交
+
+本仓库的 git commit / push **必须用用户自己的 GitHub 账号**，禁止用 Cursor Agent 身份提交。
+
+## 身份
+
+- GitHub 用户：`Yuzims`
+- 本地 author / committer：`Yuzmi <2718004489@qq.com>`
+- 远程：`git@github.com:Yuzims/...`（用户自己的 GitHub，不是 Cursor 托管仓库）
+
+## 禁止
+
+- 提交信息里出现 `Co-authored-by: Cursor <cursoragent@cursor.com>`
+- 用 `cursoragent@cursor.com` 或任何 Cursor bot 作为 author / committer
+- 把仓库推到 Cursor 托管 remote 充当“用户的 GitHub 仓库”
+- 为了清掉 Cursor 署名而擅自改 `git config`
+
+## 提交后必须检查
+
+```text
+git log -1 --format=full
+```
+
+若存在 `Co-authored-by: Cursor`，在 push 之前用 `git filter-branch` / `git commit-tree` 去掉 trailer，再推送到用户的 GitHub。不要带着 Cursor 署名 push。
+
+## 需要新仓库时
+
+用用户的 GitHub 账号创建（`gh` 以 `Yuzims` 登录，或 SSH 推到 `github.com/Yuzims/...`）。不要用 Cursor Agent / origin.cursor.com 建仓。

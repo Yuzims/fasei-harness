@@ -54,4 +54,52 @@ IndependentCompletionVerifier (again)
 
 Failure is classified before recovery. Recovery strategy depends on failure type. Recovery is bounded (`maxInvestigationAttempts`, `maxRecoveryAttempts`, `maxToolRetries`). Recovery creates a new append-only attempt; previous failures and plans stay on the old attempt. Completion is re-verified after recovery. Only the independent verifier can produce `verified_complete`.
 
-This is a failure-aware recovery foundation, not a fully autonomous self-healing agent.
+## Phase 6 — Evidence Graph & Verification Formalization — DONE
+
+Evidence relationships are explicit domain data. The Independent Completion Verifier reads the Evidence Graph; it does not reconstruct Issue→PR→Commit links by inspecting arbitrary payload fields.
+
+```text
+GitHub Observation
+        ↓
+Evidence
+        ↓
+Evidence Relation
+        ↓
+Claim
+        ↓
+Claim Evidence
+        ↓
+Evidence Requirement
+        ↓
+Independent Verification
+```
+
+```text
+Investigation Agent
+        |
+        | Evidence + EvidenceRelation + Claim + ClaimEvidence
+        v
+    Harness State
+        |
+        v
+Independent Completion Verifier
+        |
+        +--> issue identity / issue closed
+        |
+        +--> resolution candidate (graph edge)
+        |
+        +--> PR merged / code evidence (graph edge)
+        |
+        +--> claim support / evidence requirements
+        |
+        v
+VerificationResult
+```
+
+`createEvidenceRelation` validates source/target evidence IDs, relation type, and rejects self-edges. Duplicate `(from, to, type)` is reused. `ClaimEvidence` is the only claim→evidence support; Agent prose is not evidence.
+
+A merged PR alone is not a complete resolution chain. Commit/file evidence must be linked with `derived_from` (or `parents` / `merges`). Contradictory evidence cannot yield `verified_complete`. Optional requirements do not block completion.
+
+This verifies the GitHub Issue investigation evidence chain. It does not prove arbitrary software defects are fixed.
+
+See [`implementation-status.md`](implementation-status.md).

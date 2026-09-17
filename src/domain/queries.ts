@@ -1,3 +1,7 @@
+import {
+  isOptionalRequirement,
+  requirementSatisfied,
+} from "./evidence-graph.js";
 import type {
   Claim,
   ClaimEvidence,
@@ -34,14 +38,7 @@ export function missingRequirements(
   requirements: EvidenceRequirement[],
   evidence: Evidence[],
 ): EvidenceRequirement[] {
-  const kinds = new Set(evidence.map((item) => item.kind));
-  return requirements.filter((requirement) => {
-    if (requirement.satisfiedBy && requirement.satisfiedBy.length > 0) {
-      const have = new Set(evidence.map((item) => item.id));
-      return !requirement.satisfiedBy.some((id) => have.has(id));
-    }
-    return !kinds.has(requirement.kind);
-  });
+  return requirements.filter((requirement) => !requirementSatisfied(requirement, evidence));
 }
 
 export function evidenceCoverage(
@@ -92,7 +89,7 @@ export function buildVerificationResult(input: {
   const anyFail = required.some((check) => check.status === "fail");
   const anyUnknown = required.some((check) => check.status === "unknown");
   const checksOk = criticalChecksPassed(input.checks);
-  const requiredMissing = missing.filter((item) => item.severity !== "optional");
+  const requiredMissing = missing.filter((item) => !isOptionalRequirement(item));
   const complete =
     checksOk && requiredMissing.length === 0 && unsupported.length === 0 && input.checks.length > 0;
 

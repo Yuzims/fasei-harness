@@ -41,19 +41,23 @@ export function defaultResolutionRequirements(): EvidenceRequirement[] {
       id: "req-issue",
       kind: "issue",
       severity: "critical",
-      description: "目标 Issue 本身",
+      description: "Target GitHub Issue observation (identity).",
+      condition: "issue_identity",
     },
     {
       id: "req-pr",
       kind: "pull_request",
       severity: "required",
-      description: "关联 Pull Request",
+      description: "Resolution-candidate pull request linked to the issue.",
+      condition: "resolution_candidate",
     },
     {
       id: "req-commit",
       kind: "commit",
-      severity: "optional",
-      description: "修复 Commit",
+      severity: "required",
+      description: "Commit or changed-file evidence derived from the merged resolution PR.",
+      acceptedKinds: ["commit", "file", "code"],
+      condition: "resolution_code_evidence",
     },
   ];
 }
@@ -96,10 +100,15 @@ export function createEvidence(input: Omit<Evidence, "id"> & { id?: string }): E
 export function createRelation(
   input: Omit<EvidenceRelation, "id"> & { id?: string },
 ): EvidenceRelation {
+  const fromEvidenceId = requireText(input.fromEvidenceId, "fromEvidenceId");
+  const toEvidenceId = requireText(input.toEvidenceId, "toEvidenceId");
+  if (fromEvidenceId === toEvidenceId) {
+    throw new Error("Evidence relation cannot be a self-reference");
+  }
   return {
     id: input.id?.trim() || randomUUID(),
-    fromEvidenceId: requireText(input.fromEvidenceId, "fromEvidenceId"),
-    toEvidenceId: requireText(input.toEvidenceId, "toEvidenceId"),
+    fromEvidenceId,
+    toEvidenceId,
     type: input.type,
   };
 }

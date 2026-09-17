@@ -41,10 +41,10 @@ Deterministic checks:
 1. Issue identity (repository + number)
 2. Issue state (`closed` is not `resolved`)
 3. Resolution candidate (issue → timeline/relations → PR)
-4. Pull request merged (`merged === true`)
-5. Code / commit evidence when required
-6. Critical claims supported without contradiction (`polarity` / `role`)
-7. Phase 1 `EvidenceRequirement` coverage (optional gaps do not block)
+4. Pull request merged (`merged === true`, no contradictory merge facts)
+5. Code / commit evidence linked to that PR (`derived_from` / `parents` / `merges`)
+6. Critical claims supported without contradiction (`ClaimEvidence` role)
+7. `EvidenceRequirement` coverage (optional gaps do not block)
 
 Outcomes:
 
@@ -125,6 +125,68 @@ Recovery never writes `verified_complete`. After recovery the verifier runs on t
 
 Public `FailureAnalyzer` / `RecoveryPlanner` / `FailureType` / `RecoveryPlan` names now mean the Investigation path. Workspace injection lives under `src/legacy/`. Details: [`architecture-cleanup.md`](architecture-cleanup.md).
 
+## Phase 6 — Evidence Graph & Verification Formalization — DONE
+
+Evidence relationships are first-class domain data. The verifier does not reconstruct the graph by guessing from arbitrary payload fields.
+
+```text
+GitHub Tool Result
+        ↓
+Evidence
+        ↓
+Evidence Graph
+   ┌────┴─────┐
+   ↓          ↓
+Evidence    Claim
+   ↓          ↓
+Relation   ClaimEvidence
+   └────┬─────┘
+        ↓
+Evidence Requirements
+        ↓
+Independent Completion Verifier
+```
+
+Resolution evidence chain for the current GitHub Issue investigation:
+
+```text
+Issue
+ ↓
+Issue is closed
+ ↓
+Resolution candidate PR  (fixes / references)
+ ↓
+PR is merged             (merged fact or merges relation)
+ ↓
+Commit / changed-file    (derived_from)
+ ↓
+Claim: "The Issue was resolved by this change."
+ ↓
+ClaimEvidence (supports, without contradicts)
+```
+
+**Agent conclusion is not truth.** Verification is based on independently checkable evidence, not the Agent's final answer. This does not prove arbitrary software issues are solved; it checks the GitHub issue-resolution evidence chain.
+
+| Check id | Meaning |
+|---|---|
+| `issue-identity` | Target owner/repository/number |
+| `issue-state` | Issue is closed (closed ≠ resolved) |
+| `resolution-candidate` | PR linked to the issue in the Evidence Graph |
+| `pr-merged` | Candidate PR `merged === true`, without contradiction |
+| `code-commit` | Commit/file/code evidence derived from that PR |
+| `claims-supported` | Critical claims have ClaimEvidence support, not contradicted |
+| `evidence-requirements` | Required requirements present; optional gaps do not block |
+
+Fixture behavior is unchanged:
+
+| Fixture | Target | Result |
+|---|---|---|
+| `fixtures/github/resolved.json` | acme/box#42 | `verified_complete` |
+| `fixtures/github/closed-unmerged.json` | acme/box#99 | `not_verified` |
+| `fixtures/github/insufficient-evidence.json` | acme/box#7 | `insufficient_evidence` |
+
+GitHub issue/comment/PR/commit prose remains `external_untrusted`. Prompt injection in fixture text does not become trusted completion evidence.
+
 ## Not started
 
-Phase 6+ (evidence graph, benchmark expansion, semantic judge, UI redesign) waits for a new task.
+Phase 6+ (benchmark expansion, semantic judge, UI redesign) waits for a new task.

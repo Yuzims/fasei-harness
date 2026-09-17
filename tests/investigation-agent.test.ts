@@ -118,6 +118,9 @@ test("Investigation：resolved fixture 多步调查并形成 resolution candidat
   assert.ok(texts.some((text) => /src\/cart\.ts/i.test(text)));
   assert.ok(result.claimEvidence.length > 0);
   assert.equal(result.claims.every((claim) => result.claimEvidence.some((link) => link.claimId === claim.id)), true);
+  assert.ok(result.run.relations.some((item) => item.type === "fixes"));
+  assert.ok(result.run.relations.some((item) => item.type === "derived_from"));
+  assert.ok(result.run.relations.some((item) => item.type === "merges"));
 
   const merge = result.evidence.find((item) => item.summary === "PR #7 merged=true");
   assert.ok(merge);
@@ -181,6 +184,8 @@ test("Investigation：closed-unmerged 不会因为 issue closed 就宣称 resolv
     false,
   );
   assert.ok(result.claims.some((claim) => /not merged/i.test(claim.text)));
+  assert.ok(result.run.relations.some((item) => item.type === "references"));
+  assert.equal(result.run.relations.some((item) => item.type === "fixes"), false);
   assert.ok(result.unresolvedQuestions.length > 0);
   assert.equal(tools.includes("github_get_pull_request_files"), false);
   assert.equal(tools.includes("github_list_commits"), false);

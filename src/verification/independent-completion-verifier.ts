@@ -7,12 +7,28 @@
  *
  * IndependentCompletionVerifier is the main completion verifier.
  * WorkspaceCompletionVerifier is legacy (synthetic file/count demos only).
+ *
+ * Verification reads the Evidence Graph (EvidenceRelation + ClaimEvidence +
+ * EvidenceRequirement). Payload is used only for factual fields (identity,
+ * issue state, merged). Relationships are not reconstructed from payloads.
  */
 import {
   buildVerificationResult,
+  claimSupportStatus,
+  codeEvidenceFor,
+  contradictingRelations,
+  graphFromRun,
+  isOptionalRequirement,
+  issueEvidenceItems,
+  issueFact,
+  mergeContradiction,
+  pullFact,
+  requirementSatisfied,
+  resolutionCandidateEvidence,
+  targetIssueEvidence,
   type Claim,
-  type ClaimEvidence,
   type Evidence,
+  type EvidenceGraph,
   type EvidenceRequirement,
   type InvestigationRun,
   type InvestigationTask,
@@ -32,14 +48,6 @@ export interface IndependentVerifyInput {
   agentClaimedComplete?: boolean;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
 function targetRepository(task: InvestigationTask): string {
   return `${task.target.owner}/${task.target.repository}`;
 }
@@ -53,111 +61,38 @@ function check(
   };
 }
 
-interface IssueFacts {
-  evidenceId: string;
-  repository: string;
-  number: number;
-  state?: "open" | "closed";
-}
-
-interface PullFacts {
-  evidenceId: string;
-  repository: string;
-  number: number;
-  merged?: boolean;
-  state?: string;
-}
-
-function stringField(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" && value.trim() ? value : undefined;
-}
-
-function numberField(record: Record<string, unknown>, key: string): number | undefined {
-  const value = record[key];
-  return typeof value === "number" && Number.isInteger(value) ? value : undefined;
-}
-
-function readIssueFacts(item: Evidence): IssueFacts | undefined {
-  if (item.kind !== "issue") {
-    return undefined;
-  }
-  const payload = isRecord(item.payload) ? item.payload : {};
-  const repository =
-    stringField(payload, "repository") ?? item.provenance.repository ?? "";
-  const number = numberField(payload, "number");
-  const state = payload.state === "closed" || payload.state === "open" ? payload.state : undefined;
-  if (!number || number <= 0) {
-    return undefined;
-  }
-  return { evidenceId: item.id, repository, number, state };
-}
-
-function readPullFacts(item: Evidence): PullFacts | undefined {
-  if (item.kind !== "pull_request") {
-    return undefined;
-  }
-  const payload = isRecord(item.payload) ? item.payload : {};
-  const number = numberField(payload, "number");
-  if (!number || number <= 0) {
-    return undefined;
-  }
-  return {
-    evidenceId: item.id,
-    repository: stringField(payload, "repository") ?? item.provenance.repository ?? "",
-    number,
-    merged: typeof payload.merged === "boolean" ? payload.merged : undefined,
-    state: stringField(payload, "state"),
-  };
-}
-
-function timelinePullNumbers(evidence: Evidence[]): number[] {
-  const found = new Set<number>();
-  for (const item of evidence.filter((entry) => entry.kind === "timeline")) {
-    for (const event of asArray(item.payload)) {
-      if (!isRecord(event)) {
-        continue;
-      }
-      const pullNumber = numberField(event, "pullRequestNumber");
-      if (pullNumber && pullNumber > 0) {
-        found.add(pullNumber);
-      }
-    }
-  }
-  return [...found];
-}
-
 function uniqueIds(ids: string[]): string[] {
   return [...new Set(ids)];
-}
-
-function hasCodeChangeEvidence(evidence: Evidence[]): Evidence[] {
-  return evidence.filter(
-    (item) => item.kind === "commit" || item.kind === "file" || item.kind === "code",
-  );
 }
 
 function codeChangeRequired(requirements: EvidenceRequirement[]): boolean {
   return requirements.some(
     (item) =>
-      (item.kind === "commit" || item.kind === "file" || item.kind === "code") &&
-      item.severity !== "optional",
+      !isOptionalRequirement(item) &&
+      (item.condition === "resolution_code_evidence" ||
+        item.kind === "commit" ||
+        item.kind === "file" ||
+        item.kind === "code" ||
+        (item.acceptedKinds ?? []).some((kind) => kind === "commit" || kind === "file" || kind === "code")),
   );
 }
 
 function codeChangeSeverity(requirements: EvidenceRequirement[]): RequirementSeverity | "info" {
-  if (requirements.some((item) => item.kind === "commit" && item.severity === "critical")) {
+  if (
+    requirements.some(
+      (item) =>
+        !isOptionalRequirement(item) &&
+        item.severity === "critical" &&
+        (item.kind === "commit" || item.condition === "resolution_code_evidence"),
+    )
+  ) {
     return "critical";
   }
   return codeChangeRequired(requirements) ? "required" : "optional";
 }
 
-function evidenceById(evidence: Evidence[]): Map<string, Evidence> {
-  return new Map(evidence.map((item) => [item.id, item]));
-}
-
-function checkIssueIdentity(task: InvestigationTask, evidence: Evidence[]): VerificationCheck {
-  const issues = evidence.map(readIssueFacts).filter((item): item is IssueFacts => Boolean(item));
+function checkIssueIdentity(task: InvestigationTask, graph: EvidenceGraph): VerificationCheck {
+  const issues = issueEvidenceItems(graph);
   const expected = targetRepository(task);
   if (issues.length === 0) {
     return check({
@@ -170,11 +105,9 @@ function checkIssueIdentity(task: InvestigationTask, evidence: Evidence[]): Veri
     });
   }
 
-  const matches = issues.filter(
-    (item) => item.repository === expected && item.number === task.target.issueNumber,
-  );
+  const matches = targetIssueEvidence(graph, task);
   if (matches.length === 0) {
-    const actual = issues[0];
+    const actual = issues.map(issueFact).find((item) => item);
     return check({
       id: "issue-identity",
       name: "issue identity",
@@ -182,7 +115,7 @@ function checkIssueIdentity(task: InvestigationTask, evidence: Evidence[]): Veri
       status: "fail",
       severity: "critical",
       message: `Evidence points at ${actual?.repository}#${actual?.number}, not ${expected}#${task.target.issueNumber}.`,
-      evidenceIds: issues.map((item) => item.evidenceId),
+      evidenceIds: issues.map((item) => item.id),
       expected: { repository: expected, issueNumber: task.target.issueNumber },
       actual: { repository: actual?.repository, issueNumber: actual?.number },
     });
@@ -195,22 +128,18 @@ function checkIssueIdentity(task: InvestigationTask, evidence: Evidence[]): Veri
     status: "pass",
     severity: "critical",
     message: `Issue identity matches ${expected}#${task.target.issueNumber}.`,
-    evidenceIds: matches.map((item) => item.evidenceId),
+    evidenceIds: matches.map((item) => item.id),
     expected: { repository: expected, issueNumber: task.target.issueNumber },
-    actual: { repository: matches[0]?.repository, issueNumber: matches[0]?.number },
+    actual: { repository: expected, issueNumber: task.target.issueNumber },
   });
 }
 
-function checkIssueState(task: InvestigationTask, evidence: Evidence[]): VerificationCheck {
-  const expected = targetRepository(task);
-  const issues = evidence
-    .map(readIssueFacts)
-    .filter((item): item is IssueFacts => Boolean(item))
-    .filter((item) => item.repository === expected && item.number === task.target.issueNumber);
-  if (issues.length === 0) {
+function checkIssueClosed(task: InvestigationTask, graph: EvidenceGraph): VerificationCheck {
+  const matches = targetIssueEvidence(graph, task);
+  if (matches.length === 0) {
     return check({
       id: "issue-state",
-      name: "issue state",
+      name: "issue closed",
       type: "issue_state",
       status: "unknown",
       severity: "required",
@@ -218,78 +147,59 @@ function checkIssueState(task: InvestigationTask, evidence: Evidence[]): Verific
     });
   }
 
-  const closed = issues.filter((item) => item.state === "closed");
+  const facts = matches.map(issueFact).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const closed = facts.filter((item) => item.state === "closed");
   if (closed.length === 0) {
     return check({
       id: "issue-state",
-      name: "issue state",
+      name: "issue closed",
       type: "issue_state",
       status: "fail",
       severity: "required",
-      message: `Target issue is ${issues[0]?.state ?? "unknown"}; an open issue is not resolved.`,
-      evidenceIds: issues.map((item) => item.evidenceId),
+      message: `Target issue is ${facts[0]?.state ?? "unknown"}; an open issue is not resolved.`,
+      evidenceIds: matches.map((item) => item.id),
       expected: "closed",
-      actual: issues[0]?.state,
+      actual: facts[0]?.state,
     });
   }
 
   return check({
     id: "issue-state",
-    name: "issue state",
+    name: "issue closed",
     type: "issue_state",
     status: "pass",
     severity: "required",
     message: "Issue is closed. Closed is not equivalent to resolved.",
-    evidenceIds: closed.map((item) => item.evidenceId),
+    evidenceIds: uniqueIds(closed.map((item) => item.evidenceId)),
     expected: "closed",
     actual: "closed",
   });
 }
 
-function resolutionCandidates(task: InvestigationTask, run: InvestigationRun): PullFacts[] {
-  const expected = targetRepository(task);
-  const pulls = run.evidence
-    .map(readPullFacts)
-    .filter((item): item is PullFacts => Boolean(item))
-    .filter((item) => item.repository === expected || item.repository === "");
-  const linkedNumbers = new Set(timelinePullNumbers(run.evidence));
-  for (const relation of run.relations) {
-    if (relation.type !== "fixes" && relation.type !== "references") {
-      continue;
-    }
-    const from = run.evidence.find((item) => item.id === relation.fromEvidenceId);
-    const to = run.evidence.find((item) => item.id === relation.toEvidenceId);
-    const pull = from ? readPullFacts(from) : undefined;
-    const issue = to ? readIssueFacts(to) : undefined;
-    if (pull && issue && issue.number === task.target.issueNumber) {
-      linkedNumbers.add(pull.number);
-    }
-  }
-
-  if (linkedNumbers.size === 0) {
-    return [];
-  }
-  return pulls.filter((item) => linkedNumbers.has(item.number));
-}
-
 function checkResolutionCandidate(
   task: InvestigationTask,
-  run: InvestigationRun,
+  graph: EvidenceGraph,
 ): VerificationCheck {
-  const pulls = run.evidence
-    .map(readPullFacts)
-    .filter((item): item is PullFacts => Boolean(item));
-  const candidates = resolutionCandidates(task, run);
+  const pulls = graph.evidence.filter((item) => item.kind === "pull_request");
+  const candidates = resolutionCandidateEvidence(graph, task);
   if (candidates.length > 0) {
+    const numbers = [
+      ...new Set(
+        candidates
+          .map(pullFact)
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+          .map((item) => item.number),
+      ),
+    ];
     return check({
       id: "resolution-candidate",
       name: "resolution candidate",
       type: "pr_existence",
       status: "pass",
       severity: "required",
-      message: `Resolution candidate PR(s): ${[...new Set(candidates.map((item) => `#${item.number}`))].join(", ")}.`,
-      evidenceIds: uniqueIds(candidates.map((item) => item.evidenceId)),
-      actual: candidates.map((item) => item.number),
+      message: `Resolution candidate PR(s): ${numbers.map((n) => `#${n}`).join(", ") || "linked"}.`,
+      evidenceIds: uniqueIds(candidates.map((item) => item.id)),
+      actual: numbers,
     });
   }
   if (pulls.length > 0) {
@@ -299,8 +209,9 @@ function checkResolutionCandidate(
       type: "pr_existence",
       status: "fail",
       severity: "required",
-      message: "Pull request evidence exists but is not linked to the target issue via timeline/relations.",
-      evidenceIds: uniqueIds(pulls.map((item) => item.evidenceId)),
+      message:
+        "Pull request evidence exists but is not linked to the target issue in the Evidence Graph.",
+      evidenceIds: uniqueIds(pulls.map((item) => item.id)),
     });
   }
   return check({
@@ -313,15 +224,15 @@ function checkResolutionCandidate(
   });
 }
 
-function checkPullRequestMerged(
+function checkResolutionMerged(
   task: InvestigationTask,
-  run: InvestigationRun,
+  graph: EvidenceGraph,
 ): VerificationCheck {
-  const candidates = resolutionCandidates(task, run);
+  const candidates = resolutionCandidateEvidence(graph, task);
   if (candidates.length === 0) {
     return check({
       id: "pr-merged",
-      name: "pull request merged",
+      name: "resolution merged",
       type: "pr_merge",
       status: "unknown",
       severity: "required",
@@ -329,66 +240,110 @@ function checkPullRequestMerged(
     });
   }
 
-  const known = candidates.filter((item) => typeof item.merged === "boolean");
-  const merged = known.filter((item) => item.merged === true);
-  if (merged.length > 0) {
+  const contradiction = mergeContradiction(graph, candidates);
+  if (contradiction.conflict) {
     return check({
       id: "pr-merged",
-      name: "pull request merged",
+      name: "resolution merged",
+      type: "pr_merge",
+      status: "fail",
+      severity: "required",
+      message: "Contradictory merge evidence for the same resolution-candidate PR.",
+      evidenceIds: uniqueIds([
+        ...contradiction.merged.map((item) => item.id),
+        ...contradiction.unmerged.map((item) => item.id),
+      ]),
+      expected: true,
+      actual: "contradicted",
+    });
+  }
+
+  const mergedViaRelation = candidates.filter((item) =>
+    graph.relations.some(
+      (relation) =>
+        relation.type === "merges" &&
+        (relation.toEvidenceId === item.id || relation.fromEvidenceId === item.id),
+    ),
+  );
+  const merged = [
+    ...new Map(
+      [...contradiction.merged, ...mergedViaRelation].map((item) => [item.id, item]),
+    ).values(),
+  ];
+
+  if (merged.length > 0) {
+    const numbers = [
+      ...new Set(
+        merged
+          .map(pullFact)
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+          .map((item) => item.number),
+      ),
+    ];
+    return check({
+      id: "pr-merged",
+      name: "resolution merged",
       type: "pr_merge",
       status: "pass",
       severity: "required",
-      message: `Candidate PR merged=true: ${[...new Set(merged.map((item) => `#${item.number}`))].join(", ")}.`,
-      evidenceIds: uniqueIds(merged.map((item) => item.evidenceId)),
+      message: `Candidate PR merged=true: ${numbers.map((n) => `#${n}`).join(", ") || "linked"}.`,
+      evidenceIds: uniqueIds(merged.map((item) => item.id)),
       expected: true,
       actual: true,
     });
   }
-  if (known.length > 0) {
+
+  if (contradiction.unmerged.length > 0) {
     return check({
       id: "pr-merged",
-      name: "pull request merged",
+      name: "resolution merged",
       type: "pr_merge",
       status: "fail",
       severity: "required",
-      message: `Candidate PR exists but merged=false (open or closed-unmerged is not completion).`,
-      evidenceIds: uniqueIds(known.map((item) => item.evidenceId)),
+      message: "Candidate PR exists but merged=false (open or closed-unmerged is not completion).",
+      evidenceIds: uniqueIds(contradiction.unmerged.map((item) => item.id)),
       expected: true,
       actual: false,
     });
   }
+
   return check({
     id: "pr-merged",
-    name: "pull request merged",
+    name: "resolution merged",
     type: "pr_merge",
     status: "unknown",
     severity: "required",
-    message: "Candidate PR evidence does not include a merged field.",
-    evidenceIds: uniqueIds(candidates.map((item) => item.evidenceId)),
+    message: "Candidate PR evidence does not include a merged fact or merges relation.",
+    evidenceIds: uniqueIds(candidates.map((item) => item.id)),
   });
 }
 
-function checkCodeOrCommit(
+function checkResolutionCodeEvidence(
   requirements: EvidenceRequirement[],
-  evidence: Evidence[],
+  graph: EvidenceGraph,
+  task: InvestigationTask,
 ): VerificationCheck {
-  const found = hasCodeChangeEvidence(evidence);
+  const candidates = resolutionCandidateEvidence(graph, task);
+  const found = codeEvidenceFor(
+    graph,
+    candidates.map((item) => item.id),
+  );
   const severity = codeChangeSeverity(requirements);
   if (found.length > 0) {
     return check({
       id: "code-commit",
-      name: "code or commit evidence",
+      name: "resolution code evidence",
       type: "commit_existence",
       status: "pass",
       severity,
-      message: `Found ${found.length} commit/file/code evidence item(s). PR existence alone is not code evidence.`,
+      message: `Found ${found.length} commit/file/code evidence item(s) linked to the resolution PR. A merged PR record is not code evidence.`,
       evidenceIds: found.map((item) => item.id),
     });
   }
   if (severity === "optional") {
     return check({
       id: "code-commit",
-      name: "code or commit evidence",
+      name: "resolution code evidence",
       type: "commit_existence",
       status: "pass",
       severity: "optional",
@@ -397,27 +352,23 @@ function checkCodeOrCommit(
   }
   return check({
     id: "code-commit",
-    name: "code or commit evidence",
+    name: "resolution code evidence",
     type: "commit_existence",
     status: "unknown",
     severity,
-    message: "Required commit/file/code evidence is missing. A pull request record is not enough.",
+    message:
+      "Required commit/file/code evidence is missing from the Evidence Graph. A pull request record is not enough.",
   });
 }
 
-function checkClaims(
-  run: InvestigationRun,
-  candidates: PullFacts[],
-): VerificationCheck {
-  const claims = run.claims;
-  const links = run.claimEvidence;
-  const byId = evidenceById(run.evidence);
+function checkClaimSupport(graph: EvidenceGraph): VerificationCheck {
+  const { claims, claimEvidence, evidence } = graph;
   const knownClaimIds = new Set(claims.map((claim) => claim.id));
-  const orphanLinks = links.filter((link) => !knownClaimIds.has(link.claimId));
+  const orphanLinks = claimEvidence.filter((link) => !knownClaimIds.has(link.claimId));
   if (orphanLinks.length > 0) {
     return check({
       id: "claims-supported",
-      name: "claims supported",
+      name: "claim support",
       type: "claim_coverage",
       status: "fail",
       severity: "required",
@@ -429,7 +380,7 @@ function checkClaims(
   if (critical.length === 0) {
     return check({
       id: "claims-supported",
-      name: "claims supported",
+      name: "claim support",
       type: "claim_coverage",
       status: "pass",
       severity: "required",
@@ -437,105 +388,79 @@ function checkClaims(
     });
   }
 
-  const mergedNumbers = new Set(
-    candidates.filter((item) => item.merged === true).map((item) => item.number),
-  );
-  const unmergedNumbers = new Set(
-    candidates.filter((item) => item.merged === false).map((item) => item.number),
-  );
+  const statuses = critical.map((claim) => ({
+    claim,
+    status: claimSupportStatus(claim.id, claimEvidence, evidence),
+  }));
+  const contradicted = statuses
+    .filter(
+      (item) =>
+        item.status === "contradicted" &&
+        (item.claim.polarity === "resolved" || item.claim.polarity === "partial"),
+    )
+    .map((item) => item.claim);
+  const unsupported = statuses
+    .filter(
+      (item) =>
+        item.status === "unsupported" &&
+        (item.claim.polarity === "resolved" || item.claim.polarity === "partial"),
+    )
+    .map((item) => item.claim);
 
-  const contradicted: Claim[] = [];
-  const unsupportedResolved: Claim[] = [];
-  const missingEvidence: Claim[] = [];
-
-  for (const claim of critical) {
-    const claimLinks = links.filter((link) => link.claimId === claim.id);
-    const existing = claimLinks.filter((link) => byId.has(link.evidenceId));
-    if (existing.length === 0) {
-      missingEvidence.push(claim);
-      continue;
-    }
-    const supports = existing.filter((link) => link.role === "supports");
-    const contradicts = existing.filter((link) => link.role === "contradicts");
-    if (claim.polarity === "resolved") {
-      if (contradicts.length > 0) {
-        contradicted.push(claim);
-        continue;
-      }
-      if (supports.length === 0) {
-        unsupportedResolved.push(claim);
-        continue;
-      }
-      const supportedPulls = supports
-        .map((link) => byId.get(link.evidenceId))
-        .filter((item): item is Evidence => Boolean(item))
-        .map(readPullFacts)
-        .filter((item): item is PullFacts => Boolean(item));
-      if (
-        supportedPulls.some((item) => item.merged === false) &&
-        !supportedPulls.some((item) => item.merged === true)
-      ) {
-        contradicted.push(claim);
+  const graphContradictions = contradictingRelations(graph);
+  const contradictedByGraph: Claim[] = [];
+  if (graphContradictions.length > 0) {
+    for (const claim of critical) {
+      const linked = new Set(
+        claimEvidence.filter((link) => link.claimId === claim.id).map((link) => link.evidenceId),
+      );
+      const hitsClaim = graphContradictions.some(
+        (relation) => linked.has(relation.fromEvidenceId) || linked.has(relation.toEvidenceId),
+      );
+      if (hitsClaim && claim.polarity === "resolved") {
+        contradictedByGraph.push(claim);
       }
     }
   }
 
-  if (contradicted.length > 0) {
+  const allContradicted = [...new Map([...contradicted, ...contradictedByGraph].map((item) => [item.id, item])).values()];
+  if (allContradicted.length > 0) {
     return check({
       id: "claims-supported",
-      name: "claims supported",
+      name: "claim support",
       type: "claim_coverage",
       status: "fail",
       severity: "required",
-      message: "Critical claim is contradicted by evidence (polarity/role/merged state).",
+      message: "Critical claim is contradicted by ClaimEvidence or an Evidence Graph contradicts edge.",
       evidenceIds: uniqueIds(
-        links
-          .filter((link) => contradicted.some((claim) => claim.id === link.claimId))
+        claimEvidence
+          .filter((link) => allContradicted.some((claim) => claim.id === link.claimId))
           .map((link) => link.evidenceId),
       ),
-      actual: contradicted.map((claim) => claim.id),
+      actual: allContradicted.map((claim) => claim.id),
     });
   }
 
-  if (mergedNumbers.size > 0) {
-    const unresolvedCritical = critical.filter((claim) => claim.polarity === "unresolved");
-    if (unresolvedCritical.length > 0 && unmergedNumbers.size === 0) {
-      return check({
-        id: "claims-supported",
-        name: "claims supported",
-        type: "claim_coverage",
-        status: "fail",
-        severity: "required",
-        message: "Critical unresolved claim contradicts merged resolution-candidate evidence.",
-        evidenceIds: uniqueIds(
-          links
-            .filter((link) => unresolvedCritical.some((claim) => claim.id === link.claimId))
-            .map((link) => link.evidenceId),
-        ),
-      });
-    }
-  }
-
-  if (unsupportedResolved.length > 0 || missingEvidence.length > 0) {
+  if (unsupported.length > 0) {
     return check({
       id: "claims-supported",
-      name: "claims supported",
+      name: "claim support",
       type: "claim_coverage",
       status: "unknown",
       severity: "required",
-      message: "Critical claim is missing supporting evidence in this investigation.",
-      actual: [...unsupportedResolved, ...missingEvidence].map((claim) => claim.id),
+      message: "Critical claim is missing supporting ClaimEvidence in this investigation.",
+      actual: unsupported.map((claim) => claim.id),
     });
   }
 
   return check({
     id: "claims-supported",
-    name: "claims supported",
+    name: "claim support",
     type: "claim_coverage",
     status: "pass",
     severity: "required",
-    message: "Critical claims have existing evidence with polarity/role consistent with observations.",
-    evidenceIds: uniqueIds(links.map((link) => link.evidenceId)),
+    message: "Critical claims have explicit ClaimEvidence support without contradiction.",
+    evidenceIds: uniqueIds(claimEvidence.map((link) => link.evidenceId)),
   });
 }
 
@@ -543,21 +468,11 @@ function checkEvidenceRequirements(
   requirements: EvidenceRequirement[],
   evidence: Evidence[],
 ): VerificationCheck {
-  const missingRequired = requirements.filter((item) => {
-    if (item.severity === "optional") {
-      return false;
-    }
-    if (item.satisfiedBy && item.satisfiedBy.length > 0) {
-      const have = new Set(evidence.map((entry) => entry.id));
-      return !item.satisfiedBy.some((id) => have.has(id));
-    }
-    if (item.kind === "commit" || item.kind === "file" || item.kind === "code") {
-      return hasCodeChangeEvidence(evidence).length === 0;
-    }
-    return !evidence.some((entry) => entry.kind === item.kind);
-  });
+  const missingRequired = requirements.filter(
+    (item) => !isOptionalRequirement(item) && !requirementSatisfied(item, evidence),
+  );
   const optionalMissing = requirements.filter(
-    (item) => item.severity === "optional" && !evidence.some((entry) => entry.kind === item.kind),
+    (item) => isOptionalRequirement(item) && !requirementSatisfied(item, evidence),
   );
 
   if (missingRequired.length > 0) {
@@ -589,25 +504,26 @@ function checkEvidenceRequirements(
 export class IndependentCompletionVerifier {
   verify(input: IndependentVerifyInput, trace?: TraceCollector): VerificationResult {
     const { task, run } = input;
+    const graph = graphFromRun(run);
     const step = Math.max(0, ...run.attempts.map((item) => item.attempt), 0);
 
     trace?.record(run.id, step, "verification_started", {
       taskId: task.id,
       target: task.target,
       evidenceCount: run.evidence.length,
+      relationCount: run.relations.length,
       claimCount: run.claims.length,
       agentFinalAnswerIgnored: true,
       agentConclusionIgnored: true,
     });
 
-    const candidates = resolutionCandidates(task, run);
     const checks: VerificationCheck[] = [
-      checkIssueIdentity(task, run.evidence),
-      checkIssueState(task, run.evidence),
-      checkResolutionCandidate(task, run),
-      checkPullRequestMerged(task, run),
-      checkCodeOrCommit(task.requirements, run.evidence),
-      checkClaims(run, candidates),
+      checkIssueIdentity(task, graph),
+      checkIssueClosed(task, graph),
+      checkResolutionCandidate(task, graph),
+      checkResolutionMerged(task, graph),
+      checkResolutionCodeEvidence(task.requirements, graph, task),
+      checkClaimSupport(graph),
       checkEvidenceRequirements(task.requirements, run.evidence),
     ];
 

@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import {
-  bindClaimEvidence,
   createClaim,
+  createClaimEvidenceBinding,
   createEvidence,
-  createRelation,
+  createEvidenceRelation,
+  EvidenceGraphError,
   type ClaimEvidenceRole,
   type ClaimPolarity,
   type EvidenceKind,
+  type EvidenceRelationType,
 } from "../domain/index.js";
 import type { GitHubDataProvider } from "../github/provider.js";
 import type { Tool } from "../tools/tool.js";
@@ -51,6 +53,68 @@ function mentionPullNumbers(text: string, issueNumber: number): number[] {
     }
   }
   return [...found];
+}
+
+function evidenceIdByRef(session: InvestigationSession, ref: string): string | undefined {
+  return session.state.run.evidence.find((item) => item.contentRef === ref)?.id;
+}
+
+function relate(
+  session: InvestigationSession,
+  fromId: string | undefined,
+  toId: string | undefined,
+  type: EvidenceRelationType,
+): void {
+  if (!fromId || !toId || fromId === toId) {
+    return;
+  }
+  try {
+    const relation = createEvidenceRelation(
+      { fromEvidenceId: fromId, toEvidenceId: toId, type },
+      {
+        evidence: session.state.run.evidence,
+        relations: session.state.run.relations,
+      },
+    );
+    session.state.addRelation(relation);
+  } catch (error) {
+    if (error instanceof EvidenceGraphError) {
+      return;
+    }
+    throw error;
+  }
+}
+
+function issueEvidenceId(session: InvestigationSession): string | undefined {
+  return evidenceIdByRef(session, resourceKey("issue", String(session.state.task.target.issueNumber)));
+}
+
+function pullEvidenceId(session: InvestigationSession, pullNumber: number): string | undefined {
+  return evidenceIdByRef(session, resourceKey("pr", String(pullNumber)));
+}
+
+function linkIssueGraph(session: InvestigationSession, issueId: string): void {
+  const issueNumber = session.state.task.target.issueNumber;
+  relate(session, evidenceIdByRef(session, resourceKey("comments", String(issueNumber))), issueId, "mentions");
+  relate(session, evidenceIdByRef(session, resourceKey("timeline", String(issueNumber))), issueId, "references");
+  for (const pullNumber of session.state.candidatePrs) {
+    const prId = pullEvidenceId(session, pullNumber);
+    const merged = session.state.mergedPrs.has(pullNumber);
+    relate(session, prId, issueId, merged ? "fixes" : "references");
+  }
+}
+
+function linkPullGraph(session: InvestigationSession, pullNumber: number, prId: string, merged: boolean): void {
+  const issueId = issueEvidenceId(session);
+  relate(session, prId, issueId, merged ? "fixes" : "references");
+  const mergeId = evidenceIdByRef(session, resourceKey("pr-merge", String(pullNumber)));
+  if (merged) {
+    relate(session, mergeId, prId, "merges");
+  }
+  const issueNumber = session.state.task.target.issueNumber;
+  relate(session, evidenceIdByRef(session, resourceKey("timeline", String(issueNumber))), prId, "mentions");
+  relate(session, evidenceIdByRef(session, resourceKey("comments", String(issueNumber))), prId, "mentions");
+  relate(session, evidenceIdByRef(session, resourceKey("reviews", String(pullNumber))), prId, "reviews");
 }
 
 function addEvidenceOnce(
@@ -109,6 +173,7 @@ function ingestIssue(session: InvestigationSession, output: unknown): string[] {
   });
   if (issueId) {
     ids.push(issueId);
+    linkIssueGraph(session, issueId);
   }
   return ids;
 }
@@ -137,6 +202,11 @@ function ingestComments(session: InvestigationSession, output: unknown): string[
   });
   if (commentId) {
     ids.push(commentId);
+    const issueId = issueEvidenceId(session);
+    relate(session, commentId, issueId, "mentions");
+    for (const pullNumber of session.state.candidatePrs) {
+      relate(session, commentId, pullEvidenceId(session, pullNumber), "mentions");
+    }
   }
   for (const comment of comments) {
     if (!isRecord(comment)) {
@@ -144,6 +214,7 @@ function ingestComments(session: InvestigationSession, output: unknown): string[
     }
     for (const pullNumber of mentionPullNumbers(String(comment.body ?? ""), issueNumber)) {
       session.state.addCandidatePr(pullNumber);
+      relate(session, commentId, pullEvidenceId(session, pullNumber), "mentions");
     }
   }
   return ids;
@@ -175,6 +246,7 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
   });
   if (timelineId) {
     ids.push(timelineId);
+    relate(session, timelineId, issueEvidenceId(session), "references");
   }
   for (const event of events) {
     if (!isRecord(event)) {
@@ -183,6 +255,7 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
     const pullNumber = Number(event.pullRequestNumber);
     if (Number.isInteger(pullNumber) && pullNumber > 0) {
       session.state.addCandidatePr(pullNumber);
+      relate(session, timelineId, pullEvidenceId(session, pullNumber), "mentions");
     }
   }
   return ids;
@@ -243,15 +316,8 @@ function ingestPullRequest(session: InvestigationSession, output: unknown): stri
   if (mergeId) {
     ids.push(mergeId);
   }
-  const issue = session.state.evidenceByKind("issue")[0];
-  if (prId && issue) {
-    session.state.addRelation(
-      createRelation({
-        fromEvidenceId: prId,
-        toEvidenceId: issue.id,
-        type: merged ? "fixes" : "references",
-      }),
-    );
+  if (prId) {
+    linkPullGraph(session, number, prId, merged);
   }
   return ids;
 }
@@ -276,7 +342,11 @@ function ingestReviews(session: InvestigationSession, output: unknown, pullNumbe
       trust: "external_untrusted",
     },
   });
-  return id ? [id] : [];
+  if (id) {
+    relate(session, id, pullEvidenceId(session, pullNumber), "reviews");
+    return [id];
+  }
+  return [];
 }
 
 function ingestFiles(session: InvestigationSession, output: unknown, pullNumber: number): string[] {
@@ -306,6 +376,7 @@ function ingestFiles(session: InvestigationSession, output: unknown, pullNumber:
     });
     if (id) {
       ids.push(id);
+      relate(session, id, pullEvidenceId(session, pullNumber), "derived_from");
     }
   }
   session.state.filesByPr.set(pullNumber, names);
@@ -339,6 +410,20 @@ function ingestCommits(session: InvestigationSession, output: unknown, pullNumbe
     });
     if (id) {
       ids.push(id);
+      if (pullNumber && pullNumber > 0) {
+        const prId = pullEvidenceId(session, pullNumber);
+        relate(session, id, prId, "derived_from");
+        const merge = session.state.run.evidence.find(
+          (item) => item.contentRef === resourceKey("pr-merge", String(pullNumber)),
+        );
+        const mergeSha =
+          merge && isRecord(merge.payload) && typeof merge.payload.mergeCommitSha === "string"
+            ? merge.payload.mergeCommitSha
+            : undefined;
+        if (mergeSha && sha && mergeSha === sha) {
+          relate(session, id, prId, "merges");
+        }
+      }
     }
   }
   return ids;
@@ -517,7 +602,16 @@ export function createRecordClaimTool(session: InvestigationSession): Tool {
         session.state.addClaim(claim);
         const role = parseRole(item.role);
         for (const evidenceId of evidenceIds) {
-          session.state.bind(bindClaimEvidence({ claimId: claim.id, evidenceId, role }));
+          session.state.bind(
+            createClaimEvidenceBinding(
+              { claimId: claim.id, evidenceId, role },
+              {
+                claims: session.state.run.claims,
+                evidence: session.state.run.evidence,
+                claimEvidence: session.state.run.claimEvidence,
+              },
+            ),
+          );
         }
         session.trace.record(session.runId, session.state.currentStep, "claim_created", {
           claimId: claim.id,

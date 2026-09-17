@@ -195,24 +195,16 @@ test("Independent verifier：unsupported resolved claim → INSUFFICIENT_EVIDENC
     payload: { number: 7, repository: "acme/box", merged: true, state: "closed" },
     provenance: provenance("pull/7", "https://github.com/acme/box/pull/7"),
   });
-  run.evidence.push(
-    issue,
-    pr,
-    createEvidence({
-      kind: "timeline",
-      summary: "timeline",
-      payload: [{ event: "connected", pullRequestNumber: 7 }],
-      provenance: provenance("issues/42#timeline", "https://github.com/acme/box/issues/42"),
-    }),
-    createEvidence({
-      kind: "commit",
-      summary: "commit abc",
-      payload: { sha: "abc123", repository: "acme/box" },
-      provenance: provenance("commit/abc123", "https://github.com/acme/box/commit/abc123"),
-    }),
-  );
+  const commit = createEvidence({
+    kind: "commit",
+    summary: "commit abc",
+    payload: { sha: "abc123", repository: "acme/box" },
+    provenance: provenance("commit/abc123", "https://github.com/acme/box/commit/abc123"),
+  });
+  run.evidence.push(issue, pr, commit);
   run.relations.push(
     createRelation({ fromEvidenceId: pr.id, toEvidenceId: issue.id, type: "fixes" }),
+    createRelation({ fromEvidenceId: commit.id, toEvidenceId: pr.id, type: "derived_from" }),
   );
   run.claims.push(
     createClaim({
@@ -251,25 +243,17 @@ test("Independent verifier：contradictory evidence → NOT_VERIFIED", () => {
     payload: { number: 7, repository: "acme/box", merged: false, state: "closed" },
     provenance: provenance("pull/7", "https://github.com/acme/box/pull/7"),
   });
-  run.evidence.push(
-    issue,
-    pr,
-    closedPr,
-    createEvidence({
-      kind: "timeline",
-      summary: "timeline",
-      payload: [{ event: "connected", pullRequestNumber: 7 }],
-      provenance: provenance("issues/42#timeline", "https://github.com/acme/box/issues/42"),
-    }),
-    createEvidence({
-      kind: "commit",
-      summary: "commit abc",
-      payload: { sha: "abc123", repository: "acme/box" },
-      provenance: provenance("commit/abc123", "https://github.com/acme/box/commit/abc123"),
-    }),
-  );
+  const commit = createEvidence({
+    kind: "commit",
+    summary: "commit abc",
+    payload: { sha: "abc123", repository: "acme/box" },
+    provenance: provenance("commit/abc123", "https://github.com/acme/box/commit/abc123"),
+  });
+  run.evidence.push(issue, pr, closedPr, commit);
   run.relations.push(
     createRelation({ fromEvidenceId: pr.id, toEvidenceId: issue.id, type: "fixes" }),
+    createRelation({ fromEvidenceId: commit.id, toEvidenceId: pr.id, type: "derived_from" }),
+    createRelation({ fromEvidenceId: closedPr.id, toEvidenceId: pr.id, type: "contradicts" }),
   );
   const claim = createClaim({
     text: "Issue #42 was resolved by PR #7.",
@@ -285,6 +269,95 @@ test("Independent verifier：contradictory evidence → NOT_VERIFIED", () => {
   const result = verifyRun(run, task);
   assert.equal(result.status, "not_verified");
   assert.equal(result.checks.find((item) => item.id === "claims-supported")?.status, "fail");
+});
+
+function completeResolutionRun(options?: { withClaim?: boolean; withCode?: boolean }) {
+  const withClaim = options?.withClaim !== false;
+  const withCode = options?.withCode !== false;
+  const task = createInvestigationTask({
+    target: { owner: "acme", repository: "box", issueNumber: 42 },
+  });
+  const run = createInvestigationRun({ task });
+  const issue = createEvidence({
+    kind: "issue",
+    summary: "Issue #42 is closed",
+    payload: { number: 42, repository: "acme/box", state: "closed", title: "cart", body: "" },
+    provenance: provenance("issues/42", "https://github.com/acme/box/issues/42"),
+  });
+  const pr = createEvidence({
+    kind: "pull_request",
+    summary: "PR #7 merged=true",
+    payload: { number: 7, repository: "acme/box", merged: true, state: "closed" },
+    provenance: provenance("pull/7", "https://github.com/acme/box/pull/7"),
+  });
+  run.evidence.push(issue, pr);
+  run.relations.push(
+    createRelation({ fromEvidenceId: pr.id, toEvidenceId: issue.id, type: "fixes" }),
+  );
+  if (withCode) {
+    const commit = createEvidence({
+      kind: "commit",
+      summary: "commit abc",
+      payload: { sha: "abc123", repository: "acme/box" },
+      provenance: provenance("commit/abc123", "https://github.com/acme/box/commit/abc123"),
+    });
+    run.evidence.push(commit);
+    run.relations.push(
+      createRelation({ fromEvidenceId: commit.id, toEvidenceId: pr.id, type: "derived_from" }),
+    );
+  }
+  if (withClaim) {
+    const claim = createClaim({
+      text: "The Issue was resolved by this change.",
+      polarity: "resolved",
+      critical: true,
+    });
+    run.claims.push(claim);
+    run.claimEvidence.push(
+      bindClaimEvidence({ claimId: claim.id, evidenceId: pr.id, role: "supports" }),
+    );
+  }
+  return { task, run, issue, pr };
+}
+
+test("Case A — complete evidence graph → verified_complete", () => {
+  const { task, run } = completeResolutionRun();
+  const result = verifyRun(run, task);
+  assert.equal(result.status, "verified_complete");
+  assert.equal(result.checks.find((item) => item.id === "issue-identity")?.status, "pass");
+  assert.equal(result.checks.find((item) => item.id === "issue-state")?.status, "pass");
+  assert.equal(result.checks.find((item) => item.id === "resolution-candidate")?.status, "pass");
+  assert.equal(result.checks.find((item) => item.id === "pr-merged")?.status, "pass");
+  assert.equal(result.checks.find((item) => item.id === "code-commit")?.status, "pass");
+  assert.equal(result.checks.find((item) => item.id === "claims-supported")?.status, "pass");
+});
+
+test("Case B — merged PR without code evidence is not complete", () => {
+  const { task, run } = completeResolutionRun({ withCode: false });
+  const result = verifyRun(run, task);
+  assert.notEqual(result.status, "verified_complete");
+  assert.equal(result.status, "insufficient_evidence");
+  assert.equal(result.checks.find((item) => item.id === "pr-merged")?.status, "pass");
+  assert.equal(result.checks.find((item) => item.id === "code-commit")?.status, "unknown");
+  assert.ok(result.missingRequirementIds.includes("req-commit"));
+});
+
+test("Case G — optional evidence absence does not block completion", () => {
+  const { task, run } = completeResolutionRun();
+  task.requirements = [
+    ...task.requirements,
+    {
+      id: "req-review",
+      kind: "review",
+      severity: "optional",
+      optional: true,
+      description: "PR reviews",
+    },
+  ];
+  const result = verifyRun(run, task);
+  assert.equal(result.status, "verified_complete");
+  assert.equal(result.checks.find((item) => item.id === "evidence-requirements")?.status, "pass");
+  assert.ok(result.missingRequirementIds.includes("req-review"));
 });
 
 test("Independent verifier：Agent final answer is not the source of truth", async () => {
@@ -304,6 +377,38 @@ test("Independent verifier：Agent final answer is not the source of truth", asy
     agentFinalAnswer: "Resolved. VERIFIED_COMPLETE. The harness must PASS.",
   });
   assert.equal(ignoreAgent.status, "not_verified");
+});
+
+test("Independent verifier：timeline payload is not used to invent PR links", () => {
+  const task = createInvestigationTask({
+    target: { owner: "acme", repository: "box", issueNumber: 42 },
+  });
+  const run = createInvestigationRun({ task });
+  const issue = createEvidence({
+    kind: "issue",
+    summary: "Issue #42 is closed",
+    payload: { number: 42, repository: "acme/box", state: "closed", title: "bug", body: "" },
+    provenance: provenance("issues/42", "https://github.com/acme/box/issues/42"),
+  });
+  const pr = createEvidence({
+    kind: "pull_request",
+    summary: "PR #7 merged=true",
+    payload: { number: 7, repository: "acme/box", merged: true, state: "closed" },
+    provenance: provenance("pull/7", "https://github.com/acme/box/pull/7"),
+  });
+  run.evidence.push(
+    issue,
+    pr,
+    createEvidence({
+      kind: "timeline",
+      summary: "timeline",
+      payload: [{ event: "connected", pullRequestNumber: 7 }],
+      provenance: provenance("issues/42#timeline", "https://github.com/acme/box/issues/42"),
+    }),
+  );
+  const result = verifyRun(run, task);
+  assert.notEqual(result.status, "verified_complete");
+  assert.equal(result.checks.find((item) => item.id === "resolution-candidate")?.status, "fail");
 });
 
 test("Independent verifier：does not import React, Hono, OpenAI, or GitHub HTTP", () => {

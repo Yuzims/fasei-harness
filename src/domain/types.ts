@@ -29,17 +29,34 @@ export type EvidenceKind =
   | "other";
 
 export type EvidenceRelationType =
+  | "supports"
+  | "contradicts"
+  | "derived_from"
   | "references"
   | "fixes"
   | "merges"
   | "reviews"
   | "parents"
-  | "mentions"
-  | "contradicts";
+  | "mentions";
 
 export type ClaimPolarity = "resolved" | "unresolved" | "partial" | "unknown";
 
 export type ClaimEvidenceRole = "supports" | "contradicts" | "contextual";
+
+export type ClaimSupportStatus = "supported" | "unsupported" | "contradicted";
+
+/**
+ * How an EvidenceRequirement is judged against the investigation graph.
+ * Not a generic rules engine — the GitHub issue-resolution chain.
+ */
+export type EvidenceRequirementCondition =
+  | "has_kind"
+  | "issue_identity"
+  | "issue_closed"
+  | "resolution_candidate"
+  | "resolution_merged"
+  | "resolution_code_evidence"
+  | "claim_support";
 
 /** 外部抓取一律 untrusted；Harness 自己算出来的汇总可以标 derived。 */
 export type EvidenceTrust = "external_untrusted" | "harness_derived";
@@ -91,7 +108,17 @@ export interface EvidenceRequirement {
   kind: EvidenceKind;
   severity: RequirementSeverity;
   description: string;
+  /** When set, these evidence IDs satisfy the requirement regardless of kind. */
   satisfiedBy?: string[];
+  /**
+   * Explicit optional flag. If omitted, `severity === "optional"` is treated as optional.
+   * Optional gaps do not block completion; required/critical gaps do.
+   */
+  optional?: boolean;
+  /** Alternate kinds that can satisfy this requirement (e.g. commit | file | code). */
+  acceptedKinds?: EvidenceKind[];
+  /** What the verifier must establish. Default: presence of an accepted kind. */
+  condition?: EvidenceRequirementCondition;
 }
 
 export interface InvestigationTask {

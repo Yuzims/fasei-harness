@@ -3474,16 +3474,7 @@ Recovery Planner
 
 ## Phase 6 — Evidence Graph
 
-把：
-
-```text
-Issue
-PR
-Commit
-Code
-```
-
-连接起来。
+**DONE.** Evidence Graph is a first-class domain model (`EvidenceRelation`, `ClaimEvidence`, `EvidenceRequirement`). Investigation ingest writes justified edges from observed GitHub data. `IndependentCompletionVerifier` verifies the graph, not reconstructed payload relationships. Details: `docs/design.md` / `docs/implementation-status.md`.
 
 ---
 

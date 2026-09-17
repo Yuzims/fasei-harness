@@ -86,10 +86,28 @@ export class InvestigationState {
   }
 
   bind(link: ClaimEvidence): void {
+    const exists = this.run.claimEvidence.some(
+      (item) =>
+        item.claimId === link.claimId &&
+        item.evidenceId === link.evidenceId &&
+        item.role === link.role,
+    );
+    if (exists) {
+      return;
+    }
     this.run.claimEvidence.push(link);
   }
 
   addRelation(relation: EvidenceRelation): void {
+    const exists = this.run.relations.some(
+      (item) =>
+        item.fromEvidenceId === relation.fromEvidenceId &&
+        item.toEvidenceId === relation.toEvidenceId &&
+        item.type === relation.type,
+    );
+    if (exists) {
+      return;
+    }
     this.run.relations.push(relation);
   }
 
@@ -115,6 +133,11 @@ export class InvestigationState {
         id: item.id,
         text: item.text,
         polarity: item.polarity,
+      })),
+      relations: this.run.relations.map((item) => ({
+        from: item.fromEvidenceId,
+        to: item.toEvidenceId,
+        type: item.type,
       })),
       candidatePrs: [...this.candidatePrs],
       mergedPrs: [...this.mergedPrs],

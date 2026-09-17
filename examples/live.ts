@@ -1,6 +1,6 @@
 import {
   AgentLoop,
-  CompletionVerifier,
+  WorkspaceCompletionVerifier,
   Harness,
   ToolRegistry,
   TraceCollector,
@@ -19,7 +19,7 @@ tools.register(calculatorTool);
 const model = createModel({ tools: tools.list() });
 const trace = new TraceCollector();
 const loop = new AgentLoop(model, tools, trace);
-const harness = new Harness(loop, trace, workspace, new CompletionVerifier());
+const harness = new Harness(loop, trace, workspace, new WorkspaceCompletionVerifier());
 
 const task: Task = {
   id: "live-calc",

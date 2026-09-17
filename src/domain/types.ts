@@ -58,7 +58,7 @@ export type CheckType =
   | "claim_coverage"
   | "other";
 
-export type InvestigationFailureType =
+export type FailureType =
   | "tool_failure"
   | "retrieval_failure"
   | "premature_completion"
@@ -68,7 +68,7 @@ export type InvestigationFailureType =
   | "wrong_target"
   | "unknown";
 
-export type InvestigationRecoveryAction =
+export type RecoveryAction =
   | "retry_with_backoff"
   | "refine_query"
   | "change_retrieval_strategy"
@@ -167,7 +167,7 @@ export interface VerificationResult {
 }
 
 export interface FailureEvent {
-  type: InvestigationFailureType;
+  type: FailureType;
   reason: string;
   evidenceIds: string[];
   missingRequirementIds?: string[];
@@ -181,7 +181,7 @@ export interface FailureEvent {
 }
 
 export interface RecoveryPlan {
-  action: InvestigationRecoveryAction;
+  action: RecoveryAction;
   reason: string;
   resetEvidence?: boolean;
   nextRequirementIds?: string[];

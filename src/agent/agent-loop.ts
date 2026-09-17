@@ -1,8 +1,10 @@
 import type { AgentResult, Task, ToolCall, ToolResult } from "../core/types.js";
-import { MAX_STEPS_REACHED } from "../failure/failure-types.js";
 import type { HistoryMessage, Model, ModelContext } from "./model.js";
 import { ToolRegistry } from "../tools/tool-registry.js";
 import { TraceCollector } from "../trace/trace-collector.js";
+
+/** AgentLoop emits this output when the step budget is exhausted. */
+export const MAX_STEPS_REACHED = "Maximum step limit reached.";
 
 export class AgentLoop {
   constructor(

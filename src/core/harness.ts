@@ -1,17 +1,24 @@
+/**
+ * Workspace synthetic Harness (legacy failure injection).
+ *
+ * Legacy Failure Injection ≠ Investigation Recovery
+ *
+ * Product path: src/investigation/investigation-agent.ts
+ */
 import { randomUUID } from "node:crypto";
 import type { Task, AgentResult } from "./types.js";
 import { AgentLoop } from "../agent/agent-loop.js";
 import { TraceCollector, type TraceEvent } from "../trace/trace-collector.js";
 import type { Workspace } from "./workspace.js";
-import { CompletionVerifier } from "../verification/completion-verifier.js";
+import { WorkspaceCompletionVerifier } from "../verification/completion-verifier.js";
 import type { VerificationResult } from "../verification/types.js";
-import { FailureAnalyzer } from "../failure/failure-analyzer.js";
-import type { Failure } from "../failure/failure-types.js";
+import { FailureAnalyzer } from "../legacy/failure/failure-analyzer.js";
+import type { Failure } from "../legacy/failure/failure-types.js";
 import {
   RecoveryPlanner,
   type Planner,
   type RecoveryPlan,
-} from "../recovery/recovery-planner.js";
+} from "../legacy/recovery/recovery-planner.js";
 
 export interface HarnessOptions {
   maxAttempts?: number;
@@ -52,7 +59,7 @@ export class Harness {
     private readonly loop: AgentLoop,
     private readonly trace: TraceCollector,
     private readonly workspace: Workspace,
-    private readonly verifier = new CompletionVerifier(),
+    private readonly verifier = new WorkspaceCompletionVerifier(),
     options: HarnessOptions = {},
   ) {
     this.maxAttempts = options.maxAttempts ?? 3;

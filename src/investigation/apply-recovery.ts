@@ -1,6 +1,8 @@
 /**
- * Executes a RecoveryPlan against investigation state.
+ * Product applyRecovery. Executes a RecoveryPlan against investigation state.
  * Planner never calls this. The investigation loop does.
+ *
+ * This is the Investigation Recovery path, not workspace Harness.applyRecovery.
  */
 import type { FailureEvent, RecoveryPlan } from "../domain/index.js";
 import type { RetrievalStrategy } from "./state.js";

@@ -4,9 +4,9 @@ import { describeLlm, readLlmConfig } from "../agent/llm-config.js";
 import { WorkspaceAgentModel } from "../agent/workspace-agent.js";
 import { AGENT_EXAMPLES, inferTask } from "../agent/task-intent.js";
 import type { AgentSessionDTO, AgentStreamEvent } from "../api/dto.js";
-import { CompletionVerifier } from "../verification/completion-verifier.js";
+import { WorkspaceCompletionVerifier } from "../verification/completion-verifier.js";
 import { Harness } from "../core/harness.js";
-import { RecoveryPlanner } from "../recovery/recovery-planner.js";
+import { RecoveryPlanner } from "../legacy/recovery/recovery-planner.js";
 import { ToolRegistry } from "../tools/tool-registry.js";
 import { TraceCollector } from "../trace/trace-collector.js";
 import { Workspace } from "../core/workspace.js";
@@ -112,7 +112,7 @@ export async function runAgentSession(input: {
   emit({ type: "log", message: `开始任务 · ${created.modelId}` });
 
   const loop = new AgentLoop(created.model, tools, trace);
-  const harness = new Harness(loop, trace, workspace, new CompletionVerifier(), {
+  const harness = new Harness(loop, trace, workspace, new WorkspaceCompletionVerifier(), {
     maxAttempts: failureAware ? 3 : 1,
     planner: new RecoveryPlanner(),
     onDelta: (text) => emit({ type: "delta", text }),

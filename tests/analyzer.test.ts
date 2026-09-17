@@ -1,7 +1,11 @@
+/**
+ * Legacy workspace FailureAnalyzer tests.
+ * Product analyzer tests: tests/investigation-recovery.test.ts
+ */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FailureAnalyzer } from "../src/failure/failure-analyzer.js";
-import { MAX_STEPS_REACHED } from "../src/failure/failure-types.js";
+import { FailureAnalyzer } from "../src/legacy/failure/failure-analyzer.js";
+import { MAX_STEPS_REACHED } from "../src/agent/agent-loop.js";
 import type { TraceEvent } from "../src/trace/trace-collector.js";
 import type { AgentResult } from "../src/core/types.js";
 import type { VerificationResult } from "../src/verification/types.js";

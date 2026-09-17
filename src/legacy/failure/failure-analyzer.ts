@@ -1,7 +1,15 @@
-import type { AgentResult } from "../core/types.js";
-import { MAX_STEPS_REACHED, type Failure } from "./failure-types.js";
-import type { TraceEvent } from "../trace/trace-collector.js";
-import type { VerificationResult } from "../verification/types.js";
+/**
+ * Legacy workspace FailureAnalyzer.
+ *
+ * Legacy Failure Injection ≠ Investigation Recovery
+ *
+ * Product analyzer: src/investigation/failure-analyzer.ts
+ */
+import { MAX_STEPS_REACHED } from "../../agent/agent-loop.js";
+import type { AgentResult } from "../../core/types.js";
+import type { Failure } from "./failure-types.js";
+import type { TraceEvent } from "../../trace/trace-collector.js";
+import type { VerificationResult } from "../../verification/types.js";
 
 export class FailureAnalyzer {
   analyze(

@@ -1,8 +1,12 @@
+/**
+ * Legacy workspace recovery injection tests.
+ * Product recovery tests: tests/investigation-recovery.test.ts
+ */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { RecoveryPlanner } from "../src/recovery/recovery-planner.js";
+import { RecoveryPlanner } from "../src/legacy/recovery/recovery-planner.js";
 import { GenericRetryPlanner } from "../src/eval/generic-retry-planner.js";
-import type { Failure, FailureType } from "../src/failure/failure-types.js";
+import type { Failure, FailureType } from "../src/legacy/failure/failure-types.js";
 
 function failure(type: FailureType): Failure {
   return { type, rootCause: type, evidence: [] };

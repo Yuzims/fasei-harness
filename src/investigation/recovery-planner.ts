@@ -1,11 +1,14 @@
 /**
- * Decision layer only. Does not call GitHub, LLM, or mutate Evidence.
+ * Product RecoveryPlanner. Decision layer only.
+ * Does not call GitHub, LLM, or mutate Evidence.
  * Harness / investigation loop executes the returned RecoveryPlan.
+ *
+ * This is the Investigation Recovery path, not src/legacy/recovery.
  */
 import {
   isRetryableToolCode,
   type FailureEvent,
-  type InvestigationFailureType,
+  type FailureType,
   type RecoveryPlan,
 } from "../domain/index.js";
 import type { AnalysisContext } from "./analysis-context.js";
@@ -180,7 +183,7 @@ function planUnknown(): RecoveryPlan {
 }
 
 const STRATEGIES: Record<
-  InvestigationFailureType,
+  FailureType,
   (failure: FailureEvent, ctx: RecoveryContext) => RecoveryPlan
 > = {
   tool_failure: planToolFailure,

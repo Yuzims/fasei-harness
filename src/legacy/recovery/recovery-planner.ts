@@ -1,3 +1,10 @@
+/**
+ * Legacy workspace RecoveryPlanner.
+ *
+ * Legacy Failure Injection ≠ Investigation Recovery
+ *
+ * Product planner: src/investigation/recovery-planner.ts
+ */
 import type { Failure } from "../failure/failure-types.js";
 
 export type RecoveryAction =

@@ -1,7 +1,7 @@
 import { AgentLoop } from "../agent/agent-loop.js";
-import { CompletionVerifier } from "../verification/completion-verifier.js";
+import { WorkspaceCompletionVerifier } from "../verification/completion-verifier.js";
 import { Harness, type HarnessRun } from "../core/harness.js";
-import { RecoveryPlanner } from "../recovery/recovery-planner.js";
+import { RecoveryPlanner } from "../legacy/recovery/recovery-planner.js";
 import { ToolRegistry } from "../tools/tool-registry.js";
 import { TraceCollector } from "../trace/trace-collector.js";
 import { Workspace } from "../core/workspace.js";
@@ -70,7 +70,7 @@ export async function executeCase(
   const planner =
     mode === "generic_retry" ? new GenericRetryPlanner() : new RecoveryPlanner();
 
-  const harness = new Harness(loop, trace, workspace, new CompletionVerifier(), {
+  const harness = new Harness(loop, trace, workspace, new WorkspaceCompletionVerifier(), {
     maxAttempts,
     planner,
   });

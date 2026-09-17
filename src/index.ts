@@ -1,6 +1,7 @@
 export * as investigation from "./domain/index.js";
 export * as investigationAgent from "./investigation/index.js";
 export * as github from "./github/index.js";
+export * as legacy from "./legacy/index.js";
 export * from "./core/types.js";
 export * from "./core/workspace.js";
 export * from "./core/harness.js";
@@ -31,18 +32,33 @@ export * from "./eval/cases.js";
 export * from "./eval/benchmark.js";
 export * from "./trace/trace-collector.js";
 export * from "./verification/types.js";
-export * from "./verification/completion-verifier.js";
+export { WorkspaceCompletionVerifier } from "./verification/completion-verifier.js";
 export {
   IndependentCompletionVerifier,
   verifyInvestigationCompletion,
 } from "./verification/independent-completion-verifier.js";
 export type { IndependentVerifyInput } from "./verification/independent-completion-verifier.js";
-export * from "./failure/failure-types.js";
-export * from "./failure/failure-analyzer.js";
-export * from "./recovery/recovery-planner.js";
+export type {
+  FailureEvent,
+  FailureType,
+  RecoveryAction,
+  RecoveryPlan,
+} from "./domain/index.js";
+export { FailureAnalyzer } from "./investigation/failure-analyzer.js";
+export { RecoveryPlanner } from "./investigation/recovery-planner.js";
+export { applyRecoveryPlan } from "./investigation/apply-recovery.js";
 export {
-  FailureAnalyzer as InvestigationFailureAnalyzer,
-} from "./investigation/failure-analyzer.js";
+  FailureAnalyzer as WorkspaceFailureAnalyzer,
+} from "./legacy/failure/failure-analyzer.js";
+export type {
+  Failure as WorkspaceFailure,
+  FailureType as WorkspaceFailureType,
+} from "./legacy/failure/failure-types.js";
 export {
-  RecoveryPlanner as InvestigationRecoveryPlanner,
-} from "./investigation/recovery-planner.js";
+  RecoveryPlanner as WorkspaceRecoveryPlanner,
+} from "./legacy/recovery/recovery-planner.js";
+export type {
+  Planner as WorkspacePlanner,
+  RecoveryAction as WorkspaceRecoveryAction,
+  RecoveryPlan as WorkspaceRecoveryPlan,
+} from "./legacy/recovery/recovery-planner.js";

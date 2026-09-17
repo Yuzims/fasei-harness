@@ -66,7 +66,7 @@ GitHub issue/comment bodies remain `external_untrusted`. Prompt injection in fix
 
 Trace events: `verification_started`, `verification_check`, `verification_completed`.
 
-Existing workspace `CompletionVerifier` (file/count/citation for synthetic demos) is unchanged.
+Existing workspace `WorkspaceCompletionVerifier` (file/count/citation for synthetic demos) is legacy. Product path uses `IndependentCompletionVerifier`.
 
 ## Phase 5 — Failure Analyzer + Failure-Specific Recovery Planner — DONE
 
@@ -98,7 +98,9 @@ Agent continues / stops
 Verifier runs again
 ```
 
-`FailureAnalyzer` and `RecoveryPlanner` in `src/investigation/` use the Phase 1 domain types (`InvestigationFailureType`, `FailureEvent`, `RecoveryPlan`). They do not call GitHub or the LLM. Workspace demo `src/failure/` + `src/recovery/` remain for synthetic harness tests.
+`FailureAnalyzer` and `RecoveryPlanner` in `src/investigation/` use the Phase 1 domain types (`FailureType`, `FailureEvent`, `RecoveryPlan`). They do not call GitHub or the LLM.
+
+Workspace injection (`src/legacy/failure` + `src/legacy/recovery`) still serves the synthetic Harness / benchmark. That path is **Legacy Failure Injection**, not Investigation Recovery. See [`architecture-cleanup.md`](architecture-cleanup.md).
 
 Classification uses structured tool metadata, investigation state, fingerprints, and `VerificationResult` — not `error.message.includes(...)`.
 
@@ -118,6 +120,10 @@ Bounds: `RECOVERY_BOUNDS.maxInvestigationAttempts` / `maxRecoveryAttempts` / `ma
 Trace events: `failure_detected`, `failure_analyzed`, `recovery_planned`, `recovery_started`, `recovery_completed`.
 
 Recovery never writes `verified_complete`. After recovery the verifier runs on the new evidence.
+
+## Phase 5 cleanup — Unify Failure / Recovery — DONE
+
+Public `FailureAnalyzer` / `RecoveryPlanner` / `FailureType` / `RecoveryPlan` names now mean the Investigation path. Workspace injection lives under `src/legacy/`. Details: [`architecture-cleanup.md`](architecture-cleanup.md).
 
 ## Not started
 

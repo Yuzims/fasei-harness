@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentLoop } from "../src/agent/agent-loop.js";
 import { PrematureCompletionModel } from "../src/agent/premature-model.js";
-import { CompletionVerifier } from "../src/verification/completion-verifier.js";
+import { WorkspaceCompletionVerifier } from "../src/verification/completion-verifier.js";
 import { Harness } from "../src/core/harness.js";
 import { GenericRetryPlanner } from "../src/eval/generic-retry-planner.js";
-import { RecoveryPlanner } from "../src/recovery/recovery-planner.js";
+import { RecoveryPlanner } from "../src/legacy/recovery/recovery-planner.js";
 import { ToolRegistry } from "../src/tools/tool-registry.js";
 import { createWriteJsonTool } from "../src/tools/write-json.js";
 import { TraceCollector } from "../src/trace/trace-collector.js";
@@ -36,7 +36,7 @@ test("Harness：对症恢复保留已写的 3 条，下一轮补到 5 条", asyn
     new AgentLoop(new PrematureCompletionModel(), tools, trace),
     trace,
     workspace,
-    new CompletionVerifier(),
+    new WorkspaceCompletionVerifier(),
     { planner: new RecoveryPlanner() },
   );
 
@@ -55,7 +55,7 @@ test("Harness：盲重试会清空工作区，懒模型再次只写 3 条", asyn
     new AgentLoop(new PrematureCompletionModel(), tools, trace),
     trace,
     workspace,
-    new CompletionVerifier(),
+    new WorkspaceCompletionVerifier(),
     { planner: new GenericRetryPlanner() },
   );
 

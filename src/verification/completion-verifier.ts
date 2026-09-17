@@ -1,3 +1,11 @@
+/**
+ * Legacy workspace completion verifier (file / count / citation / tool-result).
+ *
+ * This is not the product verifier. Investigation runs use IndependentCompletionVerifier.
+ *
+ * WorkspaceCompletionVerifier → pass/fail (synthetic demos)
+ * IndependentCompletionVerifier → verified_complete / not_verified / insufficient_evidence
+ */
 import type { AgentResult, Task } from "../core/types.js";
 import type { Workspace } from "../core/workspace.js";
 import type { TraceEvent } from "../trace/trace-collector.js";
@@ -8,7 +16,7 @@ import { FileExistsCheck } from "./checks/file-exists-check.js";
 import { ToolResultCheck } from "./checks/tool-result-check.js";
 import type { Check, VerificationCheck, VerificationResult } from "./types.js";
 
-export class CompletionVerifier {
+export class WorkspaceCompletionVerifier {
   constructor(
     private readonly checks: Check[] = [
       new FileExistsCheck(),

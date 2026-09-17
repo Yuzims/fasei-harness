@@ -1,3 +1,7 @@
+/**
+ * Workspace verification types for synthetic file/count/citation demos.
+ * Not the investigation domain VerificationResult in src/domain/types.ts.
+ */
 import type { AgentResult, Task } from "../core/types.js";
 import type { Workspace } from "../core/workspace.js";
 import type { TraceEvent } from "../trace/trace-collector.js";

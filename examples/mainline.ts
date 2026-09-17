@@ -1,5 +1,5 @@
 import { AgentLoop } from "../src/agent/agent-loop.js";
-import { CompletionVerifier } from "../src/verification/completion-verifier.js";
+import { WorkspaceCompletionVerifier } from "../src/verification/completion-verifier.js";
 import { Harness, type HarnessRun } from "../src/core/harness.js";
 import { Workspace } from "../src/core/workspace.js";
 import { allCases } from "../src/eval/cases.js";
@@ -44,7 +44,7 @@ async function runScenario() {
     item.registerTools(tools, workspace);
     const trace = new TraceCollector();
     const loop = new AgentLoop(item.createModel(), tools, trace, item.maxSteps ?? 10);
-    const harness = new Harness(loop, trace, workspace, new CompletionVerifier());
+    const harness = new Harness(loop, trace, workspace, new WorkspaceCompletionVerifier());
     const run = await harness.run(item.task);
     printRun(item.title, run);
     results.push({ item, run });

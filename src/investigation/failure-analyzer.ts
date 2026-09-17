@@ -1,8 +1,10 @@
 /**
- * Classifies investigation failures from structured state, not error.message matching.
+ * Product FailureAnalyzer. Classifies investigation failures from structured state.
  * Rules are ordered by specificity. The first matching rule is the primary FailureEvent.
+ *
+ * This is the Investigation Recovery path, not src/legacy/failure.
  */
-import { MAX_STEPS_REACHED } from "../failure/failure-types.js";
+import { MAX_STEPS_REACHED } from "../agent/agent-loop.js";
 import { isRetryableToolCode, type FailureEvent } from "../domain/index.js";
 import { agentClaimedResolved, type AnalysisContext } from "./analysis-context.js";
 import {

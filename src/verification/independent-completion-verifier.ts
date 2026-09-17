@@ -1,9 +1,12 @@
 /**
  * Independent Completion Verifier for GitHub issue investigations.
  *
- * Agent conclusions / final answers are recorded but never used as truth.
+ * Product path. Agent conclusions / final answers are recorded but never used as truth.
  * Tool-call success is not completion. GitHub issue/comment bodies are untrusted
  * data and are never treated as Harness instructions.
+ *
+ * IndependentCompletionVerifier is the main completion verifier.
+ * WorkspaceCompletionVerifier is legacy (synthetic file/count demos only).
  */
 import {
   buildVerificationResult,

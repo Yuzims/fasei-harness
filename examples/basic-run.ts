@@ -1,6 +1,6 @@
 import {
   AgentLoop,
-  CompletionVerifier,
+  WorkspaceCompletionVerifier,
   Harness,
   ToolRegistry,
   TraceCollector,
@@ -17,7 +17,7 @@ tools.register(calculatorTool);
 const trace = new TraceCollector();
 const model = createModel({ tools: tools.list() });
 const loop = new AgentLoop(model, tools, trace);
-const harness = new Harness(loop, trace, workspace, new CompletionVerifier());
+const harness = new Harness(loop, trace, workspace, new WorkspaceCompletionVerifier());
 
 const task: Task = {
   id: "demo-001",

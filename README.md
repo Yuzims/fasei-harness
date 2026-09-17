@@ -27,12 +27,36 @@ License: MIT。Node 20+（`.nvmrc` 22.14.0）。
 
 **Phase 5 — Failure-aware recovery — DONE：** Failure 先分类再恢复，不是统一 Retry。`FailureAnalyzer` 根据 tool metadata / investigation state / verifier 结果产生 `FailureEvent`。`RecoveryPlanner` 按失败类型给出 `RecoveryPlan`（timeout → bounded backoff；401/404 → stop；retrieval → 换策略；premature completion → 继续补证据；loop → replan/stop；invalid evidence → revalidate；wrong target → recheck）。Recovery 有次数上限，追加新 Attempt，不覆盖旧 Attempt。恢复后重新走 Independent Verifier；只有 Verifier 能给出 `verified_complete`。这是 failure-aware recovery foundation，不是全自动自愈 Agent。
 
+产品主路径：
+
+```text
+GitHub
+   ↓
+Provider
+   ↓
+Investigation Agent
+   ↓
+Evidence
+   ↓
+Verifier
+   ↓
+Failure Analyzer
+   ↓
+Recovery Planner
+   ↓
+applyRecovery
+   ↓
+new Attempt
+```
+
 ```text
 InvestigationTask → InvestigationRun → Attempt
 Evidence / Claim / ClaimEvidence / EvidenceRequirement
 IndependentCompletionVerifier → VerificationResult
 FailureEvent → RecoveryPlan（按失败类型，不是统一 Retry）
 ```
+
+`src/legacy/failure` + `src/legacy/recovery` 仍服务 workspace 注入评测。那是 **Legacy Failure Injection**，不是 Investigation Recovery。详见 [`docs/architecture-cleanup.md`](docs/architecture-cleanup.md)。
 
 ## 面试一句话
 

@@ -8,7 +8,9 @@ export type TraceEventType =
   | "tool_result"
   | "run_completed"
   | "verification"
+  /** Legacy workspace harness only. Investigation uses failure_detected / failure_analyzed. */
   | "failure"
+  /** Legacy workspace harness only. Investigation uses recovery_planned / started / completed. */
   | "recovery"
   | "investigation_started"
   | "agent_step"
@@ -18,6 +20,7 @@ export type TraceEventType =
   | "verification_started"
   | "verification_check"
   | "verification_completed"
+  /** Product investigation trace. Not emitted by the workspace Harness. */
   | "failure_detected"
   | "failure_analyzed"
   | "recovery_planned"

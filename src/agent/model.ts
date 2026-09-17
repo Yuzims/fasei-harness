@@ -1,8 +1,8 @@
 import type { Task, ToolCall, ToolResult } from "../core/types.js";
 import type { Workspace } from "../core/workspace.js";
-import type { FailureEvent, RecoveryPlan as InvestigationRecoveryPlan } from "../domain/types.js";
-import type { Failure } from "../failure/failure-types.js";
-import type { RecoveryPlan } from "../recovery/recovery-planner.js";
+import type { FailureEvent, RecoveryPlan } from "../domain/types.js";
+import type { Failure } from "../legacy/failure/failure-types.js";
+import type { RecoveryPlan as WorkspaceRecoveryPlan } from "../legacy/recovery/recovery-planner.js";
 
 export type ModelResponse =
   | { type: "tool_call"; call: ToolCall }
@@ -18,9 +18,9 @@ export interface HistoryMessage {
 export interface ModelContext {
   attempt: number;
   lastFailure?: Failure;
-  lastRecovery?: RecoveryPlan;
+  lastRecovery?: WorkspaceRecoveryPlan;
   investigationFailure?: FailureEvent;
-  investigationRecovery?: InvestigationRecoveryPlan;
+  investigationRecovery?: RecoveryPlan;
   workspace?: Workspace;
   onDelta?: (text: string) => void;
 }

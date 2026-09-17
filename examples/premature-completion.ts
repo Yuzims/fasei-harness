@@ -1,6 +1,6 @@
 import {
   AgentLoop,
-  CompletionVerifier,
+  WorkspaceCompletionVerifier,
   Harness,
   PrematureCompletionModel,
   ToolRegistry,
@@ -17,7 +17,7 @@ tools.register(createWriteJsonTool(workspace));
 const trace = new TraceCollector();
 const model = new PrematureCompletionModel();
 const loop = new AgentLoop(model, tools, trace);
-const harness = new Harness(loop, trace, workspace, new CompletionVerifier(), {
+const harness = new Harness(loop, trace, workspace, new WorkspaceCompletionVerifier(), {
   maxAttempts: 1,
 });
 

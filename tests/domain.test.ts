@@ -18,7 +18,7 @@ import {
   recoveryActionFor,
   unsupportedClaims,
 } from "../src/domain/index.js";
-import type { InvestigationFailureType, VerificationCheck } from "../src/domain/index.js";
+import type { FailureType, VerificationCheck } from "../src/domain/index.js";
 
 const now = "2026-09-17T00:00:00.000Z";
 
@@ -217,7 +217,7 @@ test("Domain：evidenceCoverage 按 requirement 满足比例计算", () => {
 });
 
 test("Domain：Failure Type 映射到不同 Recovery，没有统一 retry", () => {
-  const types: InvestigationFailureType[] = [
+  const types: FailureType[] = [
     "tool_failure",
     "retrieval_failure",
     "premature_completion",

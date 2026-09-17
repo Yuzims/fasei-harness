@@ -1,5 +1,5 @@
-import type { Failure } from "../failure/failure-types.js";
-import type { Planner, RecoveryPlan } from "../recovery/recovery-planner.js";
+import type { Failure } from "../legacy/failure/failure-types.js";
+import type { Planner, RecoveryPlan } from "../legacy/recovery/recovery-planner.js";
 
 export class GenericRetryPlanner implements Planner {
   plan(_failure: Failure): RecoveryPlan {

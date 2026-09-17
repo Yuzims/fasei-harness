@@ -15,10 +15,15 @@ function eventClass(type: string): string {
   if (type === "verification") {
     return "ev-verify";
   }
-  if (type === "failure") {
+  if (type === "failure" || type === "failure_detected" || type === "failure_analyzed") {
     return "ev-fail";
   }
-  if (type === "recovery") {
+  if (
+    type === "recovery" ||
+    type === "recovery_planned" ||
+    type === "recovery_started" ||
+    type === "recovery_completed"
+  ) {
     return "ev-recover";
   }
   if (type === "tool_call" || type === "tool_result") {

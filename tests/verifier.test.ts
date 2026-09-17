@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CompletionVerifier } from "../src/verification/completion-verifier.js";
+import { WorkspaceCompletionVerifier } from "../src/verification/completion-verifier.js";
 import { Workspace } from "../src/core/workspace.js";
 import type { TraceEvent } from "../src/trace/trace-collector.js";
 import type { AgentResult, Task } from "../src/core/types.js";
@@ -34,7 +34,7 @@ test("Verifier：产物数量不够时判 fail，并标成提前完成", () => {
   const result: AgentResult = { status: "completed", output: "已经完成", steps: 2 };
   const events = [event("tool_result", { success: true })];
 
-  const verification = new CompletionVerifier().verify(
+  const verification = new WorkspaceCompletionVerifier().verify(
     productTask,
     result,
     events,
@@ -55,7 +55,7 @@ test("Verifier：文件和数量都对、工具也成功时判 pass", () => {
   const result: AgentResult = { status: "completed", output: "ok", steps: 2 };
   const events = [event("tool_result", { success: true })];
 
-  const verification = new CompletionVerifier().verify(
+  const verification = new WorkspaceCompletionVerifier().verify(
     productTask,
     result,
     events,
@@ -71,7 +71,7 @@ test("Verifier：工具失败时不叫提前完成", () => {
   const result: AgentResult = { status: "completed", output: "已经完成", steps: 1 };
   const events = [event("tool_result", { success: false, error: "boom" })];
 
-  const verification = new CompletionVerifier().verify(
+  const verification = new WorkspaceCompletionVerifier().verify(
     productTask,
     result,
     events,
@@ -103,7 +103,7 @@ test("Verifier：相关文档不够时 evidence 失败", () => {
   const result: AgentResult = { status: "completed", output: "找到了", steps: 2 };
   const events = [event("tool_result", { success: true })];
 
-  const verification = new CompletionVerifier().verify(
+  const verification = new WorkspaceCompletionVerifier().verify(
     task,
     result,
     events,
@@ -143,7 +143,7 @@ test("Verifier：召回够但终答没引用时 citation 失败", () => {
   };
   const events = [event("tool_result", { success: true })];
 
-  const verification = new CompletionVerifier().verify(
+  const verification = new WorkspaceCompletionVerifier().verify(
     task,
     result,
     events,

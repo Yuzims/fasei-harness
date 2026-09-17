@@ -6,17 +6,29 @@ import type { FailureType, InvestigationTarget, VerificationStatus } from "../do
 import type { GithubFixtureId } from "../github/snapshot-store.js";
 
 export const FASEI_BENCHMARK_NAME = "fasei-investigation-benchmark";
-export const FASEI_BENCHMARK_VERSION = "7.0";
+export const FASEI_BENCHMARK_VERSION = "7.1";
+
+export type BenchmarkScenarioKind = "normal" | "failure";
+
+/** Experiment metadata. Reuses production FailureType; not a second analyzer. */
+export type BenchmarkFailureMode = Exclude<FailureType, "unknown">;
+
+export interface ExpectedRecovery {
+  required: boolean;
+}
 
 export interface ExpectedOutcome {
   verificationStatus: VerificationStatus;
-  /** Informational. Pass/fail uses verificationStatus only. */
-  failureTypes?: FailureType[];
+  failureModes?: BenchmarkFailureMode[];
+  recovery?: ExpectedRecovery;
 }
 
 export interface BenchmarkScenario {
   id: string;
   description: string;
+  kind: BenchmarkScenarioKind;
+  /** Intended experiment mode when kind is failure. Metadata only. */
+  failureMode?: BenchmarkFailureMode;
   fixture: GithubFixtureId;
   target: InvestigationTarget;
   expectedOutcome: ExpectedOutcome;
@@ -31,10 +43,12 @@ export interface ObservedOutcome {
   unsupportedClaimRate: number;
   failureTypes: FailureType[];
   recovered: boolean;
+  recoveryAttempted: boolean;
 }
 
 export interface ScenarioResult {
   scenarioId: string;
+  kind: BenchmarkScenarioKind;
   expectedOutcome: VerificationStatus;
   observedOutcome: VerificationStatus;
   passed: boolean;
@@ -42,9 +56,12 @@ export interface ScenarioResult {
   toolCallCount: number;
   verificationStatus: VerificationStatus;
   failureTypes: FailureType[];
+  expectedFailureModes: BenchmarkFailureMode[];
+  observedFailureModes: FailureType[];
   agentClaimedComplete: boolean;
   falseCompletion: boolean;
   recovered: boolean;
+  recoveryAttempted: boolean;
   evidenceCoverage: number;
   unsupportedClaimRate: number;
 }

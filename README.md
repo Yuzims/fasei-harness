@@ -29,6 +29,10 @@ License: MIT。Node 20+（`.nvmrc` 22.14.0）。
 
 **Phase 6 — Evidence Graph — DONE：** Evidence / EvidenceRelation / Claim / ClaimEvidence / EvidenceRequirement 是一等域数据。`evaluateEvidenceRequirement()` 是 requirement 是否满足的唯一语义层；Verifier 编排检查和终局，不另写一套 condition。Agent conclusion ≠ truth。三个 fixture 行为不变。这只覆盖当前 GitHub Issue 调查证据链，不宣称任意软件问题已被证明解决。
 
+**Phase 7.0 — Benchmark Foundation — DONE：** 确定性 Snapshot 评测层，跑现有三个 fixture，指标看 Independent Verifier，不是 Agent 终答。
+
+**Phase 7.1 — Scenario model — DONE：** Scenario 区分 `normal` / `failure`，可声明 expected verification / failure mode / recovery。失败注入只在 benchmark 边界（Provider wrap / test Model）。生产 FailureAnalyzer 仍然是观察来源。当前是小型确定性回归/失败套件，**还不是** 30+ 真实 GitHub Issue benchmark。
+
 产品主路径：
 
 ```text

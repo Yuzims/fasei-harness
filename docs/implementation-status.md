@@ -264,6 +264,61 @@ larger real-world GitHub snapshot benchmark
 
 CLI: `npm run fasei-benchmark` prints a JSON `BenchmarkReport`.
 
+## Phase 7.1 — Benchmark Scenario & Failure Scenario Model — DONE
+
+Scenario contract extension on the Phase 7.0 foundation. Measurement/contract only — not a 30+ real GitHub issue dataset.
+
+```text
+Benchmark Scenario
+       ↓
+Scenario Environment / Fixture
+       ↓
+Production Harness
+       ↓
+Observed Result
+       ↓
+Benchmark Evaluator
+       ↓
+Metrics
+```
+
+Scenario fields added:
+
+- `kind`: `normal` | `failure`
+- `failureMode`: production `FailureType` excluding `unknown` (experiment metadata)
+- `expectedOutcome.failureModes`
+- `expectedOutcome.recovery.required`
+
+The evaluator (`src/benchmark/evaluate.ts`) compares expected verification / failure-mode presence / recovery-attempted against observed Harness output. It does not reimplement verification, failure analysis, or recovery planning.
+
+Failure injection (`src/benchmark/injection.ts`) is a benchmark-boundary adapter: wrap `GitHubDataProvider` and/or supply a deterministic test Model via existing `investigate({ modelFactory, provider })`. Production modules do not import `src/benchmark/`.
+
+Current benchmark:
+
+```text
+small deterministic regression/failure suite
+```
+
+| Scenario | Kind | Contract |
+|---|---|---|
+| `resolved` | normal | `verified_complete` |
+| `closed-unmerged` | normal | `not_verified` |
+| `insufficient-evidence` | failure | `insufficient_evidence` |
+| `wrong-target` | failure | `wrong_target` + `not_verified` |
+| `tool-failure` | failure | `tool_failure` present; recovery required |
+| `premature-completion` | failure | `premature_completion`; false completion (claimed resolved + verifier rejects) |
+| `retrieval-failure` | failure | `retrieval_failure` present; recovery required |
+
+Phase 7.0 metrics are unchanged.
+
+Future:
+
+```text
+30+ real GitHub snapshot cases
+```
+
+This suite is not representative of real-world GitHub workloads.
+
 ## Not started
 
-Phase 7.1+ (larger real-world GitHub snapshot benchmark, baseline comparison, semantic judge, UI redesign) waits for a new task.
+Phase 7.2+ (larger real-world GitHub snapshot benchmark, baseline comparison, semantic judge, UI redesign) waits for a new task.

@@ -7,6 +7,7 @@ import {
   FASEI_BENCHMARK_NAME,
   FASEI_BENCHMARK_SCENARIOS,
   FASEI_BENCHMARK_VERSION,
+  FASEI_REGRESSION_SCENARIOS,
   compareOutcome,
   computeBenchmarkMetrics,
   isFalseCompletion,
@@ -19,16 +20,21 @@ import {
 function sample(overrides: Partial<ScenarioResult> & Pick<ScenarioResult, "scenarioId" | "observedOutcome">): ScenarioResult {
   const observed = overrides.observedOutcome;
   const agentClaimedComplete = overrides.agentClaimedComplete ?? false;
+  const failureTypes = overrides.failureTypes ?? [];
   return {
+    kind: overrides.kind ?? "normal",
     expectedOutcome: overrides.expectedOutcome ?? observed,
     passed: overrides.passed ?? true,
     attemptCount: overrides.attemptCount ?? 1,
     toolCallCount: overrides.toolCallCount ?? 1,
     verificationStatus: overrides.verificationStatus ?? observed,
-    failureTypes: overrides.failureTypes ?? [],
+    failureTypes,
+    expectedFailureModes: overrides.expectedFailureModes ?? [],
+    observedFailureModes: overrides.observedFailureModes ?? failureTypes,
     agentClaimedComplete,
     falseCompletion: overrides.falseCompletion ?? isFalseCompletion(agentClaimedComplete, observed),
     recovered: overrides.recovered ?? false,
+    recoveryAttempted: overrides.recoveryAttempted ?? false,
     evidenceCoverage: overrides.evidenceCoverage ?? 0,
     unsupportedClaimRate: overrides.unsupportedClaimRate ?? 0,
     ...overrides,
@@ -137,7 +143,7 @@ test("Benchmark：空结果的 metrics 为 0，不除零", () => {
 });
 
 test("Benchmark：三个现有 fixture 产出文档化的 verifier 结果", async () => {
-  const report = await runFaseiBenchmark();
+  const report = await runFaseiBenchmark(FASEI_REGRESSION_SCENARIOS);
   assert.equal(report.name, FASEI_BENCHMARK_NAME);
   assert.equal(report.version, FASEI_BENCHMARK_VERSION);
   assert.equal(report.scenarioCount, 3);

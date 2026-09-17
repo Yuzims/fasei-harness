@@ -171,3 +171,51 @@ larger real-world GitHub snapshot benchmark
 The production Harness does not depend on the benchmark layer.
 
 See [`implementation-status.md`](implementation-status.md).
+
+## Phase 7.1 — Benchmark Scenario & Failure Scenario Model — DONE
+
+The benchmark scenario contract now distinguishes normal vs failure cases and can name an intended failure mode. That label is experiment metadata. Observed failures still come from production `FailureAnalyzer`.
+
+```text
+Benchmark Scenario
+       ↓
+Scenario Environment / Fixture (+ optional boundary injection)
+       ↓
+Production Harness
+       ↓
+Observed Result
+       ↓
+Benchmark Evaluator
+       ↓
+Metrics
+```
+
+A scenario can declare `expectedVerificationOutcome`, `expectedFailureModes`, and lightweight `expectedRecovery.required`. The evaluator compares that contract to observed Harness results. It does not evaluate the evidence graph, classify failures from payloads, or plan recovery.
+
+Deterministic failure injection lives in `src/benchmark/injection.ts` (provider wrap / test-driver Model). Production Agent / Verifier / Recovery code does not import benchmark modules.
+
+Current benchmark:
+
+```text
+small deterministic regression/failure suite
+```
+
+| Scenario | Kind | Expected |
+|---|---|---|
+| `resolved` | normal | `verified_complete` |
+| `closed-unmerged` | normal | `not_verified` |
+| `insufficient-evidence` | failure / `insufficient_evidence` | `insufficient_evidence` |
+| `wrong-target` | failure / `wrong_target` | `not_verified` |
+| `tool-failure` | failure / `tool_failure` | production recovery decides; contract expects `tool_failure` |
+| `premature-completion` | failure / `premature_completion` | agent claimed resolved + verifier rejects |
+| `retrieval-failure` | failure / `retrieval_failure` | production recovery decides; contract expects `retrieval_failure` |
+
+Future:
+
+```text
+30+ real GitHub snapshot cases
+```
+
+This is not a representative real-world GitHub workload benchmark.
+
+See [`implementation-status.md`](implementation-status.md).

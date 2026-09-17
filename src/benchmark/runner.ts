@@ -2,13 +2,15 @@
  * Deterministic investigation benchmark runner.
  *
  * Evaluates the existing Harness. Does not reimplement verification semantics.
- * Calls investigate() with SnapshotGitHubProvider + SnapshotInvestigationDriver.
+ * Calls investigate() with SnapshotGitHubProvider + scenario environment adapters.
  */
 import { createInvestigationTask, type FailureType, type VerificationStatus } from "../domain/index.js";
 import { SnapshotGitHubProvider } from "../github/snapshot-provider.js";
 import { githubFixturePath } from "../github/snapshot-store.js";
 import { investigate, type InvestigationAgentReport } from "../investigation/index.js";
-import { buildBenchmarkReport, compareOutcome, isFalseCompletion } from "./metrics.js";
+import { evaluateScenarioContract, expectedFailureModes } from "./evaluate.js";
+import { prepareScenarioEnvironment } from "./injection.js";
+import { buildBenchmarkReport, isFalseCompletion } from "./metrics.js";
 import { FASEI_BENCHMARK_SCENARIOS } from "./scenarios.js";
 import {
   FASEI_BENCHMARK_NAME,
@@ -48,6 +50,10 @@ function recoveredFrom(report: InvestigationAgentReport, finalStatus: Verificati
   return first !== "verified_complete" && finalStatus === "verified_complete";
 }
 
+function recoveryAttemptedFrom(report: InvestigationAgentReport): boolean {
+  return report.run.attempts.some((attempt) => Boolean(attempt.recovery && attempt.recovery.action !== "stop"));
+}
+
 export function observeScenario(report: InvestigationAgentReport): ObservedOutcome {
   const observed = asVerificationStatus(report.verification?.status ?? report.run.status);
   const unsupported = report.verification?.unsupportedClaimIds.length ?? 0;
@@ -60,39 +66,49 @@ export function observeScenario(report: InvestigationAgentReport): ObservedOutco
     unsupportedClaimRate: unsupported / Math.max(report.claims.length, 1),
     failureTypes: failureTypesFrom(report),
     recovered: recoveredFrom(report, observed),
+    recoveryAttempted: recoveryAttemptedFrom(report),
   };
 }
 
 export function scoreScenario(scenario: BenchmarkScenario, report: InvestigationAgentReport): ScenarioResult {
   const observed = observeScenario(report);
   const expected = scenario.expectedOutcome.verificationStatus;
+  const expectedModes = expectedFailureModes(scenario);
+  const evaluation = evaluateScenarioContract(scenario, observed);
   const falseCompletion = isFalseCompletion(observed.agentClaimedComplete, observed.verificationStatus);
   return {
     scenarioId: scenario.id,
+    kind: scenario.kind,
     expectedOutcome: expected,
     observedOutcome: observed.verificationStatus,
-    passed: compareOutcome(expected, observed.verificationStatus),
+    passed: evaluation.passed,
     attemptCount: observed.attemptCount,
     toolCallCount: observed.toolCallCount,
     verificationStatus: observed.verificationStatus,
     failureTypes: observed.failureTypes,
+    expectedFailureModes: expectedModes,
+    observedFailureModes: observed.failureTypes,
     agentClaimedComplete: observed.agentClaimedComplete,
     falseCompletion,
     recovered: observed.recovered,
+    recoveryAttempted: observed.recoveryAttempted,
     evidenceCoverage: observed.evidenceCoverage,
     unsupportedClaimRate: observed.unsupportedClaimRate,
   };
 }
 
 export async function executeScenario(scenario: BenchmarkScenario): Promise<InvestigationAgentReport> {
+  const inner = new SnapshotGitHubProvider(githubFixturePath(scenario.fixture));
+  const env = prepareScenarioEnvironment(scenario, inner);
   return investigate({
     task: createInvestigationTask({
       id: scenario.id,
       target: scenario.target,
       description: scenario.description,
     }),
-    provider: new SnapshotGitHubProvider(githubFixturePath(scenario.fixture)),
-    useTestDriver: true,
+    provider: env.provider,
+    useTestDriver: env.useTestDriver,
+    modelFactory: env.modelFactory,
   });
 }
 

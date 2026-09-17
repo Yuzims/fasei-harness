@@ -38,7 +38,8 @@ export const FASEI_REGRESSION_SCENARIOS: BenchmarkScenario[] = [
 
 /**
  * Deterministic failure scenarios. Environment/fixture injection only.
- * Observed failure types come from production FailureAnalyzer.
+ * `failureMode` is scenario intent. `expectedOutcome.failureModes` is the
+ * observed production failure the evaluator checks. They are not aliases.
  */
 export const FASEI_FAILURE_SCENARIOS: BenchmarkScenario[] = [
   {

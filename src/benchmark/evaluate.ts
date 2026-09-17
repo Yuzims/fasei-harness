@@ -1,10 +1,11 @@
 import type { BenchmarkFailureMode, BenchmarkScenario, ObservedOutcome } from "./types.js";
 
+/**
+ * Expected observed production failures.
+ * `scenario.failureMode` is experiment intent and must not fill this in.
+ */
 export function expectedFailureModes(scenario: BenchmarkScenario): BenchmarkFailureMode[] {
-  if (scenario.expectedOutcome.failureModes && scenario.expectedOutcome.failureModes.length > 0) {
-    return scenario.expectedOutcome.failureModes;
-  }
-  return scenario.failureMode ? [scenario.failureMode] : [];
+  return scenario.expectedOutcome.failureModes ?? [];
 }
 
 export function compareFailureModes(

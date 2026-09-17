@@ -285,8 +285,8 @@ Metrics
 Scenario fields added:
 
 - `kind`: `normal` | `failure`
-- `failureMode`: production `FailureType` excluding `unknown` (experiment metadata)
-- `expectedOutcome.failureModes`
+- `failureMode`: scenario intent / classification (what the case is designed to exercise)
+- `expectedOutcome.failureModes`: expected observed production failure(s); not filled from `failureMode`
 - `expectedOutcome.recovery.required`
 
 The evaluator (`src/benchmark/evaluate.ts`) compares expected verification / failure-mode presence / recovery-attempted against observed Harness output. It does not reimplement verification, failure analysis, or recovery planning.

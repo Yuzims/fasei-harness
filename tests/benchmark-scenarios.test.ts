@@ -10,6 +10,7 @@ import {
   compareFailureModes,
   compareOutcome,
   evaluateScenarioContract,
+  expectedFailureModes,
   executeScenario,
   isFalseCompletion,
   runFaseiBenchmark,
@@ -32,6 +33,30 @@ function observed(partial: Partial<ObservedOutcome> & Pick<ObservedOutcome, "ver
     ...partial,
   };
 }
+
+test("expectedFailureModes does not fall back to scenario.failureMode", () => {
+  const intentOnly: BenchmarkScenario = {
+    id: "intent-only",
+    description: "classification must not become expected observation",
+    kind: "failure",
+    failureMode: "tool_failure",
+    fixture: "resolved",
+    target: { owner: "acme", repository: "box", issueNumber: 42 },
+    expectedOutcome: { verificationStatus: "verified_complete" },
+  };
+  assert.deepEqual(expectedFailureModes(intentOnly), []);
+
+  const explicit: BenchmarkScenario = {
+    ...intentOnly,
+    id: "intent-and-expectation",
+    expectedOutcome: {
+      verificationStatus: "verified_complete",
+      failureModes: ["retrieval_failure"],
+    },
+  };
+  assert.deepEqual(expectedFailureModes(explicit), ["retrieval_failure"]);
+  assert.equal(explicit.failureMode, "tool_failure");
+});
 
 test("Scenario classification：normal vs failure + failureMode", () => {
   const resolved = FASEI_REGRESSION_SCENARIOS.find((item) => item.id === "resolved");

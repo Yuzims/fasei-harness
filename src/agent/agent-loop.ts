@@ -6,6 +6,9 @@ import { TraceCollector } from "../trace/trace-collector.js";
 /** AgentLoop emits this output when the step budget is exhausted. */
 export const MAX_STEPS_REACHED = "Maximum step limit reached.";
 
+export const ILLEGAL_INVESTIGATION_ACTION =
+  "Tool is not in the current legal investigation actions.";
+
 export class AgentLoop {
   constructor(
     private readonly model: Model,
@@ -32,11 +35,12 @@ export class AgentLoop {
         historyLength: history.length,
       });
 
+      const stepContext: ModelContext = { ...context, agentStep: step };
       const response = await this.model.decide(
         task,
         history,
         toolResults,
-        { ...context, agentStep: step },
+        stepContext,
       );
 
       if (response.type === "final") {
@@ -67,7 +71,7 @@ export class AgentLoop {
         historyLength: history.length,
       });
 
-      const result = await this.executeTool(call);
+      const result = await this.executeTool(call, stepContext, runId, step);
       toolResults.push(result);
       history.push({
         role: "tool",
@@ -91,7 +95,26 @@ export class AgentLoop {
     };
   }
 
-  private async executeTool(call: ToolCall): Promise<ToolResult> {
+  private async executeTool(
+    call: ToolCall,
+    context: ModelContext,
+    runId: string,
+    step: number,
+  ): Promise<ToolResult> {
+    if (!isAllowedInvestigationTool(call, context)) {
+      this.trace.record(runId, step, "illegal_investigation_action_rejected", {
+        attempt: context.attempt,
+        tool: call.name,
+        arguments: call.arguments,
+        legalTools: context.legalInvestigationActions?.map((item) => item.tool),
+      });
+      return {
+        callId: call.id,
+        success: false,
+        error: ILLEGAL_INVESTIGATION_ACTION,
+      };
+    }
+
     const tool = this.tools.get(call.name);
 
     if (!tool) {
@@ -117,6 +140,25 @@ export class AgentLoop {
       };
     }
   }
+}
+
+function isAllowedInvestigationTool(call: ToolCall, context: ModelContext): boolean {
+  if (context.isLegalInvestigationAction) {
+    return context.isLegalInvestigationAction(call);
+  }
+  const legal = context.legalInvestigationActions;
+  if (!legal) {
+    return true;
+  }
+  return legal.some((action) => {
+    if (action.tool !== call.name) {
+      return false;
+    }
+    if (!action.resourceKey) {
+      return true;
+    }
+    return JSON.stringify(action.arguments) === JSON.stringify(call.arguments);
+  });
 }
 
 function serializeToolCall(call: ToolCall): string {

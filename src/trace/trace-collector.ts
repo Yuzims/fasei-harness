@@ -28,7 +28,8 @@ export type TraceEventType =
   | "recovery_started"
   | "recovery_applied"
   | "recovery_completed"
-  | "investigation_attempt_started";
+  | "investigation_attempt_started"
+  | "illegal_investigation_action_rejected";
 
 export interface TraceEvent {
   id: string;

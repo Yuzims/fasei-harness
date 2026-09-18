@@ -15,6 +15,21 @@ export {
   strategyFromRecoveryPlan,
 } from "./apply-recovery.js";
 export {
+  computeEvidenceGap,
+  unresolvedRequiredGaps,
+  missingRequiredGaps,
+} from "./evidence-gap.js";
+export type { EvidenceGap, EvidenceGapItem } from "./evidence-gap.js";
+export {
+  proposeCandidateActions,
+  planInvestigationStrategy,
+  matchLegalAction,
+  isLegalInvestigationAction,
+  ILLEGAL_INVESTIGATION_ACTION,
+  NO_LEGAL_INVESTIGATION_ACTION,
+} from "./candidate-actions.js";
+export type { CandidateInvestigationAction } from "./candidate-actions.js";
+export {
   attemptProvenance,
   attemptToolNames,
   canonicalRecoveryTrace,

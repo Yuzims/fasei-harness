@@ -42,6 +42,13 @@ import {
 } from "./investigation-report.js";
 import { INVESTIGATION_SYSTEM_PROMPT } from "./policy.js";
 import { RecoveryPlanner } from "./recovery-planner.js";
+import {
+  NO_LEGAL_INVESTIGATION_ACTION,
+  isLegalInvestigationAction,
+  legalActionViews,
+  planInvestigationStrategy,
+  type CandidateInvestigationAction,
+} from "./candidate-actions.js";
 import { formatStateForModel, investigationFingerprint, InvestigationState } from "./state.js";
 import { SnapshotInvestigationDriver, TEST_DRIVER_NOTICE } from "./test-driver.js";
 
@@ -103,11 +110,52 @@ class InvestigationLoopModel implements Model {
   ): Promise<ModelResponse> {
     this.session.currentAttempt = context?.attempt ?? this.session.currentAttempt;
     this.session.state.currentStep += 1;
+
+    const remainingLlmCalls = remainingCalls(this.session);
+    const planned = this.injectState
+      ? planInvestigationStrategy(this.session.state, { remainingLlmCalls })
+      : undefined;
+    if (context && planned) {
+      attachLegalActions(context, planned.legalActions, remainingLlmCalls);
+    }
+
     const nextHistory =
       this.injectState && history.length > 0
-        ? [...history, { role: "user" as const, content: formatStateForModel(this.session.state) }]
+        ? [
+            ...history,
+            {
+              role: "user" as const,
+              content: formatStateForModel(this.session.state, strategyView(planned, remainingLlmCalls)),
+            },
+          ]
         : history;
+
+    if (this.injectState && planned && planned.legalActions.length === 0) {
+      this.session.trace.record(this.session.runId, this.session.state.currentStep, "agent_step", {
+        tool: undefined,
+        reason: NO_LEGAL_INVESTIGATION_ACTION,
+        evidenceGapMissing: planned.gap.missingRequirements.map((item) => item.requirementId),
+        legalTools: [],
+      });
+      return { type: "final", message: NO_LEGAL_INVESTIGATION_ACTION };
+    }
+
     const response = await this.inner.decide(task, nextHistory, toolResults, context);
+    if (this.injectState && planned && response.type === "tool_call") {
+      if (!isLegalInvestigationAction(response.call, planned.legalActions)) {
+        this.session.trace.record(
+          this.session.runId,
+          this.session.state.currentStep,
+          "illegal_investigation_action_rejected",
+          {
+            tool: response.call.name,
+            arguments: response.call.arguments,
+            legalTools: planned.legalActions.map((item) => item.tool),
+          },
+        );
+      }
+    }
+
     if (response.type === "tool_call") {
       const reason =
         this.session.state.consumeReason() ??
@@ -121,10 +169,62 @@ class InvestigationLoopModel implements Model {
         candidatePrs: [...this.session.state.candidatePrs],
         unresolvedQuestions: [...this.session.state.unresolvedQuestions],
         investigatedResources: [...this.session.state.investigatedResources],
+        legalTools: planned?.legalActions.map((item) => item.tool),
+        evidenceGapMissing: planned?.gap.missingRequirements.map((item) => item.requirementId),
       });
     }
     return response;
   }
+}
+
+function remainingCalls(session: InvestigationSession): number | undefined {
+  const runtime = session.llmRuntime;
+  if (!runtime) {
+    return undefined;
+  }
+  return Math.max(0, runtime.budget.maxLlmCalls - runtime.llmCallsSent);
+}
+
+function attachLegalActions(
+  context: ModelContext,
+  legal: CandidateInvestigationAction[],
+  remainingLlmCalls: number | undefined,
+): void {
+  context.legalInvestigationActions = legalActionViews(legal);
+  context.remainingLlmCalls = remainingLlmCalls;
+  context.isLegalInvestigationAction = (call) => isLegalInvestigationAction(call, legal);
+}
+
+function strategyView(
+  planned: ReturnType<typeof planInvestigationStrategy> | undefined,
+  remainingLlmCalls: number | undefined,
+) {
+  if (!planned) {
+    return undefined;
+  }
+  return {
+    remainingLlmCalls,
+    evidenceGap: {
+      missingRequirements: planned.gap.missingRequirements.map((item) => ({
+        requirementId: item.requirementId,
+        condition: item.condition,
+        outcome: item.outcome,
+        reason: item.reason,
+      })),
+      satisfiedRequirements: planned.gap.satisfiedRequirements.map((item) => ({
+        requirementId: item.requirementId,
+        condition: item.condition,
+        outcome: item.outcome,
+      })),
+      rejectedRequirements: planned.gap.rejectedRequirements.map((item) => ({
+        requirementId: item.requirementId,
+        condition: item.condition,
+        outcome: item.outcome,
+        reason: item.reason,
+      })),
+    },
+    legalInvestigationActions: legalActionViews(planned.legalActions),
+  };
 }
 
 function asTask(input: InvestigationTask | InvestigateInput): InvestigationTask {

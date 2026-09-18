@@ -799,6 +799,32 @@ Snapshot / Benchmark / test-driver paths do not send LLM HTTP. Budget applies on
 
 Hono `c.req.raw.signal` is forwarded as a parent abort when present. Independent proof that every client disconnect cancels DashScope is a follow-up; this phase guarantees FASEI-owned deadline → AbortController → fetch.
 
+## Phase 8.8.1 — Evidence-Gap-Driven Investigation Strategy — DONE
+
+Minimal constraint layer on the live LLM investigation path. Not a second Planner and not a verifier.
+
+```text
+Evidence Requirements
+        ↓
+evaluateEvidenceRequirement (existing)
+        ↓
+Evidence Gap
+        ↓
+Candidate Investigation Actions (existing GitHub tools only)
+        ↓
+Hard legal-action constraint
+        ↓
+LLM selects among legal actions
+        ↓
+Tool Call / reject illegal tool
+        ↓
+New Evidence
+        ↓
+Recalculate Evidence Gap
+```
+
+`IndependentCompletionVerifier` remains the only producer of `verified_complete`. Strategy decides the next legal investigation direction. RecoveryPlanner / EvidenceRequirement / Ground Truth / GitHub provider semantics are unchanged.
+
 ## Not started
 
-Phase 8.7.5+ waits for a new task.
+Phase 8.8.2+ waits for a new task.

@@ -16,6 +16,14 @@ export interface HistoryMessage {
   content: string;
 }
 
+export interface LegalInvestigationActionView {
+  tool: string;
+  arguments: Record<string, unknown>;
+  objective?: string;
+  targetRequirementIds?: string[];
+  resourceKey?: string;
+}
+
 export interface ModelContext {
   attempt: number;
   /** AgentLoop step within the current attempt. Distinct from callIndex. */
@@ -30,6 +38,13 @@ export interface ModelContext {
   /** Investigation-owned LLM abort signal; OpenAICompatModel must pass this to fetch(). */
   signal?: AbortSignal;
   llmRuntime?: LlmRuntimeGuard;
+  /**
+   * When set, AgentLoop may only execute these investigation tools.
+   * Undefined means unconstrained (test driver / non-investigation loops).
+   */
+  legalInvestigationActions?: LegalInvestigationActionView[];
+  remainingLlmCalls?: number;
+  isLegalInvestigationAction?: (call: ToolCall) => boolean;
 }
 
 export interface Model {

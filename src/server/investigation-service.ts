@@ -380,7 +380,6 @@ async function runLiveIssue(
       description: `Investigate whether ${target.owner}/${target.repository}#${target.issueNumber} is independently resolved.`,
     },
     provider,
-    useTestDriver: true,
     env: options.env,
     fetchImpl: options.fetchImpl,
   });

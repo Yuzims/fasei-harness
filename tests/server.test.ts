@@ -197,6 +197,45 @@ test("API：非法 Issue 输入返回 INVALID_GITHUB_ISSUE_INPUT", async () => {
   assert.equal(body.error.code, "INVALID_GITHUB_ISSUE_INPUT");
 });
 
+test("API：live 未配置 LLM 时返回 unconfigured，不走 SnapshotInvestigationDriver", async () => {
+  const live = createApp(
+    {},
+    {
+      fetchImpl: async (input) => {
+        const url = String(input);
+        if (url.includes("/repos/debug-js/debug/issues/1") && !url.includes("/comments") && !url.includes("/timeline")) {
+          return new Response(
+            JSON.stringify({
+              number: 1,
+              title: "Live public issue",
+              body: "observed from GitHub API",
+              state: "open",
+              html_url: "https://github.com/debug-js/debug/issues/1",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    },
+  );
+  const res = await live.request("/api/investigations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ issue: "https://github.com/debug-js/debug/issues/1", mode: "live" }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.mode, "live");
+  assert.equal(body.actor, "unconfigured");
+  assert.notEqual(body.actor, "test_driver");
+  assert.match(body.agentOutput, /unconfigured/i);
+  assert.equal(body.verification, undefined);
+});
+
 test("API：live 429 映射为 GitHub rate limit，不无限重试", async () => {
   let calls = 0;
   const live = createApp({}, {

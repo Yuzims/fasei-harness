@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { resolveInvestigationRoute, runInvestigation } from "../src/server/investigation-service.js";
 import { GitHubProviderError } from "../src/github/errors.js";
+
+const noLlmEnv = {
+  AGENT_MODEL: undefined,
+  OPENAI_API_KEY: undefined,
+  LLM_API_KEY: undefined,
+};
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -32,6 +41,46 @@ function liveFetch(calls: string[], owner = "acme", repo = "demo", issueNumber =
       return jsonResponse([]);
     }
     return jsonResponse({ message: "Not Found" }, 404);
+  };
+}
+
+function liveWithConfiguredModelFetch(
+  calls: string[],
+  owner: string,
+  repo: string,
+  issueNumber: number,
+): typeof fetch {
+  const github = liveFetch(calls, owner, repo, issueNumber);
+  let llmCalls = 0;
+  return async (input, init) => {
+    const url = String(input);
+    if (url.includes("/chat/completions")) {
+      calls.push(url);
+      llmCalls += 1;
+      if (llmCalls === 1) {
+        return jsonResponse({
+          choices: [
+            {
+              message: {
+                tool_calls: [
+                  {
+                    id: "c1",
+                    function: {
+                      name: "github_get_issue",
+                      arguments: JSON.stringify({ owner, repo, issueNumber }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      }
+      return jsonResponse({
+        choices: [{ message: { content: "Need more evidence; not VERIFIED_COMPLETE." } }],
+      });
+    }
+    return github(input, init);
   };
 }
 
@@ -68,7 +117,7 @@ test("LIVE → GitHubDataProvider, not SnapshotProvider, even for a Real-v1 issu
   const calls: string[] = [];
   const session = await runInvestigation(
     { issue: "microsoft/vscode#258694", mode: "live" },
-    { fetchImpl: liveFetch(calls, "microsoft", "vscode", 258694) },
+    { env: noLlmEnv, fetchImpl: liveFetch(calls, "microsoft", "vscode", 258694) },
   );
   assert.equal(session.mode, "live");
   assert.equal(session.dataSource, "live");
@@ -77,8 +126,7 @@ test("LIVE → GitHubDataProvider, not SnapshotProvider, even for a Real-v1 issu
   assert.equal(session.issue.owner, "microsoft");
   assert.equal(session.issue.repository, "vscode");
   assert.equal(session.issue.number, 258694);
-  assert.equal(session.issue.title, "Live public issue");
-  assert.notEqual(session.verification?.status, undefined);
+  assert.notEqual(session.actor, "test_driver");
   assert.ok(calls.some((url) => url.includes("api.github.com/repos/microsoft/vscode/issues/258694")));
   assert.equal(
     calls.some((url) => url.includes("C01") || url.includes("snapshot")),
@@ -86,7 +134,52 @@ test("LIVE → GitHubDataProvider, not SnapshotProvider, even for a Real-v1 issu
   );
 });
 
-test("SNAPSHOT → SnapshotProvider and never calls GitHub HTTP", async () => {
+test("LIVE without an LLM key is unconfigured and does not use SnapshotInvestigationDriver", async () => {
+  const calls: string[] = [];
+  const session = await runInvestigation(
+    { issue: "https://github.com/debug-js/debug/issues/1", mode: "live" },
+    { env: noLlmEnv, fetchImpl: liveFetch(calls, "debug-js", "debug", 1) },
+  );
+  assert.equal(session.mode, "live");
+  assert.equal(session.actor, "unconfigured");
+  assert.equal(session.status, "unconfigured");
+  assert.notEqual(session.actor, "test_driver");
+  assert.match(session.agentOutput, /unconfigured/i);
+  assert.match(session.agentOutput, /no OpenAI-compatible API key/i);
+  assert.equal(session.verification, undefined);
+  assert.ok(calls.some((url) => url.includes("api.github.com/repos/debug-js/debug/issues/1")));
+  assert.equal(
+    calls.some((url) => url.includes("/chat/completions")),
+    false,
+  );
+});
+
+test("LIVE with a configured model uses the real Investigation Agent path", async () => {
+  const calls: string[] = [];
+  const session = await runInvestigation(
+    { issue: "https://github.com/debug-js/debug/issues/1", mode: "live" },
+    {
+      env: {
+        AGENT_MODEL: "openai",
+        OPENAI_API_KEY: "sk-test",
+        OPENAI_MODEL: "gpt-test",
+        OPENAI_BASE_URL: "https://llm.test/v1",
+      },
+      fetchImpl: liveWithConfiguredModelFetch(calls, "debug-js", "debug", 1),
+    },
+  );
+  assert.equal(session.mode, "live");
+  assert.equal(session.actor, "llm");
+  assert.notEqual(session.actor, "test_driver");
+  assert.notEqual(session.actor, "unconfigured");
+  assert.equal(session.issue.title, "Live public issue");
+  assert.ok(session.evidence.some((item) => item.kind === "issue"));
+  assert.notEqual(session.verification?.status, undefined);
+  assert.ok(calls.some((url) => url.includes("api.github.com/repos/debug-js/debug/issues/1")));
+  assert.ok(calls.some((url) => url.includes("https://llm.test/v1/chat/completions")));
+});
+
+test("SNAPSHOT → SnapshotInvestigationDriver and never calls GitHub HTTP", async () => {
   const calls: string[] = [];
   const session = await runInvestigation(
     { caseId: "C01" },
@@ -100,6 +193,7 @@ test("SNAPSHOT → SnapshotProvider and never calls GitHub HTTP", async () => {
   assert.equal(session.mode, "snapshot");
   assert.equal(session.dataSource, "snapshot");
   assert.equal(session.catalogId, "C01");
+  assert.equal(session.actor, "test_driver");
   assert.equal(session.verification?.status, "verified_complete");
   assert.equal(calls.length, 0);
 });
@@ -110,6 +204,7 @@ test("LIVE unknown issue returns GitHubProviderError, not a fake snapshot", asyn
       runInvestigation(
         { issue: "https://github.com/foo/bar/issues/999999999", mode: "live" },
         {
+          env: noLlmEnv,
           fetchImpl: async () => jsonResponse({ message: "Not Found" }, 404),
         },
       ),
@@ -124,10 +219,25 @@ test("LIVE does not fall through to a matching snapshot fixture", async () => {
   const calls: string[] = [];
   const session = await runInvestigation(
     { issue: "acme/box#42", mode: "live" },
-    { fetchImpl: liveFetch(calls, "acme", "box", 42) },
+    { env: noLlmEnv, fetchImpl: liveFetch(calls, "acme", "box", 42) },
   );
   assert.equal(session.mode, "live");
   assert.equal(session.catalogId, undefined);
-  assert.equal(session.issue.title, "Live public issue");
+  assert.equal(session.actor, "unconfigured");
+  assert.notEqual(session.actor, "test_driver");
   assert.ok(calls.some((url) => url.includes("api.github.com/repos/acme/box/issues/42")));
+});
+
+test("Live investigation must not use SnapshotInvestigationDriver", () => {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), "../src/server");
+  const service = readFileSync(join(dir, "investigation-service.ts"), "utf8");
+  const app = readFileSync(join(dir, "app.ts"), "utf8");
+  assert.equal(service.includes("useTestDriver"), false);
+  assert.equal(service.includes("SnapshotInvestigationDriver"), false);
+  assert.equal(app.includes("useTestDriver"), false);
+  assert.equal(app.includes("SnapshotInvestigationDriver"), false);
+  const liveFn = service.slice(service.indexOf("async function runLiveIssue"));
+  assert.match(liveFn, /LiveGitHubProvider/);
+  assert.match(liveFn, /investigate\(/);
+  assert.equal(liveFn.includes("useTestDriver"), false);
 });

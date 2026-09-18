@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import type { HistoryMessage, Model, ModelResponse } from "../src/agent/model.js";
+import {
+  executeDatasetCase,
+  loadDataset,
+  realDatasetManifestPath,
+  withGithubNetworkBlocked,
+} from "../src/benchmark/index.js";
 import type { Task, ToolResult } from "../src/core/types.js";
 import {
   RECOVERY_BOUNDS,
@@ -9,6 +18,7 @@ import {
   createEvidence,
   createInvestigationRun,
   createInvestigationTask,
+  createRelation,
   type RecoveryBounds,
   type VerificationResult,
 } from "../src/domain/index.js";
@@ -17,6 +27,8 @@ import { SnapshotGitHubProvider } from "../src/github/snapshot-provider.js";
 import { githubFixturePath } from "../src/github/snapshot-store.js";
 import {
   FailureAnalyzer,
+  ILLEGAL_INVESTIGATION_ACTION,
+  IndependentCompletionVerifier,
   RecoveryPlanner,
   SnapshotInvestigationDriver,
   applyRecoveryPlan,
@@ -729,3 +741,474 @@ test("Phase 5：contradictory claim evidence is invalid, not trusted", () => {
   assert.equal(failure?.type, "invalid_evidence");
   assert.equal(planner.plan(failure!, ctx).action, "revalidate_evidence");
 });
+
+function loopCtx(input: {
+  evidence?: ReturnType<typeof createEvidence>[];
+  verification?: VerificationResult;
+  missingRequirementIds?: string[];
+}): AnalysisContext {
+  const evidence = input.evidence ?? [issueEvidence(42)];
+  const first = makeCtx({ evidence });
+  const fingerprint = investigationFingerprint(first.state);
+  const second = makeCtx({
+    evidence,
+    attempt: 2,
+    previousFingerprints: [fingerprint],
+    verification:
+      input.verification ??
+      (input.missingRequirementIds
+        ? {
+            ...verification("insufficient_evidence"),
+            missingRequirementIds: input.missingRequirementIds,
+          }
+        : verification("insufficient_evidence")),
+  });
+  second.state.fingerprints.push(fingerprint);
+  return second;
+}
+
+function linkedPullRequest(issueId: string, trust: "external_untrusted" | "harness_derived" = "external_untrusted") {
+  const pr = createEvidence({
+    kind: "pull_request",
+    summary: "PR #7 merged=true",
+    payload: {
+      number: 7,
+      repository: "acme/box",
+      merged: true,
+      state: "closed",
+      title: "Fix empty cart",
+      body: "Fixes #42",
+    },
+    provenance: {
+      source: "github",
+      operation: "getPullRequest",
+      resource: "pull/7",
+      repository: "acme/box",
+      retrievedAt: now,
+      trust,
+    },
+    contentRef: resourceKey("pr", "7"),
+  });
+  const relation = createRelation({ fromEvidenceId: pr.id, toEvidenceId: issueId, type: "fixes" });
+  return { pr, relation };
+}
+
+test("Phase 8.8.5 Test 1 — premature_completion preserves verifier missing requirements", () => {
+  const issue = issueEvidence(42);
+  const ctx = makeCtx({
+    evidence: [issue],
+    claims: [createClaim({ text: "Issue #42 is resolved.", polarity: "resolved", critical: true })],
+    agentOutput: "Done. Issue is resolved.",
+    verification: {
+      ...verification("insufficient_evidence"),
+      prematureCompletion: true,
+      missingRequirementIds: ["req-pr", "req-commit"],
+    },
+  });
+  const failure = analyzer.classify(ctx);
+  assert.equal(failure?.type, "premature_completion");
+  assert.deepEqual(failure?.missingRequirementIds, ["req-pr", "req-commit"]);
+  const plan = planner.plan(failure!, ctx);
+  assert.equal(plan.action, "continue_investigation");
+  assert.deepEqual(plan.nextRequirementIds, ["req-pr", "req-commit"]);
+});
+
+test("Phase 8.8.5 Test 2 — insufficient_evidence preserves verifier missing requirements", () => {
+  const issue = issueEvidence(42);
+  const ctx = makeCtx({ evidence: [issue] });
+  const gather = planner.plan(
+    {
+      type: "insufficient_evidence",
+      reason: "missing",
+      evidenceIds: [issue.id],
+      confidence: 1,
+      missingRequirementIds: ["req-pr", "req-commit"],
+    },
+    ctx,
+  );
+  assert.equal(gather.action, "gather_missing_evidence");
+  assert.deepEqual(gather.nextRequirementIds, ["req-pr", "req-commit"]);
+});
+
+test("Phase 8.8.5 Test 3 — loop_failure derives target from current missing requirements when available", () => {
+  const ctx = loopCtx({ missingRequirementIds: ["req-pr"] });
+  const failure = analyzer.classify(ctx);
+  assert.equal(failure?.type, "loop_failure");
+  const plan = planner.plan(failure!, ctx);
+  assert.equal(plan.action, "replan");
+  assert.deepEqual(plan.nextRequirementIds, ["req-pr"]);
+  assert.match(plan.nextStep ?? "", /req-pr/);
+  assert.equal(plan.nextStep?.includes("github_"), false);
+});
+
+test("Phase 8.8.5 Test 4 — loop_failure does not invent a requirement when none is available", () => {
+  const issue = issueEvidence(42);
+  const { pr, relation } = linkedPullRequest(issue.id);
+  const commit = createEvidence({
+    kind: "commit",
+    summary: "Commit abc123",
+    payload: { sha: "abc123def456", repository: "acme/box", message: "Fix\n\nFixes #42" },
+    provenance: {
+      source: "github",
+      operation: "listCommits",
+      resource: "commit/abc123",
+      repository: "acme/box",
+      retrievedAt: now,
+      trust: "external_untrusted",
+    },
+    contentRef: resourceKey("commit", "abc123def456"),
+  });
+  const first = makeCtx({
+    evidence: [issue, pr, commit],
+    verification: { ...verification("not_verified"), missingRequirementIds: [] },
+  });
+  first.state.addRelation(relation);
+  first.state.addRelation(createRelation({ fromEvidenceId: commit.id, toEvidenceId: pr.id, type: "derived_from" }));
+  first.state.addCandidatePr(7);
+  first.state.mergedPrs.add(7);
+  const fingerprint = investigationFingerprint(first.state);
+  const ctx = makeCtx({
+    evidence: [issue, pr, commit],
+    attempt: 2,
+    previousFingerprints: [fingerprint],
+    verification: { ...verification("not_verified"), missingRequirementIds: [] },
+  });
+  ctx.state.addRelation(relation);
+  ctx.state.addRelation(createRelation({ fromEvidenceId: commit.id, toEvidenceId: pr.id, type: "derived_from" }));
+  ctx.state.addCandidatePr(7);
+  ctx.state.mergedPrs.add(7);
+  const failure = analyzer.classify(ctx);
+  assert.equal(failure?.type, "loop_failure");
+  const plan = planner.plan(failure!, ctx);
+  assert.equal(plan.action, "replan");
+  assert.equal((plan.nextRequirementIds ?? []).length, 0);
+  assert.equal((plan.nextRequirementIds ?? []).includes(issue.id), false);
+  assert.equal((plan.nextRequirementIds ?? []).includes(pr.id), false);
+  assert.equal(
+    (plan.nextRequirementIds ?? []).some(
+      (id) => id.startsWith("req-") && !ctx.task.requirements.some((item) => item.id === id),
+    ),
+    false,
+  );
+});
+
+test("Phase 8.8.5 Test 5 — invalid_evidence targets the affected requirement when deterministically known", () => {
+  const issue = issueEvidence(42);
+  const { pr, relation } = linkedPullRequest(issue.id, "harness_derived");
+  const ctx = makeCtx({
+    evidence: [issue, pr],
+    verification: verification("not_verified", [
+      {
+        id: "issue-identity",
+        name: "issue identity",
+        type: "identity",
+        status: "pass",
+        severity: "critical",
+        message: "Target issue identity matches.",
+        evidenceIds: [issue.id],
+      },
+    ]),
+  });
+  ctx.state.addRelation(relation);
+  ctx.state.addCandidatePr(7);
+  ctx.state.mergedPrs.add(7);
+  const reqPr = ctx.task.requirements.find((item) => item.id === "req-pr");
+  assert.ok(reqPr);
+  reqPr.satisfiedBy = [pr.id];
+  const failure = analyzer.classify(ctx);
+  assert.equal(failure?.type, "invalid_evidence");
+  assert.ok(failure?.evidenceIds.includes(pr.id));
+  const plan = planner.plan(failure!, ctx);
+  assert.equal(plan.action, "revalidate_evidence");
+  assert.ok((plan.nextRequirementIds ?? []).includes("req-pr"));
+  assert.equal((plan.nextRequirementIds ?? []).includes(pr.id), false);
+});
+
+test("Phase 8.8.5 Test 6 — invalid_evidence does not fabricate requirement IDs", () => {
+  const malformed = createEvidence({
+    id: "ev-malformed",
+    kind: "issue",
+    summary: "broken issue",
+    payload: { title: "no number" },
+    provenance: {
+      source: "github",
+      repository: "acme/box",
+      retrievedAt: now,
+      trust: "harness_derived",
+    },
+  });
+  const ctx = makeCtx({
+    evidence: [malformed],
+    verification: verification("not_verified", [
+      {
+        id: "issue-identity",
+        name: "issue identity",
+        type: "identity",
+        status: "unknown",
+        severity: "critical",
+        message: "No issue evidence; cannot confirm owner/repository/number.",
+        evidenceIds: [],
+      },
+    ]),
+  });
+  const failure = analyzer.classify(ctx);
+  assert.equal(failure?.type, "invalid_evidence");
+  const plan = planner.plan(failure!, ctx);
+  assert.equal(plan.action, "revalidate_evidence");
+  const ids = plan.nextRequirementIds ?? [];
+  assert.equal(ids.includes("ev-malformed"), false);
+  assert.equal(ids.includes(malformed.id), false);
+  assert.equal(
+    ids.some((id) => !ctx.task.requirements.some((item) => item.id === id)),
+    false,
+  );
+});
+
+test("Phase 8.8.5 Test 7 — tool_failure preserves current bounded retry behavior", () => {
+  const retryCtx = makeCtx({
+    verification: { ...verification("not_verified"), missingRequirementIds: [] },
+    toolHistory: [
+      {
+        tool: "github_get_issue",
+        arguments: { owner: "acme", repo: "box", issueNumber: 42 },
+        success: false,
+        evidenceIds: [],
+        error: "timeout",
+        errorCode: "timeout",
+        retryable: true,
+      },
+    ],
+  });
+  const retryFailure = analyzer.classify(retryCtx);
+  assert.equal(retryFailure?.type, "tool_failure");
+  const retryPlan = planner.plan(retryFailure!, retryCtx);
+  assert.equal(retryPlan.action, "retry_with_backoff");
+  assert.ok((retryPlan.maxRetries ?? 0) > 0);
+  assert.equal((retryPlan.nextRequirementIds ?? []).length, 0);
+
+  const exhausted = makeCtx({
+    verification: { ...verification("not_verified"), missingRequirementIds: [] },
+    toolHistory: retryCtx.state.toolHistory,
+  });
+  exhausted.state.toolRetryCount = bounds.maxToolRetries;
+  const stopPlan = planner.plan(analyzer.classify(exhausted)!, exhausted);
+  assert.equal(stopPlan.action, "stop");
+
+  const withMissing = makeCtx({
+    toolHistory: retryCtx.state.toolHistory,
+    verification: {
+      ...verification("insufficient_evidence"),
+      missingRequirementIds: ["req-pr"],
+    },
+  });
+  const propagated = planner.plan(analyzer.classify(withMissing)!, withMissing);
+  assert.equal(propagated.action, "retry_with_backoff");
+  assert.deepEqual(propagated.nextRequirementIds, ["req-pr"]);
+});
+
+test("Phase 8.8.5 Test 8 — wrong_target does not inherit requirements from wrong-target evidence", () => {
+  const observed = issueEvidence(99);
+  const { pr, relation } = linkedPullRequest(observed.id);
+  const ctx = makeCtx({
+    issueNumber: 42,
+    evidence: [observed, pr],
+    verification: {
+      ...verification("not_verified", [
+        {
+          id: "issue-identity",
+          name: "issue identity",
+          type: "identity",
+          status: "fail",
+          severity: "critical",
+          message: "Evidence points at acme/box#99, not acme/box#42.",
+          evidenceIds: [observed.id],
+          expected: { repository: "acme/box", issueNumber: 42 },
+          actual: { repository: "acme/box", issueNumber: 99 },
+        },
+      ]),
+      missingRequirementIds: ["req-pr", "req-commit"],
+    },
+  });
+  ctx.state.addRelation(relation);
+  ctx.state.addCandidatePr(7);
+  const reqPr = ctx.task.requirements.find((item) => item.id === "req-pr");
+  if (reqPr) {
+    reqPr.satisfiedBy = [pr.id];
+  }
+  const failure = analyzer.classify(ctx);
+  assert.equal(failure?.type, "wrong_target");
+  const plan = planner.plan(failure!, ctx);
+  assert.equal(plan.action, "recheck_target");
+  assert.equal(plan.resetEvidence, true);
+  assert.equal(plan.nextRequirementIds, undefined);
+  applyRecoveryPlan(ctx.state, plan, failure!);
+  assert.equal(ctx.state.run.evidence.length, 0);
+  assert.equal(ctx.state.lastRecovery?.nextRequirementIds, undefined);
+});
+
+test("Phase 8.8.5 Test 9 — RecoveryPlan next attempt still produces legal actions for the target", () => {
+  const ctx = loopCtx({ missingRequirementIds: ["req-pr"] });
+  ctx.state.investigatedResources.add(resourceKey("issue", "42"));
+  ctx.state.issueState = "closed";
+  const failure = analyzer.classify(ctx)!;
+  const plan = planner.plan(failure, ctx);
+  applyRecoveryPlan(ctx.state, plan, failure);
+  const planned = planInvestigationStrategy(ctx.state);
+  assert.ok((plan.nextRequirementIds ?? []).includes("req-pr"));
+  assert.ok(planned.legalActions.length > 0);
+  assert.ok(planned.legalActions.some((item) => item.targetRequirementIds.includes("req-pr")));
+  assert.ok(planned.legalActions.some((item) => item.tool.startsWith("github_")));
+  assert.equal(
+    planned.legalActions.some((item) => item.tool === "github_get_issue"),
+    false,
+  );
+});
+
+test("Phase 8.8.5 Test 10 — LLM still cannot execute an action outside legal recovery actions", async () => {
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider: new SnapshotGitHubProvider(githubFixturePath("resolved")),
+    model: {
+      async decide(): Promise<ModelResponse> {
+        return {
+          type: "tool_call",
+          call: {
+            id: "bypass-recovery-target",
+            name: "github_get_issue",
+            arguments: { owner: "acme", repo: "box", issueNumber: 42 },
+          },
+        };
+      },
+    },
+    maxAttempts: 1,
+    prepareSession: (session) => {
+      const issue = issueEvidence(42);
+      session.state.addEvidence(issue);
+      session.state.investigatedResources.add(resourceKey("issue", "42"));
+      session.state.issueState = "closed";
+      const analysis: AnalysisContext = {
+        task: session.state.task,
+        state: session.state,
+        verification: {
+          ...verification("insufficient_evidence"),
+          missingRequirementIds: ["req-pr"],
+        },
+        attempt: 2,
+        previousFingerprints: ["prior"],
+        previousRecoveries: [],
+        bounds,
+      };
+      const failure = {
+        type: "loop_failure" as const,
+        reason: "same state",
+        evidenceIds: [issue.id],
+        missingRequirementIds: ["req-pr"],
+        confidence: 1,
+      };
+      applyRecoveryPlan(session.state, planner.plan(failure, analysis), failure);
+    },
+  });
+  assert.equal(
+    result.investigationSteps.some((step) => step.tool === "github_get_issue"),
+    false,
+  );
+  assert.equal(result.agentResult?.decision, "illegal_investigation_action");
+  assert.equal(result.agentResult?.output, ILLEGAL_INVESTIGATION_ACTION);
+});
+
+test("Phase 8.8.5 Test 11 — IndependentCompletionVerifier remains independent and unchanged", async () => {
+  const source = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../src/verification/independent-completion-verifier.ts"),
+    "utf8",
+  );
+  assert.equal(/from ["'].*(react|hono|openai|github\/http|github\/live)["']/.test(source), false);
+  assert.equal(source.includes("api.github.com"), false);
+  assert.equal(source.includes("nextRequirementIds"), false);
+
+  const plannerSource = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../src/investigation/recovery-planner.ts"),
+    "utf8",
+  );
+  assert.equal(plannerSource.includes("openai-compat-model"), false);
+  assert.equal(plannerSource.includes("../github/"), false);
+  assert.match(plannerSource, /Does not call GitHub, LLM/);
+
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider: new SnapshotGitHubProvider(githubFixturePath("resolved")),
+    model: {
+      async decide(): Promise<ModelResponse> {
+        return { type: "final", message: "Need more evidence; not verified." };
+      },
+    },
+    maxAttempts: 1,
+    prepareSession: (session) => {
+      const issue = issueEvidence(42);
+      session.state.addEvidence(issue);
+      session.state.investigatedResources.add(resourceKey("issue", "42"));
+      session.state.issueState = "closed";
+      const analysis: AnalysisContext = {
+        task: session.state.task,
+        state: session.state,
+        verification: {
+          ...verification("insufficient_evidence"),
+          missingRequirementIds: ["req-pr"],
+        },
+        attempt: 2,
+        previousFingerprints: [],
+        previousRecoveries: [],
+        bounds,
+      };
+      const failure = {
+        type: "loop_failure" as const,
+        reason: "same state",
+        evidenceIds: [issue.id],
+        missingRequirementIds: ["req-pr"],
+        confidence: 1,
+      };
+      applyRecoveryPlan(session.state, planner.plan(failure, analysis), failure);
+    },
+  });
+  const independent = new IndependentCompletionVerifier().verify({
+    task: result.task,
+    run: result.run,
+  });
+  assert.equal(result.verification?.status, independent.status);
+  assert.notEqual(independent.status, "verified_complete");
+  assert.notEqual(result.run.status, "verified_complete");
+});
+
+test("Phase 8.8.5 — snapshot Fake Model cases C01 C05 C06 C07 C08 C10 keep recovery trajectories", async () => {
+  const dataset = loadDataset(realDatasetManifestPath());
+  await withGithubNetworkBlocked(async () => {
+    for (const caseId of ["C01", "C05", "C06", "C07", "C08", "C10"]) {
+      const executed = await executeDatasetCase(dataset, caseId);
+      const attempts = executed.report.run.attempts;
+      assert.ok(attempts.length >= 1, caseId);
+      for (let index = 0; index < attempts.length - 1; index += 1) {
+        const current = attempts[index];
+        const next = attempts[index + 1];
+        assert.ok(current && next, caseId);
+        if (!current.failure || !current.recovery || current.recovery.action === "stop") {
+          continue;
+        }
+        assert.equal(next.parentAttemptId, current.id, caseId);
+        assert.equal(next.recoveryPlanId, current.recovery.id, caseId);
+        assert.equal(next.failureEventId, current.failure.id, caseId);
+        const ids = current.recovery.nextRequirementIds ?? [];
+        if (ids.length > 0) {
+          assert.ok(next.strategy, caseId);
+          assert.equal(
+            ids.some((id) => (current.failure?.evidenceIds ?? []).includes(id)),
+            false,
+            caseId,
+          );
+        }
+        if (current.failure.type === "wrong_target") {
+          assert.equal((current.recovery.nextRequirementIds ?? []).length, 0, caseId);
+        }
+      }
+    }
+  });
+});
+

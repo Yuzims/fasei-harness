@@ -13,10 +13,90 @@ import {
 } from "../domain/index.js";
 import { isRuntimeBudgetFailure } from "../agent/llm-runtime.js";
 import type { AnalysisContext } from "./analysis-context.js";
+import { computeEvidenceGap, missingRequiredGaps } from "./evidence-gap.js";
 import { remainingEvidenceSources, type RetrievalStrategy } from "./state.js";
 
 export interface RecoveryContext extends AnalysisContext {
   failure: FailureEvent;
+}
+
+function uniqueRequirementIds(ids: string[]): string[] {
+  return [...new Set(ids.filter((id) => id.length > 0))];
+}
+
+function knownRequirementIds(ctx: RecoveryContext): Set<string> {
+  const ids = new Set(ctx.task.requirements.map((item) => item.id));
+  for (const item of computeEvidenceGap(ctx.task, ctx.state.run).items) {
+    ids.add(item.requirementId);
+  }
+  return ids;
+}
+
+function onlyKnownRequirementIds(ids: string[] | undefined, known: Set<string>): string[] {
+  if (!ids) {
+    return [];
+  }
+  return uniqueRequirementIds(ids.filter((id) => known.has(id)));
+}
+
+function optionalRequirementIds(ids: string[]): string[] | undefined {
+  return ids.length > 0 ? ids : undefined;
+}
+
+/**
+ * Verifier missing IDs plus EvidenceGap missing task requirements.
+ * Never fabricates IDs and never treats resolution_effect as a retrieval target.
+ */
+function actionableMissingRequirementIds(failure: FailureEvent, ctx: RecoveryContext): string[] {
+  const known = knownRequirementIds(ctx);
+  const fromVerifier = onlyKnownRequirementIds(
+    failure.missingRequirementIds ?? ctx.verification.missingRequirementIds,
+    known,
+  );
+  if (fromVerifier.length > 0) {
+    return fromVerifier;
+  }
+  const taskIds = new Set(ctx.task.requirements.map((item) => item.id));
+  const fromGap = missingRequiredGaps(computeEvidenceGap(ctx.task, ctx.state.run))
+    .filter((item) => item.condition !== "resolution_effect")
+    .filter((item) => taskIds.has(item.requirementId))
+    .map((item) => item.requirementId);
+  return onlyKnownRequirementIds(fromGap, known);
+}
+
+/**
+ * Propagate requirement IDs already identified by the failure or verifier.
+ * Does not invent a tool-to-requirement mapping.
+ */
+function propagatedMissingRequirementIds(failure: FailureEvent, ctx: RecoveryContext): string[] {
+  return onlyKnownRequirementIds(
+    failure.missingRequirementIds ?? ctx.verification.missingRequirementIds,
+    knownRequirementIds(ctx),
+  );
+}
+
+/**
+ * Map invalid evidence onto existing requirements when the association is
+ * already present in EvidenceGap, satisfiedBy, or verification checks.
+ * Evidence IDs are never used as requirement IDs.
+ */
+function invalidEvidenceRequirementIds(failure: FailureEvent, ctx: RecoveryContext): string[] {
+  const invalid = new Set(failure.evidenceIds);
+  if (invalid.size === 0) {
+    return [];
+  }
+  const known = knownRequirementIds(ctx);
+  const gap = computeEvidenceGap(ctx.task, ctx.state.run);
+  const fromGap = gap.items
+    .filter((item) => item.evidenceIds.some((id) => invalid.has(id)))
+    .map((item) => item.requirementId);
+  const fromSatisfiedBy = ctx.task.requirements
+    .filter((item) => (item.satisfiedBy ?? []).some((id) => invalid.has(id)))
+    .map((item) => item.id);
+  const fromChecks = ctx.verification.checks
+    .filter((check) => check.evidenceIds.some((id) => invalid.has(id)))
+    .map((check) => check.id);
+  return onlyKnownRequirementIds([...fromGap, ...fromSatisfiedBy, ...fromChecks], known);
 }
 
 function nextRetrievalStrategy(current: RetrievalStrategy, remaining: string[]): RetrievalStrategy {
@@ -42,12 +122,14 @@ function alreadyChose(
 function planToolFailure(failure: FailureEvent, ctx: RecoveryContext): RecoveryPlan {
   const retryable =
     failure.retryable ?? isRetryableToolCode(failure.errorCode) ?? false;
+  const nextRequirementIds = optionalRequirementIds(propagatedMissingRequirementIds(failure, ctx));
   if (!retryable) {
     return {
       action: "stop",
       reason: `Tool error ${failure.errorCode ?? failure.httpStatus ?? "non-retryable"} is not recoverable; no blind retry.`,
       nextStep: "Stop. Recheck credentials or the target identity instead of repeating the same tool.",
       maxRetries: ctx.bounds.maxToolRetries,
+      nextRequirementIds,
     };
   }
   if (ctx.state.toolRetryCount >= ctx.bounds.maxToolRetries) {
@@ -56,6 +138,7 @@ function planToolFailure(failure: FailureEvent, ctx: RecoveryContext): RecoveryP
       reason: "Tool retry budget exhausted.",
       nextStep: "Stop. Further retries would loop.",
       maxRetries: ctx.bounds.maxToolRetries,
+      nextRequirementIds,
     };
   }
   if (ctx.attempt >= ctx.bounds.maxInvestigationAttempts) {
@@ -63,6 +146,7 @@ function planToolFailure(failure: FailureEvent, ctx: RecoveryContext): RecoveryP
       action: "stop",
       reason: "Investigation attempt budget exhausted after retryable tool failure.",
       maxRetries: ctx.bounds.maxToolRetries,
+      nextRequirementIds,
     };
   }
   const backoffMs = 10 * 2 ** ctx.state.toolRetryCount;
@@ -75,6 +159,7 @@ function planToolFailure(failure: FailureEvent, ctx: RecoveryContext): RecoveryP
       : "Retry the failed GitHub tool after backoff.",
     maxRetries: ctx.bounds.maxToolRetries,
     backoffMs,
+    nextRequirementIds,
   };
 }
 
@@ -119,13 +204,20 @@ function planPrematureCompletion(failure: FailureEvent, ctx: RecoveryContext): R
   };
 }
 
-function planLoopFailure(_failure: FailureEvent, ctx: RecoveryContext): RecoveryPlan {
+function planLoopFailure(failure: FailureEvent, ctx: RecoveryContext): RecoveryPlan {
+  const nextRequirementIds = optionalRequirementIds(actionableMissingRequirementIds(failure, ctx));
+  const hasTarget = (nextRequirementIds?.length ?? 0) > 0;
   if (!alreadyChose(ctx, "replan") && ctx.attempt < ctx.bounds.maxInvestigationAttempts) {
     return {
       action: "replan",
-      reason: "Same state detected. Change strategy once before stopping.",
+      reason: hasTarget
+        ? "Same state detected. Replan toward the current missing evidence requirements."
+        : "Same state detected. Change strategy once before stopping.",
       resetEvidence: false,
-      nextStep: "Replan: broaden retrieval and do not repeat the previous tool sequence.",
+      nextStep: hasTarget
+        ? `Replan focusing on missing requirements: ${nextRequirementIds?.join(", ")}. Do not repeat the previous tool sequence.`
+        : "Replan: broaden retrieval and do not repeat the previous tool sequence.",
+      nextRequirementIds,
       retrievalStrategy: "broaden",
     };
   }
@@ -133,6 +225,7 @@ function planLoopFailure(_failure: FailureEvent, ctx: RecoveryContext): Recovery
     action: "stop",
     reason: "Loop detected after a replan; stopping to avoid A→B→A→B recovery.",
     nextStep: "Stop.",
+    nextRequirementIds,
   };
 }
 
@@ -168,12 +261,16 @@ function planInvalidEvidence(failure: FailureEvent, ctx: RecoveryContext): Recov
   const discardEvidenceIds = failure.evidenceIds.filter((id) =>
     ctx.state.run.evidence.some((item) => item.id === id),
   );
+  const nextRequirementIds = optionalRequirementIds(invalidEvidenceRequirementIds(failure, ctx));
   return {
     action: "revalidate_evidence",
     reason: "Discard invalid evidence and refetch the source. Invalid GitHub text cannot become trusted evidence.",
     resetEvidence: false,
     discardEvidenceIds,
-    nextStep: "Revalidate: drop invalid items, refetch their source, never upgrade trust to harness_derived.",
+    nextRequirementIds,
+    nextStep: nextRequirementIds
+      ? `Revalidate: drop invalid items, refetch their source, and gather evidence for ${nextRequirementIds.join(", ")}.`
+      : "Revalidate: drop invalid items, refetch their source, never upgrade trust to harness_derived.",
   };
 }
 
@@ -244,6 +341,9 @@ export class RecoveryPlanner {
       };
     }
     const planned = STRATEGIES[failure.type](failure, recoveryCtx);
+    if (failure.type === "wrong_target" || planned.action === "recheck_target") {
+      return { ...planned, nextRequirementIds: undefined };
+    }
     return planned;
   }
 }

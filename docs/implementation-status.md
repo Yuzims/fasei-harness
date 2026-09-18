@@ -851,6 +851,27 @@ Evidence-Gap Strategy now distinguishes stop reasons instead of treating “lega
 
 Candidate PR discovery no longer freezes after the first unmerged PR. `resolution_effect` semantic alignment is not solved in this phase. Verifier / Recovery / Dataset / Ground Truth are unchanged.
 
+## Phase 8.8.5 — Failure-to-Recovery-Target Resolution — DONE
+
+RecoveryPlanner now derives `RecoveryPlan.nextRequirementIds` from existing InvestigationState / VerificationResult / EvidenceRequirement semantics. It still does not call GitHub, the LLM, or choose concrete tool calls.
+
+```text
+FailureAnalyzer          →  what failed
+RecoveryPlanner          →  which evidence requirement(s) the next attempt must address
+Evidence-Gap Strategy    →  which legal investigation actions can advance those requirements
+IndependentCompletionVerifier →  only authority for verified completion
+```
+
+| Failure | Recovery target |
+|---|---|
+| `premature_completion` / `insufficient_evidence` / `retrieval_failure` | unchanged: verifier `missingRequirementIds` |
+| `loop_failure` | current missing requirements when the verifier or Evidence Gap already names them; otherwise existing replan-once-then-stop |
+| `invalid_evidence` | requirement IDs already associated with the invalid evidence (`EvidenceGap.evidenceIds`, `satisfiedBy`, or matching verification check ids); never evidence IDs |
+| `tool_failure` | propagate verifier missing IDs when present; otherwise unchanged bounded retry/stop |
+| `wrong_target` | never inherit requirements from the wrong issue; `resetEvidence` + `recheck_target` unchanged |
+
+Empty / omitted `nextRequirementIds` still means unconstrained first-attempt / existing recovery behavior. `resolution_effect` is not turned into a retrieval requirement. IndependentCompletionVerifier, Ground Truth, GitHub Provider, and Evidence-Gap Strategy are unchanged.
+
 ## Not started
 
-Phase 8.8.3+ waits for a new task.
+Later phases wait for a new task.

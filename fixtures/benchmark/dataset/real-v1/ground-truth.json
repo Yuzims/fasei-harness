@@ -1,5 +1,5 @@
 {
-  "datasetVersion": "v1",
+  "datasetVersion": "v1.1",
   "schemaVersion": "1",
   "kind": "real",
   "description": "Evaluator-only ground truth for real-v1. Agent runtime must not read this file.",

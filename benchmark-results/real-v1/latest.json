@@ -1,7 +1,7 @@
 {
   "dataset": "real-v1",
-  "datasetVersion": "v1",
-  "timestamp": "2026-09-18T03:17:31.844Z",
+  "datasetVersion": "v1.1",
+  "timestamp": "2026-09-18T03:39:32.406Z",
   "cases": [
     {
       "caseId": "C01",
@@ -14,11 +14,11 @@
         "recoveryPassed": true
       },
       "attempts": 1,
-      "toolCalls": 7,
+      "toolCalls": 8,
       "failureEvents": [],
       "recoveryEvents": [],
       "evidenceCount": 9,
-      "claimCount": 7
+      "claimCount": 8
     },
     {
       "caseId": "C02",
@@ -82,22 +82,21 @@
         "recoveryPassed": true
       },
       "attempts": 1,
-      "toolCalls": 4,
+      "toolCalls": 6,
       "failureEvents": [
         {
-          "type": "insufficient_evidence",
-          "reason": "Required evidence is missing; the harness cannot prove completion.",
-          "missingRequirementIds": [
-            "req-pr",
-            "req-commit"
-          ]
+          "type": "tool_failure",
+          "reason": "PR 616 not in snapshot real-v1-C05",
+          "tool": "github_get_pull_request",
+          "errorCode": "not_found",
+          "retryable": false
         }
       ],
       "recoveryEvents": [
         {
           "action": "stop",
-          "reason": "Required evidence is missing and no further useful evidence source remains.",
-          "nextStep": "Stop and keep insufficient_evidence."
+          "reason": "Tool error not_found is not recoverable; no blind retry.",
+          "nextStep": "Stop. Recheck credentials or the target identity instead of repeating the same tool."
         }
       ],
       "evidenceCount": 3,
@@ -114,11 +113,11 @@
         "recoveryPassed": true
       },
       "attempts": 1,
-      "toolCalls": 12,
+      "toolCalls": 7,
       "failureEvents": [
         {
           "type": "tool_failure",
-          "reason": "PR 123 not in snapshot real-v1-C06",
+          "reason": "PR 273 not in snapshot real-v1-C06",
           "tool": "github_get_pull_request",
           "errorCode": "not_found",
           "retryable": false
@@ -132,11 +131,11 @@
         }
       ],
       "evidenceCount": 3,
-      "claimCount": 0
+      "claimCount": 3
     },
     {
       "caseId": "C07",
-      "observedOutcome": "insufficient_evidence",
+      "observedOutcome": "verified_complete",
       "expectedOutcome": "not_verified",
       "evaluation": {
         "passed": false,
@@ -145,25 +144,11 @@
         "recoveryPassed": true
       },
       "attempts": 1,
-      "toolCalls": 12,
-      "failureEvents": [
-        {
-          "type": "tool_failure",
-          "reason": "PR 3868 not in snapshot real-v1-C07",
-          "tool": "github_get_pull_request",
-          "errorCode": "not_found",
-          "retryable": false
-        }
-      ],
-      "recoveryEvents": [
-        {
-          "action": "stop",
-          "reason": "Tool error not_found is not recoverable; no blind retry.",
-          "nextStep": "Stop. Recheck credentials or the target identity instead of repeating the same tool."
-        }
-      ],
-      "evidenceCount": 3,
-      "claimCount": 0
+      "toolCalls": 8,
+      "failureEvents": [],
+      "recoveryEvents": [],
+      "evidenceCount": 16,
+      "claimCount": 8
     },
     {
       "caseId": "C08",
@@ -176,58 +161,42 @@
         "recoveryPassed": true
       },
       "attempts": 1,
-      "toolCalls": 4,
+      "toolCalls": 8,
       "failureEvents": [
         {
-          "type": "insufficient_evidence",
-          "reason": "Required evidence is missing; the harness cannot prove completion.",
-          "missingRequirementIds": [
-            "req-pr",
-            "req-commit"
-          ]
+          "type": "tool_failure",
+          "reason": "PR 596 not in snapshot real-v1-C08",
+          "tool": "github_get_pull_request",
+          "errorCode": "not_found",
+          "retryable": false
         }
       ],
       "recoveryEvents": [
         {
           "action": "stop",
-          "reason": "Required evidence is missing and no further useful evidence source remains.",
-          "nextStep": "Stop and keep insufficient_evidence."
+          "reason": "Tool error not_found is not recoverable; no blind retry.",
+          "nextStep": "Stop. Recheck credentials or the target identity instead of repeating the same tool."
         }
       ],
-      "evidenceCount": 3,
-      "claimCount": 2
+      "evidenceCount": 6,
+      "claimCount": 4
     },
     {
       "caseId": "C09",
-      "observedOutcome": "insufficient_evidence",
+      "observedOutcome": "verified_complete",
       "expectedOutcome": "verified_complete",
       "evaluation": {
-        "passed": false,
-        "verificationPassed": false,
+        "passed": true,
+        "verificationPassed": true,
         "failureModesPassed": true,
         "recoveryPassed": true
       },
       "attempts": 1,
-      "toolCalls": 4,
-      "failureEvents": [
-        {
-          "type": "insufficient_evidence",
-          "reason": "Required evidence is missing; the harness cannot prove completion.",
-          "missingRequirementIds": [
-            "req-pr",
-            "req-commit"
-          ]
-        }
-      ],
-      "recoveryEvents": [
-        {
-          "action": "stop",
-          "reason": "Required evidence is missing and no further useful evidence source remains.",
-          "nextStep": "Stop and keep insufficient_evidence."
-        }
-      ],
-      "evidenceCount": 3,
-      "claimCount": 2
+      "toolCalls": 8,
+      "failureEvents": [],
+      "recoveryEvents": [],
+      "evidenceCount": 10,
+      "claimCount": 11
     },
     {
       "caseId": "C10",
@@ -240,7 +209,7 @@
         "recoveryPassed": true
       },
       "attempts": 1,
-      "toolCalls": 4,
+      "toolCalls": 5,
       "failureEvents": [
         {
           "type": "insufficient_evidence",
@@ -263,13 +232,13 @@
     }
   ],
   "metrics": {
-    "taskSuccessRate": 0.4,
+    "taskSuccessRate": 0.6,
     "falseCompletionRate": 0,
-    "insufficientEvidenceRate": 0.6,
-    "evidenceCoverage": 0.5999999999999999,
+    "insufficientEvidenceRate": 0.4,
+    "evidenceCoverage": 0.7333333333333332,
     "unsupportedClaimRate": 0,
     "recoveryRate": 0,
     "averageAttempts": 1,
-    "averageToolCalls": 6.9
+    "averageToolCalls": 7.2
   }
 }

@@ -336,6 +336,19 @@
       "url": "https://api.github.com/repos/better-auth/better-auth/issues/events/24093030942",
       "retrievedAt": "2026-09-18T02:39:25.273Z",
       "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:better-auth/better-auth:pr-ref-7256",
+      "repository": "better-auth/better-auth",
+      "event": "cross-referenced",
+      "createdAt": "2026-09-18T02:39:25.935Z",
+      "actor": "",
+      "body": "fix(multi-session): prevent duplicate cookies when same user signs in multiple times",
+      "pullRequestNumber": 7256,
+      "source": "github",
+      "url": "https://github.com/better-auth/better-auth/pull/7256",
+      "retrievedAt": "2026-09-18T02:39:19.414Z",
+      "trust": "external_untrusted"
     }
   ],
   "pullRequests": {

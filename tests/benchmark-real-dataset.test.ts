@@ -59,7 +59,7 @@ test("real-v1 manifest loads with 10 unique cases", () => {
   const dataset = loadDataset(realDatasetManifestPath());
   assert.equal(dataset.metadata.kind, "real");
   assert.equal(dataset.metadata.name, "fasei-real-v1");
-  assert.equal(dataset.metadata.datasetVersion, "v1");
+  assert.equal(dataset.metadata.datasetVersion, "v1.1");
   assert.equal(dataset.metadata.schemaVersion, DATASET_SCHEMA_VERSION);
   assert.equal(REAL_DATASET_ID, "real-v1");
   assert.equal(dataset.cases.length, 10);
@@ -100,7 +100,7 @@ test("real-v1 repository and issue identities are valid and match snapshots", ()
 test("real-v1 expected outcomes live only in ground-truth.json", () => {
   const dataset = loadDataset(realDatasetManifestPath());
   const groundTruth = loadGroundTruth(dataset);
-  assert.equal(groundTruth.datasetVersion, "v1");
+  assert.equal(groundTruth.datasetVersion, "v1.1");
   assert.equal(groundTruth.schemaVersion, "1");
   assert.equal(groundTruth.cases.length, 10);
   assert.equal(dataset.evaluationOutcomes, undefined);

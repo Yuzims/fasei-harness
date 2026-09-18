@@ -118,13 +118,24 @@ export function normalizeTimelineEvent(
   const actor = asRecord(item.actor);
   const sourceIssue = asRecord(asRecord(item.source).issue);
   const pull = asRecord(item.pull_request);
+  const subject = asRecord(item.subject);
+  const subIssue = asRecord(item.sub_issue);
+  const parentIssue = asRecord(item.parent_issue);
   const repository = repoName(owner, repo);
   const event = str(item.event) || "unknown";
   const id = str(item.id) || str(item.node_id) || `${event}-${str(item.created_at)}`;
   const commitId = str(item.commit_id);
   const body = str(item.body) || commitId;
-  const prFromSource = sourceIssue.pull_request ? num(sourceIssue.number) : undefined;
-  const prNumber = num(pull.number) || prFromSource || undefined;
+  const sourceHasPull = Boolean(sourceIssue.pull_request);
+  const prFromSource = sourceHasPull ? num(sourceIssue.number) : 0;
+  const prFromSubject = /pull/i.test(str(subject.type)) ? num(subject.number) : 0;
+  const prFromSub = subIssue.pull_request ? num(subIssue.number) : 0;
+  const prFromParent = parentIssue.pull_request ? num(parentIssue.number) : 0;
+  const prFromUrl = pullNumberFromUrl(
+    str(item.html_url) || str(sourceIssue.html_url) || str(pull.html_url) || str(subject.url),
+  );
+  const prNumber =
+    num(pull.number) || prFromSource || prFromSubject || prFromSub || prFromParent || prFromUrl || undefined;
   return {
     id: `timeline:${repository}:${id}`,
     repository,
@@ -140,14 +151,53 @@ export function normalizeTimelineEvent(
   };
 }
 
+function pullNumberFromUrl(url: string): number {
+  const match = url.match(/\/pull\/(\d+)(?:\b|$)/);
+  return match ? Number(match[1]) : 0;
+}
+
 export function extractPullRequestNumbers(events: TimelineEventSnapshot[]): number[] {
   const numbers = new Set<number>();
   for (const event of events) {
     if (event.pullRequestNumber && event.pullRequestNumber > 0) {
       numbers.add(event.pullRequestNumber);
     }
+    for (const mentioned of extractMentionedNumbers(event.body)) {
+      numbers.add(mentioned);
+    }
   }
   return [...numbers].sort((a, b) => a - b);
+}
+
+/** Hash references like #7256. Used by capture and investigation to follow mention paths. */
+export function extractMentionedNumbers(text: string): number[] {
+  const found = new Set<number>();
+  for (const match of text.matchAll(/#(\d+)/g)) {
+    const value = Number(match[1]);
+    if (Number.isInteger(value) && value > 0) {
+      found.add(value);
+    }
+  }
+  return [...found];
+}
+
+export function textClosesIssue(
+  text: string,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+): boolean {
+  const ownerRe = escapeRegExp(owner);
+  const repoRe = escapeRegExp(repo);
+  const closing = new RegExp(
+    `(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s+(?:https?://github\\.com/${ownerRe}/${repoRe}/(?:issues|pull)/|#)${issueNumber}\\b`,
+    "i",
+  );
+  return closing.test(text);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 const COMMIT_SHA = /\b[0-9a-f]{7,40}\b/i;

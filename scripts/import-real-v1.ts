@@ -2,7 +2,8 @@
  * One-time importer for the curated real-v1 GitHub issue cases.
  *
  * Uses existing LiveGitHubProvider → captureInvestigationSnapshot → saveSnapshot.
- * Re-running should produce real-v2, not a silent rewrite of committed real-v1.
+ * Completeness repairs of these same 10 cases bump datasetVersion (currently v1.1).
+ * Capturing a different issue set should be real-v2, not a silent rewrite of real-v1.
  *
  * GITHUB_TOKEN is read from the process environment / local .env only.
  */

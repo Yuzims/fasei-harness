@@ -1,7 +1,7 @@
 export type { GitHubDataProvider } from "./provider.js";
 export { LiveGitHubProvider } from "./live-provider.js";
 export { SnapshotGitHubProvider } from "./snapshot-provider.js";
-export { captureInvestigationSnapshot } from "./capture.js";
+export { captureInvestigationSnapshot, finalizeInvestigationSnapshot } from "./capture.js";
 export {
   githubFixturePath,
   loadSnapshot,
@@ -9,7 +9,7 @@ export {
   validateSnapshot,
 } from "./snapshot-store.js";
 export { GitHubProviderError } from "./errors.js";
-export { extractCommitShas, extractPullRequestNumbers } from "./normalize.js";
+export { extractCommitShas, extractMentionedNumbers, extractPullRequestNumbers, textClosesIssue } from "./normalize.js";
 export { SNAPSHOT_SCHEMA_VERSION, UNTRUSTED, GITHUB_SOURCE } from "./types.js";
 export type {
   CommentSnapshot,

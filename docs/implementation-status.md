@@ -552,6 +552,56 @@ Known limitations:
 - C06/C07 comments mention pull numbers that are not in the recorded snapshot (`PR 123`, `PR 3868`). The existing driver then hits `not_found` and stops with `tool_failure` before a semantic verdict. C07 therefore does not currently observe `wrong_target`.
 - C08/C09 snapshots did not yield a resolution-candidate PR on the current investigation path, so the harness observed `insufficient_evidence` against ground-truth `verified_complete`.
 
+## Phase 7.2C.1 — Benchmark Dataset Completeness & Validity Fix — DONE
+
+This phase repaired Agent-visible snapshot completeness. It did not change Ground Truth, evaluator thresholds, or Phase 7.0 metric definitions. `datasetVersion` is now `v1.1` (same `real-v1` cases).
+
+Generic fixes (no caseId branches):
+
+- Capture follows `#N` mentions in issue/comment text and records a `cross-referenced` timeline event when a captured PR body/title closes the target issue but GitHub's timeline API omitted that link.
+- Timeline events that only stored a commit SHA are enriched with that commit's real message.
+- Non-retryable GitHub `not_found` marks the resource investigated so the driver does not repeat the same missing PR until `maxSteps`.
+- When no merged/unmerged PR remains, the driver inspects referenced repository commits.
+
+Snapshot files actually rewritten: C01, C02, C03, C07, C08, C09. C07/C09 gained a discoverable PR cross-reference. C08 timeline bodies now include commit messages (including `e70118a` / `Resolves #291`). C04, C05, C06, C10 were already complete enough and were not rewritten.
+
+Actual run after the repair:
+
+| Case | Observed | Expected | Evaluator | Why |
+|---|---|---|---|---|
+| C01 | `verified_complete` | `verified_complete` | pass | Merged PR 284149 chain is observable. |
+| C02 | `verified_complete` | `verified_complete` | pass | Merged PR 14527 chain is observable. |
+| C03 | `verified_complete` | `verified_complete` | pass | Merged PR 14022 chain is observable. |
+| C04 | `verified_complete` | `verified_complete` | pass | Duplicate resolved by existing merged PR 14504. |
+| C05 | `insufficient_evidence` | `not_verified` | fail | Snapshot is a valid negative control (closed `not_planned`, no resolution PR). Verifier missing `req-pr`/`req-commit` is `insufficient_evidence`, not `not_verified`. Issue body `#616` is not a snapshot PR; one `not_found` is classified `tool_failure` then stop. |
+| C06 | `insufficient_evidence` | `not_verified` | fail | Same negative-control shape as C05. Comments mention `#123`/`#273`, which are not resolution PRs in the snapshot. Those 404s are recorded once and not retried to `maxSteps`. |
+| C07 | `verified_complete` | `not_verified` | fail | PR 7256, files, and commits are now followed. The harness verifies the GitHub close/merge/file/commit chain. It does not perform the semantic/effect check Ground Truth describes, and it does not emit `wrong_target` because issue identity matches. |
+| C08 | `insufficient_evidence` | `verified_complete` | fail | Commit `e70118a` is observable (`Resolves #291`). There is no merged PR candidate; independent verification still requires Issue→PR→merged→code. Direct-commit close cannot be `verified_complete`. |
+| C09 | `verified_complete` | `verified_complete` | pass | PR 279 and untrusted-content files are now discoverable and fetched. |
+| C10 | `insufficient_evidence` | `not_verified` | fail | Snapshot is sufficient: closed `completed` with a security write-up and no resolution PR. Closed ≠ verified. |
+
+Metrics from that run:
+
+```text
+taskSuccessRate: 0.6
+falseCompletionRate: 0
+insufficientEvidenceRate: 0.4
+evidenceCoverage: 0.7333333333333332
+unsupportedClaimRate: 0
+recoveryRate: 0
+averageAttempts: 1
+averageToolCalls: 7.2
+```
+
+Evaluator: 5 passed / 5 failed. Two consecutive `npm run benchmark:real` runs matched after canonicalizing timestamp.
+
+Remaining limitations:
+
+- Independent Completion Verifier checks the GitHub evidence chain, not whether a merged PR semantically fixes the reported bug (C07).
+- Direct-commit issue closure without a PR cannot produce `verified_complete` (C08).
+- Closed-without-PR cases are `insufficient_evidence`; Ground Truth labels them `not_verified` (C05/C06/C10).
+- Comment/commit `#N` mentions that are not snapshot PRs still produce a single non-retryable `not_found`, which FailureAnalyzer reports as `tool_failure` even when the verification status is `insufficient_evidence`.
+
 ## Not started
 
 Phase 7.3+ waits for a new task.

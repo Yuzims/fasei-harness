@@ -16,6 +16,7 @@ import { createInvestigationGithubTools } from "../tools/github.js";
 import { TraceCollector } from "../trace/trace-collector.js";
 import { UNTRUSTED_NOTICE } from "./policy.js";
 import { GitHubProviderError } from "../github/errors.js";
+import { extractMentionedNumbers } from "../github/normalize.js";
 import {
   InvestigationState,
   pullResource,
@@ -45,14 +46,7 @@ function asArray(value: unknown): unknown[] {
 }
 
 function mentionPullNumbers(text: string, issueNumber: number): number[] {
-  const found = new Set<number>();
-  for (const match of text.matchAll(/#(\d+)/g)) {
-    const n = Number(match[1]);
-    if (Number.isInteger(n) && n > 0 && n !== issueNumber) {
-      found.add(n);
-    }
-  }
-  return [...found];
+  return extractMentionedNumbers(text).filter((n) => n !== issueNumber);
 }
 
 function evidenceIdByRef(session: InvestigationSession, ref: string): string | undefined {
@@ -175,6 +169,11 @@ function ingestIssue(session: InvestigationSession, output: unknown): string[] {
     ids.push(issueId);
     linkIssueGraph(session, issueId);
   }
+  const title = String(output.title ?? "");
+  const body = String(output.body ?? "");
+  for (const pullNumber of mentionPullNumbers(`${title}\n${body}`, session.state.task.target.issueNumber)) {
+    session.state.addCandidatePr(pullNumber);
+  }
   return ids;
 }
 
@@ -256,6 +255,10 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
     if (Number.isInteger(pullNumber) && pullNumber > 0) {
       session.state.addCandidatePr(pullNumber);
       relate(session, timelineId, pullEvidenceId(session, pullNumber), "mentions");
+    }
+    for (const mentioned of mentionPullNumbers(String(event.body ?? ""), issueNumber)) {
+      session.state.addCandidatePr(mentioned);
+      relate(session, timelineId, pullEvidenceId(session, mentioned), "mentions");
     }
   }
   return ids;
@@ -388,6 +391,8 @@ function ingestCommits(session: InvestigationSession, output: unknown, pullNumbe
   const ids: string[] = [];
   if (pullNumber && pullNumber > 0) {
     session.state.investigatedResources.add(resourceKey("commits", String(pullNumber)));
+  } else {
+    session.state.investigatedResources.add(resourceKey("commits", "repo"));
   }
   for (const commit of commits) {
     if (!isRecord(commit)) {
@@ -512,6 +517,9 @@ function wrapGithubTool(tool: Tool, session: InvestigationSession): Tool {
         };
       } catch (error) {
         const providerError = error instanceof GitHubProviderError ? error : undefined;
+        if (key && providerError && providerError.retryable === false) {
+          session.state.investigatedResources.add(key);
+        }
         session.state.recordTool({
           tool: tool.name,
           arguments: args,

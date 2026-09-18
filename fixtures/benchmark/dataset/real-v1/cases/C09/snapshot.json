@@ -66,10 +66,23 @@
       "event": "referenced",
       "createdAt": "2026-07-11T13:15:55Z",
       "actor": "olafkfreund",
-      "body": "2dced783cfa5331546c0258f48e5188456a1ddbe",
+      "body": "2dced783cfa5331546c0258f48e5188456a1ddbe\ndocs(security): untrusted-content threat model + content_trust marking + injection_scan event field (#273) (#279)\n\nSpec-only prompt-injection defense contract (parent epic #270):\n\n- docs/security/untrusted-content-threat-model.md: untrusted inputs per\n  service, fail-closed scan rule (RFC-0012 pattern), canonical\n  untrusted-content prompt delimiter.\n- apis/task-contract.schema.json: optional, backwards-compatible\n  $defs.content_trust referenced from provenance; absent => consumers\n  assume untrusted_user_content.\n- RFC-0001 §3.2 + apis/completion-events.asyncapi.yaml: additive\n  injection_scan block (verdict pass/flagged/skipped + reason), minor\n  version bump to 1.3.\n- RFC-0003: design principle referencing the canonical wrapper for\n  GitHub-ingested text.\n\nVerified: scripts/validate_task_contract.py OK; JSON/YAML parse; new\ncontent_trust block exercised with jsonschema (valid/invalid cases).\n\n\nClaude-Session: https://claude.ai/code/session_016nKRuLrdcVE1GjBqDWjHbV\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
       "source": "github",
       "url": "https://api.github.com/repos/olafkfreund/Factory/issues/events/27852718390",
       "retrievedAt": "2026-09-18T02:39:40.201Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:olafkfreund/Factory:pr-ref-279",
+      "repository": "olafkfreund/Factory",
+      "event": "cross-referenced",
+      "createdAt": "2026-09-18T02:39:40.817Z",
+      "actor": "",
+      "body": "docs(security): untrusted-content threat model + content_trust + injection_scan (#273)",
+      "pullRequestNumber": 279,
+      "source": "github",
+      "url": "https://github.com/olafkfreund/Factory/pull/279",
+      "retrievedAt": "2026-09-18T02:39:19.414Z",
       "trust": "external_untrusted"
     }
   ],

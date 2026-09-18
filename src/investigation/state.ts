@@ -230,7 +230,9 @@ export function resourceKeyForTool(
     case "github_get_pull_request_files":
       return typeof pullNumber === "number" ? resourceKey("files", String(pullNumber)) : undefined;
     case "github_list_commits":
-      return typeof pullNumber === "number" ? resourceKey("commits", String(pullNumber)) : undefined;
+      return typeof pullNumber === "number"
+        ? resourceKey("commits", String(pullNumber))
+        : resourceKey("commits", "repo");
     default:
       return undefined;
   }

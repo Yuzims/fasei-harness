@@ -1,5 +1,10 @@
 import { GitHubProviderError } from "./errors.js";
-import { extractCommitShas, extractPullRequestNumbers } from "./normalize.js";
+import {
+  extractCommitShas,
+  extractMentionedNumbers,
+  extractPullRequestNumbers,
+  textClosesIssue,
+} from "./normalize.js";
 import type { GitHubDataProvider } from "./provider.js";
 import {
   GITHUB_SOURCE,
@@ -7,6 +12,8 @@ import {
   UNTRUSTED,
   type CommitSnapshot,
   type InvestigationSnapshot,
+  type PullRequestSnapshot,
+  type TimelineEventSnapshot,
 } from "./types.js";
 
 export interface CaptureInvestigationSnapshotInput {
@@ -49,12 +56,20 @@ export async function captureInvestigationSnapshot(
     issueNumber: input.issueNumber,
   });
   const requestedPulls = input.pullNumbers ?? [];
+  const mentioned = uniquePositive([
+    ...extractMentionedNumbers(issue.body),
+    ...extractMentionedNumbers(issue.title),
+    ...comments.flatMap((comment) => extractMentionedNumbers(comment.body)),
+  ]).filter((n) => n !== input.issueNumber && !requestedPulls.includes(n));
   const extraPulls =
     input.includeTimelinePulls === false
-      ? []
-      : extractPullRequestNumbers(timeline)
+      ? mentioned.slice(0, 12)
+      : uniquePositive([
+          ...extractPullRequestNumbers(timeline).filter((n) => n !== input.issueNumber),
+          ...mentioned,
+        ])
           .filter((n) => !requestedPulls.includes(n))
-          .slice(0, 6);
+          .slice(0, 12);
   const pullNumbers = uniquePositive([...requestedPulls, ...extraPulls]);
   const pullRequests: InvestigationSnapshot["pullRequests"] = {};
   const reviews: InvestigationSnapshot["reviews"] = {};
@@ -109,7 +124,7 @@ export async function captureInvestigationSnapshot(
     commits.repo = referenced;
   }
 
-  return {
+  return finalizeInvestigationSnapshot({
     snapshotId: input.snapshotId,
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
     createdAt: retrievedAt,
@@ -128,7 +143,85 @@ export async function captureInvestigationSnapshot(
     files,
     commits,
     commitIndex,
+  });
+}
+
+/**
+ * Record GitHub facts already present in the snapshot so an agent can follow them.
+ * Does not copy evaluator ground truth. Adds:
+ * - commit messages onto timeline events that only stored a SHA
+ * - cross-referenced timeline events for captured PRs that close the target issue
+ *   when GitHub's timeline API omitted that link
+ */
+export function finalizeInvestigationSnapshot(snapshot: InvestigationSnapshot): InvestigationSnapshot {
+  const timeline = snapshot.timeline.map((event) => enrichTimelineCommitMessage(snapshot, event));
+  const seen = new Set(
+    timeline
+      .map((event) => event.pullRequestNumber)
+      .filter((value): value is number => typeof value === "number" && value > 0),
+  );
+  const extra: TimelineEventSnapshot[] = [];
+  for (const pr of Object.values(snapshot.pullRequests)) {
+    if (seen.has(pr.number)) {
+      continue;
+    }
+    if (!pullClosesTargetIssue(pr, snapshot)) {
+      continue;
+    }
+    seen.add(pr.number);
+    extra.push({
+      id: `timeline:${snapshot.owner}/${snapshot.repository}:pr-ref-${pr.number}`,
+      repository: `${snapshot.owner}/${snapshot.repository}`,
+      event: "cross-referenced",
+      createdAt: pr.retrievedAt,
+      actor: "",
+      body: pr.title,
+      pullRequestNumber: pr.number,
+      source: GITHUB_SOURCE,
+      url: pr.url,
+      retrievedAt: snapshot.retrievedAt,
+      trust: UNTRUSTED,
+    });
+  }
+  return {
+    ...snapshot,
+    timeline: extra.length > 0 ? [...timeline, ...extra] : timeline,
   };
+}
+
+function enrichTimelineCommitMessage(
+  snapshot: InvestigationSnapshot,
+  event: TimelineEventSnapshot,
+): TimelineEventSnapshot {
+  const match = event.body.match(/\b[0-9a-f]{7,40}\b/i);
+  if (!match) {
+    return event;
+  }
+  const commit = findCommit(snapshot, match[0]);
+  if (!commit?.message) {
+    return event;
+  }
+  if (event.body.includes(commit.message.split("\n")[0] ?? commit.message)) {
+    return event;
+  }
+  return { ...event, body: `${event.body}\n${commit.message}` };
+}
+
+function findCommit(snapshot: InvestigationSnapshot, sha: string): CommitSnapshot | undefined {
+  const needle = sha.toLowerCase();
+  const direct = snapshot.commitIndex[sha] ?? snapshot.commitIndex[needle];
+  if (direct) {
+    return direct;
+  }
+  const key = Object.keys(snapshot.commitIndex).find(
+    (item) => item.toLowerCase().startsWith(needle) || needle.startsWith(item.toLowerCase()),
+  );
+  return key ? snapshot.commitIndex[key] : undefined;
+}
+
+function pullClosesTargetIssue(pr: PullRequestSnapshot, snapshot: InvestigationSnapshot): boolean {
+  const text = `${pr.title}\n${pr.body}`;
+  return textClosesIssue(text, snapshot.owner, snapshot.repository, snapshot.issueNumber);
 }
 
 function indexCommits(index: Record<string, CommitSnapshot>, commits: CommitSnapshot[]): void {

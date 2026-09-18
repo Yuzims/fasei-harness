@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { captureInvestigationSnapshot } from "../src/github/capture.js";
+import { captureInvestigationSnapshot, finalizeInvestigationSnapshot } from "../src/github/capture.js";
 import { GitHubProviderError } from "../src/github/errors.js";
 import { LiveGitHubProvider } from "../src/github/live-provider.js";
 import { SnapshotGitHubProvider } from "../src/github/snapshot-provider.js";
@@ -313,4 +313,54 @@ test("Live：超时归为 timeout", async () => {
     () => provider.getRepository({ owner: "acme", repo: "box" }),
     (error: unknown) => error instanceof GitHubProviderError && error.code === "timeout",
   );
+});
+
+function commentLinkedRest(url: string): Response {
+  const path = new URL(url).pathname;
+  if (path === "/repos/acme/box/issues/42/timeline") {
+    return jsonResponse([
+      {
+        id: 1,
+        event: "closed",
+        created_at: "2026-08-01T12:00:00Z",
+        actor: { login: "maintainer" },
+      },
+    ]);
+  }
+  return resolvedRest(url);
+}
+
+test("Capture：comment mention of a real PR is fetched even when timeline omits the link", async () => {
+  const live = new LiveGitHubProvider({
+    fetchImpl: async (input) => commentLinkedRest(String(input)),
+    now: () => "2026-09-17T00:00:00.000Z",
+  });
+  const captured = await captureInvestigationSnapshot(live, {
+    snapshotId: "comment-linked",
+    owner: "acme",
+    repo: "box",
+    issueNumber: 42,
+    includeTimelinePulls: false,
+    includeRepoCommits: false,
+    createdAt: "2026-09-17T00:00:00.000Z",
+  });
+  assert.equal(captured.pullRequests["7"]?.number, 7);
+  assert.equal(captured.pullRequests["7"]?.merged, true);
+  assert.ok(captured.files["7"]?.some((file) => file.filename.includes("cart.ts")));
+  assert.ok(captured.timeline.some((event) => event.pullRequestNumber === 7));
+});
+
+test("finalizeInvestigationSnapshot records closing-keyword PRs without ground-truth labels", () => {
+  const snapshot = loadSnapshot(githubFixturePath("resolved"));
+  snapshot.timeline = snapshot.timeline.map((event) => ({ ...event, pullRequestNumber: undefined }));
+  const finalized = finalizeInvestigationSnapshot(snapshot);
+  assert.equal(
+    finalized.timeline.some((event) => event.event === "cross-referenced" && event.pullRequestNumber === 7),
+    true,
+  );
+  const blob = JSON.stringify(finalized);
+  assert.equal(blob.includes("expectedOutcome"), false);
+  assert.equal(blob.includes("expectedFailureModes"), false);
+  assert.equal(blob.includes("correct_pr"), false);
+  assert.equal(blob.includes("wrong_target"), false);
 });

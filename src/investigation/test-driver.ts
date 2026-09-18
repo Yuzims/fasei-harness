@@ -220,9 +220,7 @@ export function nextInvestigationAction(state: InvestigationState): DriverAction
     };
   }
 
-  const needComments =
-    !state.investigatedResources.has(commentsKey) &&
-    (state.candidatePrs.size === 0 || (state.mergedPrs.size === 0 && state.unmergedPrs.size > 0));
+  const needComments = !state.investigatedResources.has(commentsKey) && state.mergedPrs.size === 0;
   if (needComments) {
     return {
       type: "tool_call",
@@ -268,6 +266,25 @@ export function nextInvestigationAction(state: InvestigationState): DriverAction
       name: "github_list_commits",
       arguments: { owner: target.owner, repo: target.repo, pullNumber: unfetchedCommits },
       reason: `PR #${unfetchedCommits} is merged; observe commits as additional resolution evidence.`,
+    };
+  }
+
+  const repoCommitsKey = resourceKey("commits", "repo");
+  const pendingPull = [...state.candidatePrs].some(
+    (n) => !state.investigatedResources.has(resourceKey("pull", String(n))),
+  );
+  if (
+    state.mergedPrs.size === 0 &&
+    state.unmergedPrs.size === 0 &&
+    !pendingPull &&
+    state.investigatedResources.has(timelineKey) &&
+    !state.investigatedResources.has(repoCommitsKey)
+  ) {
+    return {
+      type: "tool_call",
+      name: "github_list_commits",
+      arguments: { owner: target.owner, repo: target.repo },
+      reason: "No merged pull request was observed; inspect referenced repository commits from the timeline.",
     };
   }
 

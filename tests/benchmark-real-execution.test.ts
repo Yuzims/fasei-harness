@@ -29,7 +29,7 @@ function sourceFiles(relativeDir: string): string[] {
 test("Real-v1 full execution produces 10 harness results", async () => {
   const result = await runRealDatasetBenchmark({ writeResult: false });
   assert.equal(result.dataset, REAL_DATASET_ID);
-  assert.equal(result.datasetVersion, "v1");
+  assert.equal(result.datasetVersion, "v1.1");
   assert.equal(result.cases.length, 10);
   assert.deepEqual(
     result.cases.map((item) => item.caseId),

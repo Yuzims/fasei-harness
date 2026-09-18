@@ -825,6 +825,21 @@ Recalculate Evidence Gap
 
 `IndependentCompletionVerifier` remains the only producer of `verified_complete`. Strategy decides the next legal investigation direction. RecoveryPlanner / EvidenceRequirement / Ground Truth / GitHub provider semantics are unchanged.
 
+## Phase 8.8.2 — Controlled Strategy Evaluation — DONE
+
+Deterministic before/after evaluation of Phase 8.8.1. Strategy semantics, Verifier, EvidenceRequirement, RecoveryPlanner, FailureAnalyzer, GitHub Provider, LLM runtime budget defaults, Ground Truth, and Real-v1 snapshots are unchanged.
+
+```text
+same task / snapshot / Fake Model / tools / budgets
+        ↓
+A. unconstrained (evaluation boundary; approximation of pre-8.8 tool selection)
+B. evidence-gap legal-action constraint (Phase 8.8.1)
+        ↓
+raw metrics + differences (not ranking)
+```
+
+Baseline is an approximation of pre-8.8 observation-based tool selection (`nextInvestigationAction`), not a strict live-LLM replay. Token figures are local estimates (message/tool-result chars), not provider tokens. Evaluation does not write results back into Real-v1 snapshots.
+
 ## Not started
 
-Phase 8.8.2+ waits for a new task.
+Phase 8.8.3+ waits for a new task.

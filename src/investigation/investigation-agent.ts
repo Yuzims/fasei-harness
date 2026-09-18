@@ -94,6 +94,17 @@ export interface InvestigateOptions {
    * Deadline abort is owned by FASEI even when this is omitted.
    */
   signal?: AbortSignal;
+  /**
+   * Test/evaluation boundary only. Production LLM path keeps evidence_gap.
+   * unconstrained disables Evidence-Gap legal-action constraint without
+   * removing the Strategy implementation.
+   */
+  investigationActionConstraint?: "evidence_gap" | "unconstrained";
+  /**
+   * Test/evaluation boundary only. Mutate session state after construction
+   * and before the first AgentLoop attempt. Production live path omits this.
+   */
+  prepareSession?: (session: InvestigationSession) => void;
 }
 
 class InvestigationLoopModel implements Model {
@@ -101,6 +112,7 @@ class InvestigationLoopModel implements Model {
     private readonly inner: Model,
     private readonly session: InvestigationSession,
     private readonly injectState: boolean,
+    private readonly constrainLegalActions: boolean,
   ) {}
 
   async decide(
@@ -113,9 +125,10 @@ class InvestigationLoopModel implements Model {
     this.session.state.currentStep += 1;
 
     const remainingLlmCalls = remainingCalls(this.session);
-    const planned = this.injectState
-      ? planInvestigationStrategy(this.session.state, { remainingLlmCalls })
-      : undefined;
+    const planned =
+      this.injectState && this.constrainLegalActions
+        ? planInvestigationStrategy(this.session.state, { remainingLlmCalls })
+        : undefined;
     if (context && planned) {
       attachLegalActions(context, planned.legalActions, remainingLlmCalls);
     }
@@ -131,7 +144,7 @@ class InvestigationLoopModel implements Model {
           ]
         : history;
 
-    if (this.injectState && planned && planned.legalActions.length === 0) {
+    if (this.constrainLegalActions && planned && planned.legalActions.length === 0) {
       const legalTools: string[] = [];
       this.session.trace.record(this.session.runId, this.session.state.currentStep, "agent_step", {
         tool: undefined,
@@ -149,7 +162,7 @@ class InvestigationLoopModel implements Model {
     }
 
     const response = await this.inner.decide(task, nextHistory, toolResults, context);
-    if (this.injectState && planned && response.type === "tool_call") {
+    if (this.constrainLegalActions && planned && response.type === "tool_call") {
       if (!isLegalInvestigationAction(response.call, planned.legalActions)) {
         const legalTools = planned.legalActions.map((item) => item.tool);
         this.session.trace.record(
@@ -527,10 +540,15 @@ async function runInvestigationAttempts(input: {
     return report;
   }
 
+  options.prepareSession?.(session);
+
+  const constrainLegalActions =
+    resolved.actor === "llm" && options.investigationActionConstraint !== "unconstrained";
   const loopModel = new InvestigationLoopModel(
     resolved.model,
     session,
     resolved.actor === "llm",
+    constrainLegalActions,
   );
   const loop = new AgentLoop(loopModel, registry, trace, options.maxSteps ?? 12);
   const coreTask: Task = {

@@ -121,6 +121,8 @@ export function normalizeTimelineEvent(
   const repository = repoName(owner, repo);
   const event = str(item.event) || "unknown";
   const id = str(item.id) || str(item.node_id) || `${event}-${str(item.created_at)}`;
+  const commitId = str(item.commit_id);
+  const body = str(item.body) || commitId;
   const prFromSource = sourceIssue.pull_request ? num(sourceIssue.number) : undefined;
   const prNumber = num(pull.number) || prFromSource || undefined;
   return {
@@ -129,7 +131,7 @@ export function normalizeTimelineEvent(
     event,
     createdAt: str(item.created_at),
     actor: str(actor.login),
-    body: str(item.body),
+    body,
     pullRequestNumber: prNumber || undefined,
     source: GITHUB_SOURCE,
     url: str(item.html_url) || str(item.url) || `https://github.com/${repository}`,
@@ -146,6 +148,22 @@ export function extractPullRequestNumbers(events: TimelineEventSnapshot[]): numb
     }
   }
   return [...numbers].sort((a, b) => a - b);
+}
+
+const COMMIT_SHA = /\b[0-9a-f]{7,40}\b/i;
+
+export function extractCommitShas(events: TimelineEventSnapshot[]): string[] {
+  const shas = new Set<string>();
+  for (const event of events) {
+    if (event.event !== "referenced" && event.event !== "closed" && event.event !== "committed") {
+      continue;
+    }
+    const match = event.body.match(COMMIT_SHA);
+    if (match?.[0]) {
+      shas.add(match[0].toLowerCase());
+    }
+  }
+  return [...shas];
 }
 
 export function normalizePullRequest(

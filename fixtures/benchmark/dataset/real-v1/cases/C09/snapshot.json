@@ -1,0 +1,243 @@
+{
+  "snapshotId": "real-v1-C09",
+  "schemaVersion": 1,
+  "createdAt": "2026-09-18T02:39:19.414Z",
+  "source": "github",
+  "owner": "olafkfreund",
+  "repository": "Factory",
+  "issueNumber": 273,
+  "retrievedAt": "2026-09-18T02:39:19.414Z",
+  "trust": "external_untrusted",
+  "repositoryData": {
+    "id": "repo:olafkfreund/Factory",
+    "repository": "olafkfreund/Factory",
+    "owner": "olafkfreund",
+    "name": "Factory",
+    "description": "Program/meta repository for the Factory suite (PFactory · AIFactory · TFactory · CFactory). Cross-cutting plans, epics, and the PARR pipeline that spans all products.",
+    "defaultBranch": "main",
+    "source": "github",
+    "url": "https://github.com/olafkfreund/Factory",
+    "retrievedAt": "2026-09-18T02:39:38.895Z",
+    "trust": "external_untrusted"
+  },
+  "issue": {
+    "id": "issue:olafkfreund/Factory#273",
+    "repository": "olafkfreund/Factory",
+    "number": 273,
+    "title": "Untrusted-content provenance: contract spec for prompt-injection defense",
+    "body": "Parent: #270\n\n## Why\n\nIndirect prompt injection via repository content (README, code comments, issue text) into coding agents is OWASP's #1 LLM threat (340% YoY growth) and has been demonstrated against Claude Code-style agents via malicious GitHub repos. Factory ingests untrusted brownfield repos (RFC-0010) and GitHub issue text (RFC-0011) by design, and has no injection threat model today. RFC-0012 already gives us the fail-closed gate pattern to extend.\n\n## Implementation steps\n\n1. Write a short threat-model doc (`docs/security/untrusted-content-threat-model.md`): enumerate untrusted inputs per service - issue/spec text at PFactory intake, cloned repo content at AIFactory coder, target-repo content at TFactory verify, MCP server responses fleet-wide.\n2. Add `$defs.provenance.content_trust` to `apis/task-contract.schema.json`: mark spec/issue-derived text as `untrusted_user_content` vs. operator-authored `trusted`; carried through all handoffs.\n3. Specify the fail-closed rule (RFC-0012 pattern): if a scan gate (see AIFactory child) flags likely injection payloads, the task pauses to human_review rather than proceeding - never silent-continue.\n4. Specify prompt-hardening requirements for services: untrusted content must be delimited/quoted in prompts with an explicit \"data, not instructions\" framing; document the canonical wrapper in the RFC-0003 governed-integration doc.\n5. Define the completion-event field for scan verdicts so CFactory can display them (injection_scan: pass/flagged/skipped + reason).\n\n## Acceptance criteria\n\n- Threat-model doc merged.\n- Contract PR merged with content_trust marking (optional, backwards compatible).\n- Scan-verdict field defined in the completion-event envelope spec (minor version bump).\n\n## Consuming children\n\n- PFactory: intake marking. AIFactory: pre-coder scan gate. CFactory: verdict surfacing.",
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-07-11T13:15:55Z",
+    "source": "github",
+    "url": "https://github.com/olafkfreund/Factory/issues/273",
+    "retrievedAt": "2026-09-18T02:39:39.312Z",
+    "trust": "external_untrusted"
+  },
+  "comments": [],
+  "timeline": [
+    {
+      "id": "timeline:olafkfreund/Factory:27850521476",
+      "repository": "olafkfreund/Factory",
+      "event": "parent_issue_added",
+      "createdAt": "2026-07-11T11:18:25Z",
+      "actor": "olafkfreund",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/olafkfreund/Factory/issues/events/27850521476",
+      "retrievedAt": "2026-09-18T02:39:40.201Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:olafkfreund/Factory:27852718382",
+      "repository": "olafkfreund/Factory",
+      "event": "closed",
+      "createdAt": "2026-07-11T13:15:55Z",
+      "actor": "olafkfreund",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/olafkfreund/Factory/issues/events/27852718382",
+      "retrievedAt": "2026-09-18T02:39:40.201Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:olafkfreund/Factory:27852718390",
+      "repository": "olafkfreund/Factory",
+      "event": "referenced",
+      "createdAt": "2026-07-11T13:15:55Z",
+      "actor": "olafkfreund",
+      "body": "2dced783cfa5331546c0258f48e5188456a1ddbe",
+      "source": "github",
+      "url": "https://api.github.com/repos/olafkfreund/Factory/issues/events/27852718390",
+      "retrievedAt": "2026-09-18T02:39:40.201Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "pullRequests": {
+    "279": {
+      "id": "pr:olafkfreund/Factory#279",
+      "repository": "olafkfreund/Factory",
+      "number": 279,
+      "title": "docs(security): untrusted-content threat model + content_trust + injection_scan (#273)",
+      "body": "## What\n\nSpec-only prompt-injection defense contract for the fleet (parent epic #270). No service code.\n\n- **Threat model**: `docs/security/untrusted-content-threat-model.md` — untrusted inputs per service (PFactory intake issue/spec text, AIFactory cloned-repo content, TFactory target-repo/verify output, MCP responses fleet-wide), the fail-closed rule (flagged => pause to human_review, skipped never reported as pass), and the canonical untrusted-content prompt delimiter services must adopt verbatim.\n- **Contract**: `apis/task-contract.schema.json` — new optional `$defs.content_trust` referenced from the inline `provenance` block (`default: trusted | untrusted_user_content` + per-origin `sources[]`). Backwards compatible; absent => consumers assume `untrusted_user_content` (fail-closed default). Diff kept tightly scoped to the provenance block and the new $defs entry to avoid conflicts with the concurrent $defs.routing work.\n- **Completion-event envelope**: RFC-0001 new §3.2 + `apis/completion-events.asyncapi.yaml` — additive optional `injection_scan` block (`verdict: pass | flagged | skipped`, `reason` required for flagged/skipped, optional `scanner`/`sources_scanned`). Minor version bump to 1.3 (1.2 was the CloudEvents upgrade already described in RFC-0001 §3).\n- **RFC-0003**: one design principle cross-referencing the canonical wrapper for GitHub-ingested text (issue step 4).\n\n## Why\n\nIndirect prompt injection via repo/issue content is OWASP's #1 LLM threat, and the Factory ingests untrusted brownfield repos (RFC-0010) and GitHub issue text (RFC-0011) by design. This defines the marking, the gate semantics, and the surfacing field the PFactory/AIFactory/CFactory children of #270 will implement.\n\n## Verification\n\n- `python scripts/validate_task_contract.py` — OK (schema still a valid 2020-12 JSON Schema).\n- New `content_trust` block exercised with jsonschema: absent OK, well-formed OK, bad enum rejected, source item missing `trust` rejected.\n- AsyncAPI YAML parses (yq); contract JSON parses.\n\nCloses #273\n\nGenerated with Claude Code (https://claude.com/claude-code)",
+      "state": "closed",
+      "merged": true,
+      "mergeCommitSha": "2dced783cfa5331546c0258f48e5188456a1ddbe",
+      "headSha": "b1a930b3b316132c840de0ba1e13149382e88349",
+      "source": "github",
+      "url": "https://github.com/olafkfreund/Factory/pull/279",
+      "retrievedAt": "2026-09-18T02:39:40.817Z",
+      "trust": "external_untrusted"
+    }
+  },
+  "reviews": {
+    "279": [
+      {
+        "id": "review:olafkfreund/Factory#279:4677808321",
+        "repository": "olafkfreund/Factory",
+        "pullNumber": 279,
+        "state": "COMMENTED",
+        "body": "## Pull request overview\n\nDefines a spec-only, fleet-wide contract for handling untrusted content to mitigate indirect prompt injection, including provenance marking (`content_trust`), a fail-closed scan gate semantic, and surfacing scan verdicts via the completion-event envelope.\n\n**Changes:**\n- Adds an untrusted-content threat model document with a canonical prompt wrapper and fail-closed gate rules.\n- Extends the task-contract schema with optional `provenance.content_trust` for trust marking across handoffs.\n- Adds the optional `injection_scan` block to the completion-event RFC and AsyncAPI contract (minor version bump to 1.3).\n\n### Reviewed changes\n\nCopilot reviewed 5 out of 5 changed files in this pull request and generated 2 comments.\n\n<details>\n<summary>Show a summary per file</summary>\n\n| File | Description |\r\n| ---- | ----------- |\r\n| docs/security/untrusted-content-threat-model.md | New threat model + canonical delimiter + fail-closed scan semantics. |\r\n| docs/rfc/0003-github-agentic-integration.md | Adds a GitHub-ingested-text handling principle referencing the threat model. |\r\n| docs/rfc/0001-correlation-key-and-completion-event.md | Defines the optional `injection_scan` envelope block (v1.3). |\r\n| apis/task-contract.schema.json | Adds `provenance.content_trust` and introduces the `$defs.content_trust` schema. |\r\n| apis/completion-events.asyncapi.yaml | Adds `InjectionScan` schema and exposes `injection_scan` on the event. |\n</details>\n\n\n\n\n\n\n\n---\n\n💡 <a href=\"/olafkfreund/Factory/new/main?filename=.github/instructions/*.instructions.md\" class=\"Link--inTextBlock\" target=\"_blank\" rel=\"noopener noreferrer\">Add Copilot custom instructions</a> for smarter, more guided reviews. <a href=\"https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot\" class=\"Link--inTextBlock\" target=\"_blank\" rel=\"noopener noreferrer\">Learn how to get started</a>.",
+        "author": "copilot-pull-request-reviewer[bot]",
+        "source": "github",
+        "url": "https://github.com/olafkfreund/Factory/pull/279#pullrequestreview-4677808321",
+        "retrievedAt": "2026-09-18T02:39:41.327Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "files": {
+    "279": [
+      {
+        "id": "file:olafkfreund/Factory#279:apis/completion-events.asyncapi.yaml",
+        "repository": "olafkfreund/Factory",
+        "pullNumber": 279,
+        "filename": "apis/completion-events.asyncapi.yaml",
+        "status": "modified",
+        "additions": 30,
+        "deletions": 1,
+        "source": "github",
+        "url": "https://github.com/olafkfreund/Factory/blob/b1a930b3b316132c840de0ba1e13149382e88349/apis%2Fcompletion-events.asyncapi.yaml",
+        "retrievedAt": "2026-09-18T02:39:41.825Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:olafkfreund/Factory#279:apis/task-contract.schema.json",
+        "repository": "olafkfreund/Factory",
+        "pullNumber": 279,
+        "filename": "apis/task-contract.schema.json",
+        "status": "modified",
+        "additions": 38,
+        "deletions": 1,
+        "source": "github",
+        "url": "https://github.com/olafkfreund/Factory/blob/b1a930b3b316132c840de0ba1e13149382e88349/apis%2Ftask-contract.schema.json",
+        "retrievedAt": "2026-09-18T02:39:41.825Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:olafkfreund/Factory#279:docs/rfc/0001-correlation-key-and-completion-event.md",
+        "repository": "olafkfreund/Factory",
+        "pullNumber": 279,
+        "filename": "docs/rfc/0001-correlation-key-and-completion-event.md",
+        "status": "modified",
+        "additions": 27,
+        "deletions": 1,
+        "source": "github",
+        "url": "https://github.com/olafkfreund/Factory/blob/b1a930b3b316132c840de0ba1e13149382e88349/docs%2Frfc%2F0001-correlation-key-and-completion-event.md",
+        "retrievedAt": "2026-09-18T02:39:41.825Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:olafkfreund/Factory#279:docs/rfc/0003-github-agentic-integration.md",
+        "repository": "olafkfreund/Factory",
+        "pullNumber": 279,
+        "filename": "docs/rfc/0003-github-agentic-integration.md",
+        "status": "modified",
+        "additions": 5,
+        "deletions": 0,
+        "source": "github",
+        "url": "https://github.com/olafkfreund/Factory/blob/b1a930b3b316132c840de0ba1e13149382e88349/docs%2Frfc%2F0003-github-agentic-integration.md",
+        "retrievedAt": "2026-09-18T02:39:41.825Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:olafkfreund/Factory#279:docs/security/untrusted-content-threat-model.md",
+        "repository": "olafkfreund/Factory",
+        "pullNumber": 279,
+        "filename": "docs/security/untrusted-content-threat-model.md",
+        "status": "added",
+        "additions": 144,
+        "deletions": 0,
+        "source": "github",
+        "url": "https://github.com/olafkfreund/Factory/blob/b1a930b3b316132c840de0ba1e13149382e88349/docs%2Fsecurity%2Funtrusted-content-threat-model.md",
+        "retrievedAt": "2026-09-18T02:39:41.825Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commits": {
+    "pr:279": [
+      {
+        "id": "commit:olafkfreund/Factory@b1a930b3b316132c840de0ba1e13149382e88349",
+        "repository": "olafkfreund/Factory",
+        "sha": "b1a930b3b316132c840de0ba1e13149382e88349",
+        "message": "docs(security): untrusted-content threat model + content_trust marking + injection_scan event field (#273)\n\nSpec-only prompt-injection defense contract (parent epic #270):\n\n- docs/security/untrusted-content-threat-model.md: untrusted inputs per\n  service, fail-closed scan rule (RFC-0012 pattern), canonical\n  untrusted-content prompt delimiter.\n- apis/task-contract.schema.json: optional, backwards-compatible\n  $defs.content_trust referenced from provenance; absent => consumers\n  assume untrusted_user_content.\n- RFC-0001 §3.2 + apis/completion-events.asyncapi.yaml: additive\n  injection_scan block (verdict pass/flagged/skipped + reason), minor\n  version bump to 1.3.\n- RFC-0003: design principle referencing the canonical wrapper for\n  GitHub-ingested text.\n\nVerified: scripts/validate_task_contract.py OK; JSON/YAML parse; new\ncontent_trust block exercised with jsonschema (valid/invalid cases).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_016nKRuLrdcVE1GjBqDWjHbV",
+        "author": "olafkfreund",
+        "source": "github",
+        "url": "https://github.com/olafkfreund/Factory/commit/b1a930b3b316132c840de0ba1e13149382e88349",
+        "retrievedAt": "2026-09-18T02:39:42.275Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "referenced": [
+      {
+        "id": "commit:olafkfreund/Factory@2dced783cfa5331546c0258f48e5188456a1ddbe",
+        "repository": "olafkfreund/Factory",
+        "sha": "2dced783cfa5331546c0258f48e5188456a1ddbe",
+        "message": "docs(security): untrusted-content threat model + content_trust marking + injection_scan event field (#273) (#279)\n\nSpec-only prompt-injection defense contract (parent epic #270):\n\n- docs/security/untrusted-content-threat-model.md: untrusted inputs per\n  service, fail-closed scan rule (RFC-0012 pattern), canonical\n  untrusted-content prompt delimiter.\n- apis/task-contract.schema.json: optional, backwards-compatible\n  $defs.content_trust referenced from provenance; absent => consumers\n  assume untrusted_user_content.\n- RFC-0001 §3.2 + apis/completion-events.asyncapi.yaml: additive\n  injection_scan block (verdict pass/flagged/skipped + reason), minor\n  version bump to 1.3.\n- RFC-0003: design principle referencing the canonical wrapper for\n  GitHub-ingested text.\n\nVerified: scripts/validate_task_contract.py OK; JSON/YAML parse; new\ncontent_trust block exercised with jsonschema (valid/invalid cases).\n\n\nClaude-Session: https://claude.ai/code/session_016nKRuLrdcVE1GjBqDWjHbV\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+        "author": "olafkfreund",
+        "source": "github",
+        "url": "https://github.com/olafkfreund/Factory/commit/2dced783cfa5331546c0258f48e5188456a1ddbe",
+        "retrievedAt": "2026-09-18T02:39:42.763Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "repo": [
+      {
+        "id": "commit:olafkfreund/Factory@2dced783cfa5331546c0258f48e5188456a1ddbe",
+        "repository": "olafkfreund/Factory",
+        "sha": "2dced783cfa5331546c0258f48e5188456a1ddbe",
+        "message": "docs(security): untrusted-content threat model + content_trust marking + injection_scan event field (#273) (#279)\n\nSpec-only prompt-injection defense contract (parent epic #270):\n\n- docs/security/untrusted-content-threat-model.md: untrusted inputs per\n  service, fail-closed scan rule (RFC-0012 pattern), canonical\n  untrusted-content prompt delimiter.\n- apis/task-contract.schema.json: optional, backwards-compatible\n  $defs.content_trust referenced from provenance; absent => consumers\n  assume untrusted_user_content.\n- RFC-0001 §3.2 + apis/completion-events.asyncapi.yaml: additive\n  injection_scan block (verdict pass/flagged/skipped + reason), minor\n  version bump to 1.3.\n- RFC-0003: design principle referencing the canonical wrapper for\n  GitHub-ingested text.\n\nVerified: scripts/validate_task_contract.py OK; JSON/YAML parse; new\ncontent_trust block exercised with jsonschema (valid/invalid cases).\n\n\nClaude-Session: https://claude.ai/code/session_016nKRuLrdcVE1GjBqDWjHbV\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+        "author": "olafkfreund",
+        "source": "github",
+        "url": "https://github.com/olafkfreund/Factory/commit/2dced783cfa5331546c0258f48e5188456a1ddbe",
+        "retrievedAt": "2026-09-18T02:39:42.763Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commitIndex": {
+    "b1a930b3b316132c840de0ba1e13149382e88349": {
+      "id": "commit:olafkfreund/Factory@b1a930b3b316132c840de0ba1e13149382e88349",
+      "repository": "olafkfreund/Factory",
+      "sha": "b1a930b3b316132c840de0ba1e13149382e88349",
+      "message": "docs(security): untrusted-content threat model + content_trust marking + injection_scan event field (#273)\n\nSpec-only prompt-injection defense contract (parent epic #270):\n\n- docs/security/untrusted-content-threat-model.md: untrusted inputs per\n  service, fail-closed scan rule (RFC-0012 pattern), canonical\n  untrusted-content prompt delimiter.\n- apis/task-contract.schema.json: optional, backwards-compatible\n  $defs.content_trust referenced from provenance; absent => consumers\n  assume untrusted_user_content.\n- RFC-0001 §3.2 + apis/completion-events.asyncapi.yaml: additive\n  injection_scan block (verdict pass/flagged/skipped + reason), minor\n  version bump to 1.3.\n- RFC-0003: design principle referencing the canonical wrapper for\n  GitHub-ingested text.\n\nVerified: scripts/validate_task_contract.py OK; JSON/YAML parse; new\ncontent_trust block exercised with jsonschema (valid/invalid cases).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_016nKRuLrdcVE1GjBqDWjHbV",
+      "author": "olafkfreund",
+      "source": "github",
+      "url": "https://github.com/olafkfreund/Factory/commit/b1a930b3b316132c840de0ba1e13149382e88349",
+      "retrievedAt": "2026-09-18T02:39:42.275Z",
+      "trust": "external_untrusted"
+    },
+    "2dced783cfa5331546c0258f48e5188456a1ddbe": {
+      "id": "commit:olafkfreund/Factory@2dced783cfa5331546c0258f48e5188456a1ddbe",
+      "repository": "olafkfreund/Factory",
+      "sha": "2dced783cfa5331546c0258f48e5188456a1ddbe",
+      "message": "docs(security): untrusted-content threat model + content_trust marking + injection_scan event field (#273) (#279)\n\nSpec-only prompt-injection defense contract (parent epic #270):\n\n- docs/security/untrusted-content-threat-model.md: untrusted inputs per\n  service, fail-closed scan rule (RFC-0012 pattern), canonical\n  untrusted-content prompt delimiter.\n- apis/task-contract.schema.json: optional, backwards-compatible\n  $defs.content_trust referenced from provenance; absent => consumers\n  assume untrusted_user_content.\n- RFC-0001 §3.2 + apis/completion-events.asyncapi.yaml: additive\n  injection_scan block (verdict pass/flagged/skipped + reason), minor\n  version bump to 1.3.\n- RFC-0003: design principle referencing the canonical wrapper for\n  GitHub-ingested text.\n\nVerified: scripts/validate_task_contract.py OK; JSON/YAML parse; new\ncontent_trust block exercised with jsonschema (valid/invalid cases).\n\n\nClaude-Session: https://claude.ai/code/session_016nKRuLrdcVE1GjBqDWjHbV\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+      "author": "olafkfreund",
+      "source": "github",
+      "url": "https://github.com/olafkfreund/Factory/commit/2dced783cfa5331546c0258f48e5188456a1ddbe",
+      "retrievedAt": "2026-09-18T02:39:42.763Z",
+      "trust": "external_untrusted"
+    }
+  }
+}

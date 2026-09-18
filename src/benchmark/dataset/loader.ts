@@ -194,12 +194,19 @@ function parseCase(raw: unknown, index: number): BenchmarkDatasetCase {
   return {
     caseId,
     source,
+    sourceUrl: parseOptionalString(raw.sourceUrl, `case ${caseId} sourceUrl`),
     snapshotPath,
     scenarioId,
     kind,
     failureMode: parseFailureMode(raw.failureMode, caseId, kind),
     description: parseOptionalString(raw.description, `case ${caseId} description`),
     expectedOutcome,
+    groundTruthReference: parseOptionalString(
+      raw.groundTruthReference,
+      `case ${caseId} groundTruthReference`,
+    ),
+    snapshotCapturedAt: parseOptionalString(raw.snapshotCapturedAt, `case ${caseId} snapshotCapturedAt`),
+    snapshotCutoff: parseOptionalString(raw.snapshotCutoff, `case ${caseId} snapshotCutoff`),
     tags,
     difficulty: parseOptionalString(raw.difficulty, `case ${caseId} difficulty`),
     sourceMetadata,
@@ -252,6 +259,46 @@ function repositoryParts(repository: string): { owner: string; name: string } {
   return { owner, name };
 }
 
+const FORBIDDEN_AGENT_SNAPSHOT_KEYS = new Set([
+  "expectedOutcome",
+  "expectedFailureModes",
+  "groundTruth",
+  "correctAnswer",
+  "goldLabel",
+  "benchmarkVerdict",
+  "correct_pr",
+  "this_pr_is_the_correct_resolution",
+]);
+
+function collectObjectKeys(value: unknown, into: Set<string>): void {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectObjectKeys(item, into);
+    }
+    return;
+  }
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    into.add(key);
+    collectObjectKeys(nested, into);
+  }
+}
+
+export function assertSnapshotHasNoGroundTruth(snapshot: InvestigationSnapshot, caseId: string): void {
+  const keys = new Set<string>();
+  collectObjectKeys(snapshot, keys);
+  for (const key of FORBIDDEN_AGENT_SNAPSHOT_KEYS) {
+    if (keys.has(key)) {
+      throw new BenchmarkDatasetError(
+        "invalid_snapshot",
+        `case ${caseId} snapshot contains ground-truth field ${key}`,
+      );
+    }
+  }
+}
+
 function assertSnapshotIdentity(datasetCase: BenchmarkDatasetCase, snapshot: InvestigationSnapshot): void {
   const { owner, name } = repositoryParts(datasetCase.source.repository);
   const sameRepo =
@@ -302,6 +349,7 @@ export function validateDataset(raw: unknown, rootDir: string): BenchmarkDataset
     const snapshotFile = resolveDatasetSnapshotPath(rootDir, item.snapshotPath);
     const snapshot = loadSnapshotFile(snapshotFile, item.caseId);
     assertSnapshotIdentity(item, snapshot);
+    assertSnapshotHasNoGroundTruth(snapshot, item.caseId);
   }
 
   return { metadata, cases, rootDir };
@@ -334,6 +382,7 @@ export function loadCase(dataset: BenchmarkDataset, caseId: string): BenchmarkDa
 export function loadCaseSnapshot(dataset: BenchmarkDataset, datasetCase: BenchmarkDatasetCase): InvestigationSnapshot {
   const snapshot = loadSnapshotFile(resolveDatasetSnapshotPath(dataset.rootDir, datasetCase.snapshotPath), datasetCase.caseId);
   assertSnapshotIdentity(datasetCase, snapshot);
+  assertSnapshotHasNoGroundTruth(snapshot, datasetCase.caseId);
   return snapshot;
 }
 

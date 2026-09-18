@@ -1,0 +1,279 @@
+{
+  "snapshotId": "real-v1-C04",
+  "schemaVersion": 1,
+  "createdAt": "2026-09-18T02:01:13.380Z",
+  "source": "github",
+  "owner": "mavlink",
+  "repository": "qgroundcontrol",
+  "issueNumber": 14521,
+  "retrievedAt": "2026-09-18T02:01:13.380Z",
+  "trust": "external_untrusted",
+  "repositoryData": {
+    "id": "repo:mavlink/qgroundcontrol",
+    "repository": "mavlink/qgroundcontrol",
+    "owner": "mavlink",
+    "name": "qgroundcontrol",
+    "description": "Cross-platform ground control station for drones (Android, iOS, Mac OS, Linux, Windows)",
+    "defaultBranch": "master",
+    "source": "github",
+    "url": "https://github.com/mavlink/qgroundcontrol",
+    "retrievedAt": "2026-09-18T02:01:41.011Z",
+    "trust": "external_untrusted"
+  },
+  "issue": {
+    "id": "issue:mavlink/qgroundcontrol#14521",
+    "repository": "mavlink/qgroundcontrol",
+    "number": 14521,
+    "title": "No audio alerts on Skydroid G20 (Android 13) with QGC 5.1.x, works correctly with QGC 5.0.8",
+    "body": "### Have you checked the latest release for fixes?\n\n- [x] Yes, I’ve tested on the latest release\n\n### Description\n\n**Expected Behavior**\n\nAudio alerts should function normally on the Skydroid G20.\n\nPressing the \"Test\" button in Application Settings > General > Audio Output Volume should play the test sound.\n\nMAVLink voice notifications and warning messages should also be audible during operation.\n\n**Current Behavior**\n\nNo audio is produced when pressing the \"Test\" button.\n\nMAVLink voice notifications and warning messages are also completely silent.\n\nAndroid audio itself is working correctly:\n- YouTube audio works normally.\n- Android Text-To-Speech works normally.\n- Device speaker functions correctly.\n- QGroundControl audio volume is set to 100%.\n\nThe issue only occurs with recent QGroundControl builds.\n\nAudio works correctly with QGroundControl 5.0.6 and 5.0.8 on the same hardware.\n\n**Steps To Reproduce**\n\n1. Install the latest QGroundControl Android Daily Build on a Skydroid G20 running Android 13.\n2. Launch QGroundControl.\n3. Open Application Settings > General.\n4. Set Audio Output Volume to 100%.\n5. Press the \"Test\" button.\n6. No sound is produced.\n7. Connect to a vehicle and trigger MAVLink status messages or warnings.\n8. No voice notifications are heard.\n\n**Additional Details**\n\nSystem Information\n\nQGC Version: Daily v5.0.3-1056-gbd80a5cff (64 bit)\nQGC Build: Daily\nOperating System: Android 13\nFlight Controller: CubePilot Cube Orange+\nAutopilot Software (with version): ArduCopter 4.6.3\n\nHardware:\n- Skydroid G20\n- Android 13\n\nComparison testing:\n\n- QGroundControl 5.0.6 (64-bit Stable): Audio works correctly\n- QGroundControl 5.0.8 (64-bit Stable): Audio works correctly\n- QGroundControl Daily v5.0.3-1056-gbd80a5cff (64-bit): No audio output\n\nThe issue is fully reproducible on the same device by switching between versions.\n\nThe problem affects both:\n- The built-in audio test function\n- MAVLink voice notifications and warnings\n\nBecause the audio test button itself is silent, the issue appears to be unrelated to MAVLink communication and may be related to audio output handling introduced in recent builds.\n\nI can reliably reproduce the issue by installing QGroundControl 5.0.8 and the latest Daily Build on the same Skydroid G20 device. Audio works immediately on 5.0.8 and fails immediately on the Daily Build with no other changes to the hardware or Android configuration.\n\n### Platform\n\nAndroid\n\n### Flight Stack\n\nArduPilot\n\n### System Information\n\nQGC Version: Daily v5.0.3-1056-gbd80a5cff (64 bit)\n\nQGC Build: Daily\n\nOperating System: Android 13 (Skydroid G20)\n\nFlight Controller: CubePilot Cube Orange+\n\nAutopilot Software (with version): ArduCopter 4.6.3\n\n### Log Files and Screenshots\n\n_No response_",
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-06-14T18:44:00Z",
+    "source": "github",
+    "url": "https://github.com/mavlink/qgroundcontrol/issues/14521",
+    "retrievedAt": "2026-09-18T02:01:42.064Z",
+    "trust": "external_untrusted"
+  },
+  "comments": [
+    {
+      "id": "comment:mavlink/qgroundcontrol#14521:4688627127",
+      "repository": "mavlink/qgroundcontrol",
+      "issueNumber": 14521,
+      "body": "Thanks for opening your first issue! 👋\n\nA maintainer will review this soon. In the meantime:\n- 📖 Check our [User Guide](https://docs.qgroundcontrol.com/) and [Dev Guide](https://dev.qgroundcontrol.com/)\n- 💬 Join [GitHub Discussions](https://github.com/mavlink/qgroundcontrol/discussions) for Q&A\n- 🔍 Search [existing issues](https://github.com/mavlink/qgroundcontrol/issues) for similar reports\n\nPlease make sure you've provided all requested information in the template.",
+      "author": "github-actions[bot]",
+      "createdAt": "2026-06-12T07:31:01Z",
+      "source": "github",
+      "url": "https://github.com/mavlink/qgroundcontrol/issues/14521#issuecomment-4688627127",
+      "retrievedAt": "2026-09-18T02:01:43.098Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "comment:mavlink/qgroundcontrol#14521:4692944864",
+      "repository": "mavlink/qgroundcontrol",
+      "issueNumber": 14521,
+      "body": "I'm guessing you already fixed this",
+      "author": "DonLakeFlyer",
+      "createdAt": "2026-06-12T16:04:10Z",
+      "source": "github",
+      "url": "https://github.com/mavlink/qgroundcontrol/issues/14521#issuecomment-4692944864",
+      "retrievedAt": "2026-09-18T02:01:43.098Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "comment:mavlink/qgroundcontrol#14521:4693882871",
+      "repository": "mavlink/qgroundcontrol",
+      "issueNumber": 14521,
+      "body": "Yeah I've got the PR up for it that I need to finish. It's a duplicate issue ",
+      "author": "HTRamsey",
+      "createdAt": "2026-06-12T17:53:51Z",
+      "source": "github",
+      "url": "https://github.com/mavlink/qgroundcontrol/issues/14521#issuecomment-4693882871",
+      "retrievedAt": "2026-09-18T02:01:43.098Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "timeline": [
+    {
+      "id": "timeline:mavlink/qgroundcontrol:26663195423",
+      "repository": "mavlink/qgroundcontrol",
+      "event": "issue_type_added",
+      "createdAt": "2026-06-12T07:30:44Z",
+      "actor": "anthonysimon",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/mavlink/qgroundcontrol/issues/events/26663195423",
+      "retrievedAt": "2026-09-18T02:01:44.410Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:mavlink/qgroundcontrol:4688627127",
+      "repository": "mavlink/qgroundcontrol",
+      "event": "commented",
+      "createdAt": "2026-06-12T07:31:01Z",
+      "actor": "github-actions[bot]",
+      "body": "Thanks for opening your first issue! 👋\n\nA maintainer will review this soon. In the meantime:\n- 📖 Check our [User Guide](https://docs.qgroundcontrol.com/) and [Dev Guide](https://dev.qgroundcontrol.com/)\n- 💬 Join [GitHub Discussions](https://github.com/mavlink/qgroundcontrol/discussions) for Q&A\n- 🔍 Search [existing issues](https://github.com/mavlink/qgroundcontrol/issues) for similar reports\n\nPlease make sure you've provided all requested information in the template.",
+      "source": "github",
+      "url": "https://github.com/mavlink/qgroundcontrol/issues/14521#issuecomment-4688627127",
+      "retrievedAt": "2026-09-18T02:01:44.410Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:mavlink/qgroundcontrol:cross-referenced-2026-06-12T14:43:49Z",
+      "repository": "mavlink/qgroundcontrol",
+      "event": "cross-referenced",
+      "createdAt": "2026-06-12T14:43:49Z",
+      "actor": "HTRamsey",
+      "body": "",
+      "pullRequestNumber": 14504,
+      "source": "github",
+      "url": "https://github.com/mavlink/qgroundcontrol",
+      "retrievedAt": "2026-09-18T02:01:44.410Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:mavlink/qgroundcontrol:26683699402",
+      "repository": "mavlink/qgroundcontrol",
+      "event": "assigned",
+      "createdAt": "2026-06-12T16:03:50Z",
+      "actor": "DonLakeFlyer",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/mavlink/qgroundcontrol/issues/events/26683699402",
+      "retrievedAt": "2026-09-18T02:01:44.410Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:mavlink/qgroundcontrol:4692944864",
+      "repository": "mavlink/qgroundcontrol",
+      "event": "commented",
+      "createdAt": "2026-06-12T16:04:10Z",
+      "actor": "DonLakeFlyer",
+      "body": "I'm guessing you already fixed this",
+      "source": "github",
+      "url": "https://github.com/mavlink/qgroundcontrol/issues/14521#issuecomment-4692944864",
+      "retrievedAt": "2026-09-18T02:01:44.410Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:mavlink/qgroundcontrol:4693882871",
+      "repository": "mavlink/qgroundcontrol",
+      "event": "commented",
+      "createdAt": "2026-06-12T17:53:51Z",
+      "actor": "HTRamsey",
+      "body": "Yeah I've got the PR up for it that I need to finish. It's a duplicate issue ",
+      "source": "github",
+      "url": "https://github.com/mavlink/qgroundcontrol/issues/14521#issuecomment-4693882871",
+      "retrievedAt": "2026-09-18T02:01:44.410Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:mavlink/qgroundcontrol:26730494646",
+      "repository": "mavlink/qgroundcontrol",
+      "event": "closed",
+      "createdAt": "2026-06-14T18:44:01Z",
+      "actor": "HTRamsey",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/mavlink/qgroundcontrol/issues/events/26730494646",
+      "retrievedAt": "2026-09-18T02:01:44.410Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "pullRequests": {
+    "14504": {
+      "id": "pr:mavlink/qgroundcontrol#14504",
+      "repository": "mavlink/qgroundcontrol",
+      "number": 14504,
+      "title": "fix(Android): declare TTS_SERVICE query so QTextToSpeech finds the system engine",
+      "body": "## Problem\r\n\r\nVoice announcements don't work on Android 12/13 (QGC daily). `AudioOutput::init()` logs *\"No available QTextToSpeech engines found\"* and bails, so every `say()` is a no-op.\r\n\r\n## Root cause\r\n\r\nQGC targets **minSdk 31 / target SDK 35**. Since Android 11 (API 30), [package visibility filtering](https://developer.android.com/training/package-visibility) hides other apps/services unless the manifest declares a `<queries>` element. The system TTS engine is a separate service, and `android/AndroidManifest.xml` declared queries for USB/Bluetooth intents but **not** for TTS. As a result:\r\n\r\n- `QTextToSpeech::availableEngines()` returns empty\r\n- `AudioOutput::init()` returns early (`src/Utilities/Audio/AudioOutput.cc:65-68`)\r\n- `_initialized` stays false, so `say()` no-ops\r\n\r\n## Fix\r\n\r\nAdd the documented Qt-on-Android `<queries>` declaration for the TTS service:\r\n\r\n```xml\r\n<queries>\r\n    <intent>\r\n        <action android:name=\"android.intent.action.TTS_SERVICE\" />\r\n    </intent>\r\n</queries>\r\n```\r\n\r\n## Testing\r\n\r\nRebuild the APK; with `Utilities.AudioOutput` debug logging enabled the log now shows `TTS Engine set to: android` instead of the \"No available engines\" warning. Voice announcements and the in-app audio test work on a device with a TTS engine installed (Google TTS by default).\r\n\r\nFixes mavlink/qgroundcontrol#14469\r\nFixes #14521",
+      "state": "closed",
+      "merged": true,
+      "mergeCommitSha": "1e0676a7d0f2a48ebddb9347fd477a768ca35aa9",
+      "headSha": "2e1b4ff4c8e84058af424b5dd30092ef583345b2",
+      "source": "github",
+      "url": "https://github.com/mavlink/qgroundcontrol/pull/14504",
+      "retrievedAt": "2026-09-18T02:01:45.477Z",
+      "trust": "external_untrusted"
+    }
+  },
+  "reviews": {
+    "14504": [
+      {
+        "id": "review:mavlink/qgroundcontrol#14504:4454382950",
+        "repository": "mavlink/qgroundcontrol",
+        "pullNumber": 14504,
+        "state": "COMMENTED",
+        "body": "## Pull request overview\n\nFixes Android 11+ package visibility constraints so QGroundControl’s `QTextToSpeech` can discover the system TTS engine, restoring voice announcements on newer Android versions.\n\n**Changes:**\n- Adds an Android manifest `<queries>` entry for the `android.intent.action.TTS_SERVICE` intent so the system TTS service is visible to the app.\n\n\n\n\n",
+        "author": "copilot-pull-request-reviewer[bot]",
+        "source": "github",
+        "url": "https://github.com/mavlink/qgroundcontrol/pull/14504#pullrequestreview-4454382950",
+        "retrievedAt": "2026-09-18T02:01:46.632Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "files": {
+    "14504": [
+      {
+        "id": "file:mavlink/qgroundcontrol#14504:android/AndroidManifest.xml",
+        "repository": "mavlink/qgroundcontrol",
+        "pullNumber": 14504,
+        "filename": "android/AndroidManifest.xml",
+        "status": "modified",
+        "additions": 7,
+        "deletions": 0,
+        "source": "github",
+        "url": "https://github.com/mavlink/qgroundcontrol/blob/2e1b4ff4c8e84058af424b5dd30092ef583345b2/android%2FAndroidManifest.xml",
+        "retrievedAt": "2026-09-18T02:01:47.834Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:mavlink/qgroundcontrol#14504:src/Utilities/Audio/AudioOutput.cc",
+        "repository": "mavlink/qgroundcontrol",
+        "pullNumber": 14504,
+        "filename": "src/Utilities/Audio/AudioOutput.cc",
+        "status": "modified",
+        "additions": 104,
+        "deletions": 58,
+        "source": "github",
+        "url": "https://github.com/mavlink/qgroundcontrol/blob/2e1b4ff4c8e84058af424b5dd30092ef583345b2/src%2FUtilities%2FAudio%2FAudioOutput.cc",
+        "retrievedAt": "2026-09-18T02:01:47.834Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:mavlink/qgroundcontrol#14504:src/Utilities/Audio/AudioOutput.h",
+        "repository": "mavlink/qgroundcontrol",
+        "pullNumber": 14504,
+        "filename": "src/Utilities/Audio/AudioOutput.h",
+        "status": "modified",
+        "additions": 8,
+        "deletions": 1,
+        "source": "github",
+        "url": "https://github.com/mavlink/qgroundcontrol/blob/2e1b4ff4c8e84058af424b5dd30092ef583345b2/src%2FUtilities%2FAudio%2FAudioOutput.h",
+        "retrievedAt": "2026-09-18T02:01:47.834Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:mavlink/qgroundcontrol#14504:src/Utilities/Audio/CMakeLists.txt",
+        "repository": "mavlink/qgroundcontrol",
+        "pullNumber": 14504,
+        "filename": "src/Utilities/Audio/CMakeLists.txt",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 3,
+        "source": "github",
+        "url": "https://github.com/mavlink/qgroundcontrol/blob/2e1b4ff4c8e84058af424b5dd30092ef583345b2/src%2FUtilities%2FAudio%2FCMakeLists.txt",
+        "retrievedAt": "2026-09-18T02:01:47.834Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commits": {
+    "pr:14504": [
+      {
+        "id": "commit:mavlink/qgroundcontrol@2e1b4ff4c8e84058af424b5dd30092ef583345b2",
+        "repository": "mavlink/qgroundcontrol",
+        "sha": "2e1b4ff4c8e84058af424b5dd30092ef583345b2",
+        "message": "fix(Android): bundle the TextToSpeech backend plugin so speech works\n\nQTextToSpeech::availableEngines() returned empty on Android, so\nAudioOutput::init() bailed and voice announcements never started.\n\nRoot cause: Qt6::TextToSpeech was linked PRIVATE into the static QGCAudio\nlibrary. A PRIVATE module link into a STATIC lib propagates the library for\nlinking (via $<LINK_ONLY:>) but strips its INTERFACE_QT_PLUGIN_TARGETS\ncompile property, so androiddeployqt never added the Android TTS backend\nplugin (libplugins_texttospeech_qttexttospeech_android) to\nandroid-deploy-plugins. The module .so shipped but no backend plugin did,\nleaving availableEngines() empty. Link it PUBLIC so the plugin-target\nproperty reaches the app target, exactly as the position/sensors/multimedia\nplugins are deployed.\n\nAlso declare the TTS_SERVICE <queries> entry for Android 11+ package\nvisibility. Not strictly required on every device (the framework binds the\ndefault public engine via the system service), but it is the documented\nrequirement and guards stricter ROMs where the app-side getEngines() path\nis filtered.\n\nWhile here, harden AudioOutput against the QTextToSpeech API contract:\n- Run the queue check, enqueue(), and counter update in one slot dispatched\n  to the engine thread. qReturnArg can't capture a return value across a\n  queued invokeMethod, and all queue/counter mutation must stay on the\n  engine thread; this removes the cross-thread race and lets _textQueueSize\n  be a plain qsizetype.\n- Zero _textQueueSize on stateChanged(Ready) (the queue is provably drained\n  there) instead of decrementing on aboutToSynthesize, which fires when an\n  utterance starts, not when it finishes.\n- Always connect errorOccurred (not just in debug builds) and reset the\n  queue depth on error so a recovered engine isn't wedged in the\n  over-limit branch; log enqueue() failures with state()/errorReason().\n- Construct QTextToSpeech with the default (auto-selected) engine instead of\n  building the \"none\" backend then setEngine(\"\"); apply locale, an explicit\n  voice, and the cached Speak capability via _applyEngineSettings().\n- Use BoundaryHint::Immediate for the mute / queue-overflow / test stop().\n- Fix _replaceAbbreviations: tokenize -> map each token -> rejoin, instead\n  of N whole-string replace() calls that over-matched substrings across\n  tokens and mismatched case.\n- Defer initialization until the engine reaches Ready instead of bailing on\n  a not-yet-ready engine. The Android backend initializes asynchronously, so\n  a synchronous state()/engine() check at startup could return early with no\n  retry; init() now wires stateChanged first and finalizes in _finishInit()\n  on the Ready transition. Guard _applyEngineSettings() on Ready so locale /\n  voice enumeration never runs against an empty engine.\n\nFixes #14469",
+        "author": "HTRamsey",
+        "source": "github",
+        "url": "https://github.com/mavlink/qgroundcontrol/commit/2e1b4ff4c8e84058af424b5dd30092ef583345b2",
+        "retrievedAt": "2026-09-18T02:01:48.951Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commitIndex": {
+    "2e1b4ff4c8e84058af424b5dd30092ef583345b2": {
+      "id": "commit:mavlink/qgroundcontrol@2e1b4ff4c8e84058af424b5dd30092ef583345b2",
+      "repository": "mavlink/qgroundcontrol",
+      "sha": "2e1b4ff4c8e84058af424b5dd30092ef583345b2",
+      "message": "fix(Android): bundle the TextToSpeech backend plugin so speech works\n\nQTextToSpeech::availableEngines() returned empty on Android, so\nAudioOutput::init() bailed and voice announcements never started.\n\nRoot cause: Qt6::TextToSpeech was linked PRIVATE into the static QGCAudio\nlibrary. A PRIVATE module link into a STATIC lib propagates the library for\nlinking (via $<LINK_ONLY:>) but strips its INTERFACE_QT_PLUGIN_TARGETS\ncompile property, so androiddeployqt never added the Android TTS backend\nplugin (libplugins_texttospeech_qttexttospeech_android) to\nandroid-deploy-plugins. The module .so shipped but no backend plugin did,\nleaving availableEngines() empty. Link it PUBLIC so the plugin-target\nproperty reaches the app target, exactly as the position/sensors/multimedia\nplugins are deployed.\n\nAlso declare the TTS_SERVICE <queries> entry for Android 11+ package\nvisibility. Not strictly required on every device (the framework binds the\ndefault public engine via the system service), but it is the documented\nrequirement and guards stricter ROMs where the app-side getEngines() path\nis filtered.\n\nWhile here, harden AudioOutput against the QTextToSpeech API contract:\n- Run the queue check, enqueue(), and counter update in one slot dispatched\n  to the engine thread. qReturnArg can't capture a return value across a\n  queued invokeMethod, and all queue/counter mutation must stay on the\n  engine thread; this removes the cross-thread race and lets _textQueueSize\n  be a plain qsizetype.\n- Zero _textQueueSize on stateChanged(Ready) (the queue is provably drained\n  there) instead of decrementing on aboutToSynthesize, which fires when an\n  utterance starts, not when it finishes.\n- Always connect errorOccurred (not just in debug builds) and reset the\n  queue depth on error so a recovered engine isn't wedged in the\n  over-limit branch; log enqueue() failures with state()/errorReason().\n- Construct QTextToSpeech with the default (auto-selected) engine instead of\n  building the \"none\" backend then setEngine(\"\"); apply locale, an explicit\n  voice, and the cached Speak capability via _applyEngineSettings().\n- Use BoundaryHint::Immediate for the mute / queue-overflow / test stop().\n- Fix _replaceAbbreviations: tokenize -> map each token -> rejoin, instead\n  of N whole-string replace() calls that over-matched substrings across\n  tokens and mismatched case.\n- Defer initialization until the engine reaches Ready instead of bailing on\n  a not-yet-ready engine. The Android backend initializes asynchronously, so\n  a synchronous state()/engine() check at startup could return early with no\n  retry; init() now wires stateChanged first and finalizes in _finishInit()\n  on the Ready transition. Guard _applyEngineSettings() on Ready so locale /\n  voice enumeration never runs against an empty engine.\n\nFixes #14469",
+      "author": "HTRamsey",
+      "source": "github",
+      "url": "https://github.com/mavlink/qgroundcontrol/commit/2e1b4ff4c8e84058af424b5dd30092ef583345b2",
+      "retrievedAt": "2026-09-18T02:01:48.951Z",
+      "trust": "external_untrusted"
+    }
+  }
+}

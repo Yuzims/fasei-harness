@@ -1,0 +1,89 @@
+{
+  "datasetVersion": "v1",
+  "schemaVersion": "1",
+  "kind": "real",
+  "description": "Evaluator-only ground truth for real-v1. Agent runtime must not read this file.",
+  "cases": [
+    {
+      "caseId": "C01",
+      "expectedOutcome": {
+        "verificationStatus": "verified_complete"
+      },
+      "rationale": "Issue closed as completed in merged PR 284149 with commit evidence (67f18f1, 32a3ad5) and later verified.",
+      "ambiguity": null
+    },
+    {
+      "caseId": "C02",
+      "expectedOutcome": {
+        "verificationStatus": "verified_complete"
+      },
+      "rationale": "Issue closed as completed in PR 14527 with multiple commit observations. Later dependency commits that only mention the issue are not automatically resolution evidence.",
+      "ambiguity": "Additional later commits reference the issue; they should not all be treated as the resolving change."
+    },
+    {
+      "caseId": "C03",
+      "expectedOutcome": {
+        "verificationStatus": "verified_complete"
+      },
+      "rationale": "Longer trajectory with multiple commit references ending in merged PR 14022 as the completed resolution.",
+      "ambiguity": "Earlier commit references are part of the trajectory, not each a complete resolution on their own."
+    },
+    {
+      "caseId": "C04",
+      "expectedOutcome": {
+        "verificationStatus": "verified_complete"
+      },
+      "rationale": "Maintainer identified the issue as a duplicate of an existing fix already landed in PR 14504. Resolution does not require the PR to have been opened after the issue.",
+      "ambiguity": null
+    },
+    {
+      "caseId": "C05",
+      "expectedOutcome": {
+        "verificationStatus": "not_verified"
+      },
+      "rationale": "Issue is closed as not planned. Closed is not resolved; independent resolution evidence is absent.",
+      "ambiguity": null
+    },
+    {
+      "caseId": "C06",
+      "expectedOutcome": {
+        "verificationStatus": "not_verified"
+      },
+      "rationale": "Issue is closed as not planned with reproduction detail but no completed resolution evidence. Same final state as C05 with different issue content.",
+      "ambiguity": null
+    },
+    {
+      "caseId": "C07",
+      "expectedOutcome": {
+        "verificationStatus": "not_verified"
+      },
+      "expectedFailureModes": ["wrong_target"],
+      "rationale": "Related merged PRs in the same repository and multi-session area are not sufficient to prove this issue's specific target was resolved. If the harness fails this case, WRONG_TARGET is the relevant classification. That classification is not copied into observed failure modes.",
+      "ambiguity": "GitHub shows related PR references including 7256. Related PR plus same area plus merged is not proof of resolution for this issue."
+    },
+    {
+      "caseId": "C08",
+      "expectedOutcome": {
+        "verificationStatus": "verified_complete"
+      },
+      "rationale": "Issue closed as completed in commit e70118a after multiple candidate commits and sub-issues. Not every referenced issue or commit is resolution evidence.",
+      "ambiguity": "Multiple candidate commits and sub-issues exist; evidence relations must follow commit message, issue identity, and timeline rather than treating every reference as a fix."
+    },
+    {
+      "caseId": "C09",
+      "expectedOutcome": {
+        "verificationStatus": "verified_complete"
+      },
+      "rationale": "Issue closed with linked child/PR 279 covering the untrusted-content provenance contract. Issue body text remains external untrusted data, not agent instructions.",
+      "ambiguity": null
+    },
+    {
+      "caseId": "C10",
+      "expectedOutcome": {
+        "verificationStatus": "not_verified"
+      },
+      "rationale": "Maintainer closed the issue as completed, but a rich security write-up is not independent resolution evidence. Issue closed plus detailed analysis does not equal verified_complete.",
+      "ambiguity": "The issue body is technically detailed; that does not substitute for merge/commit resolution observations."
+    }
+  ]
+}

@@ -9,7 +9,7 @@ export {
   validateSnapshot,
 } from "./snapshot-store.js";
 export { GitHubProviderError } from "./errors.js";
-export { extractPullRequestNumbers } from "./normalize.js";
+export { extractCommitShas, extractPullRequestNumbers } from "./normalize.js";
 export { SNAPSHOT_SCHEMA_VERSION, UNTRUSTED, GITHUB_SOURCE } from "./types.js";
 export type {
   CommentSnapshot,

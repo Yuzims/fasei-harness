@@ -339,7 +339,12 @@ Independent Verification
 Benchmark Metrics
 ```
 
-Current development Dataset is **synthetic / fixture**. It is not a real-world GitHub benchmark. Real Dataset Cases have not been imported.
+Current development Dataset includes:
+
+- `synthetic-v1` — fixture pipeline validation
+- `real-v1` — first 10 curated real GitHub issues
+
+Real Dataset Cases are recorded snapshots. They are not live GitHub state.
 
 ### Dataset architecture
 
@@ -461,8 +466,23 @@ Same `datasetVersion` + `caseId` reloads the same snapshot input. Deterministic 
 
 ### Current limitation
 
-No real-world GitHub Dataset Cases are included. Synthetic copies of `resolved` / `closed-unmerged` / `insufficient-evidence` exist only to validate the pipeline. Future real cases (on the order of 10 maintainer-provided issues) can be added to a later dataset version without changing production Harness semantics.
+`real-v1` is the first recorded real GitHub dataset. It validates that curated GitHub snapshots can enter the existing Benchmark Dataset Pipeline. It does not claim scientific validation of Harness performance. Later recapture is `real-v2`, not a silent rewrite of `real-v1`.
+
+## Phase 7.2B — Real GitHub Benchmark Dataset — DONE
+
+Location: `fixtures/benchmark/dataset/real-v1/`.
+
+```text
+real-v1/
+  manifest.json
+  ground-truth.json
+  cases/C01..C10/snapshot.json
+```
+
+Agent input is the recorded `InvestigationSnapshot`. Ground truth is `ground-truth.json` and is evaluator-only. Snapshots do not contain `expectedOutcome`, `correct_pr`, or failure-mode gold labels.
+
+C07 stores `expectedFailureModes: [wrong_target]` as ground-truth metadata. That field is not copied into the agent snapshot or into observed failures.
 
 ## Not started
 
-Phase 7.2B+ (real GitHub snapshot cases, baseline comparison, semantic judge, UI redesign) waits for a new task.
+Phase 7.2C+ (baseline comparison, semantic judge, UI redesign) waits for a new task.

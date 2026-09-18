@@ -25,12 +25,16 @@ export interface BenchmarkDatasetSource {
 export interface BenchmarkDatasetCase {
   caseId: string;
   source: BenchmarkDatasetSource;
+  sourceUrl?: string;
   snapshotPath: string;
   scenarioId: string;
   kind: BenchmarkScenarioKind;
   failureMode?: BenchmarkFailureMode;
   description?: string;
   expectedOutcome: ExpectedOutcome;
+  groundTruthReference?: string;
+  snapshotCapturedAt?: string;
+  snapshotCutoff?: string;
   tags?: string[];
   difficulty?: string;
   sourceMetadata?: Record<string, unknown>;

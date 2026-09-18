@@ -1,0 +1,318 @@
+{
+  "snapshotId": "real-v1-C08",
+  "schemaVersion": 1,
+  "createdAt": "2026-09-18T02:39:19.414Z",
+  "source": "github",
+  "owner": "beyond-all-reason",
+  "repository": "bar-lobby",
+  "issueNumber": 291,
+  "retrievedAt": "2026-09-18T02:39:19.414Z",
+  "trust": "external_untrusted",
+  "repositoryData": {
+    "id": "repo:beyond-all-reason/bar-lobby",
+    "repository": "beyond-all-reason/bar-lobby",
+    "owner": "beyond-all-reason",
+    "name": "bar-lobby",
+    "description": "BAR Lobby Client",
+    "defaultBranch": "master",
+    "source": "github",
+    "url": "https://github.com/beyond-all-reason/bar-lobby",
+    "retrievedAt": "2026-09-18T02:39:35.360Z",
+    "trust": "external_untrusted"
+  },
+  "issue": {
+    "id": "issue:beyond-all-reason/bar-lobby#291",
+    "repository": "beyond-all-reason/bar-lobby",
+    "number": 291,
+    "title": "Dynamic configuration of lobby",
+    "body": "There are many runtime parameters that are currently statically hardcoded in [`src/main/config`](https://github.com/beyond-all-reason/bar-lobby/tree/7d56252c3d583acb2a95694433ca4c4b075f0dc2/src/main). Changing any of them will require re-release of new version of lobby which is very suboptimal as they might change way more often then lobby codebase.\n\nThe values being hardcoded in code also might make it also harder for local development, or connecting to different stacks of infrastructure with the same lobby (e.g. prod and integration teiserver), so it would be good to be able to override those configurations without rebuild.\n\nThe issue here is to implement mechanism similar to the one in https://github.com/beyond-all-reason/spring-launcher:\n- Dynamic configuration via JSON file\n- Updates of the configuration from remote url\n- Ability to override config via command line flag\n\nIn addition:\n- Configuration needs to be described by JSON schema",
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-08-19T14:08:36Z",
+    "source": "github",
+    "url": "https://github.com/beyond-all-reason/bar-lobby/issues/291",
+    "retrievedAt": "2026-09-18T02:39:35.789Z",
+    "trust": "external_untrusted"
+  },
+  "comments": [],
+  "timeline": [
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:15989365689",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "assigned",
+      "createdAt": "2025-01-19T17:13:34Z",
+      "actor": "p2004a",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/15989365689",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:15989419197",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "sub_issue_added",
+      "createdAt": "2025-01-19T17:40:35Z",
+      "actor": "p2004a",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/15989419197",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:15989424162",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "sub_issue_added",
+      "createdAt": "2025-01-19T17:42:55Z",
+      "actor": "p2004a",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/15989424162",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:16325024861",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "labeled",
+      "createdAt": "2025-02-16T19:26:17Z",
+      "actor": "p2004a",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/16325024861",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:16693728674",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "referenced",
+      "createdAt": "2025-03-11T17:16:56Z",
+      "actor": "keithharvey",
+      "body": "639831274f02db63f8e5668417b3f1bdf95d5b34",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/16693728674",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:18945839917",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "milestoned",
+      "createdAt": "2025-08-01T19:35:08Z",
+      "actor": "p2004a",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/18945839917",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:25786433889",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "sub_issue_added",
+      "createdAt": "2026-05-21T03:33:20Z",
+      "actor": "Hectate",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/25786433889",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:26425331151",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "closed",
+      "createdAt": "2026-06-06T17:00:12Z",
+      "actor": "p2004a",
+      "body": "e70118a2a11aa239472336f6a961784f04c63c9d",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/26425331151",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:26425332207",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "referenced",
+      "createdAt": "2026-06-06T17:00:17Z",
+      "actor": "p2004a",
+      "body": "e70118a2a11aa239472336f6a961784f04c63c9d",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/26425332207",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:26729145361",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "sub_issue_added",
+      "createdAt": "2026-06-14T16:59:51Z",
+      "actor": "Hectate",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/26729145361",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:26729173923",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "reopened",
+      "createdAt": "2026-06-14T17:01:55Z",
+      "actor": "Hectate",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/26729173923",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:29660089518",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "connected",
+      "createdAt": "2026-08-19T04:20:03Z",
+      "actor": "Hectate",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/29660089518",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:29686888923",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "closed",
+      "createdAt": "2026-08-19T14:08:37Z",
+      "actor": "Hectate",
+      "body": "fe99285a056451e9fad9754c109048a4ad5e33d8",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/29686888923",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:beyond-all-reason/bar-lobby:29687197021",
+      "repository": "beyond-all-reason/bar-lobby",
+      "event": "referenced",
+      "createdAt": "2026-08-19T14:13:58Z",
+      "actor": "Hectate",
+      "body": "fe99285a056451e9fad9754c109048a4ad5e33d8",
+      "source": "github",
+      "url": "https://api.github.com/repos/beyond-all-reason/bar-lobby/issues/events/29687197021",
+      "retrievedAt": "2026-09-18T02:39:36.787Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "pullRequests": {},
+  "reviews": {},
+  "files": {},
+  "commits": {
+    "referenced": [
+      {
+        "id": "commit:beyond-all-reason/bar-lobby@639831274f02db63f8e5668417b3f1bdf95d5b34",
+        "repository": "beyond-all-reason/bar-lobby",
+        "sha": "639831274f02db63f8e5668417b3f1bdf95d5b34",
+        "message": "chore: Implement schema-based configuration versioning with GitHub Actions\n\nThis commit introduces a robust configuration management system with automatic schema versioning:\n\n- Removed complex schema hash generation from application code\n- Added schema versioning based on direct file hashing during CI/CD\n- Implemented two GitHub Actions workflows:\n  1. Schema compatibility check for PRs to ensure configs are updated when schema changes\n  2. Configuration publishing workflow for deploying to dev/staging/prod environments\n- Set placeholder schemaVersion in default config that gets replaced during build\n- Fixed TypeScript type imports for Zod schemas\n- Added npm caching to speed up CI/CD processes\n\nThe new approach simplifies schema versioning by generating a hash directly from the schema file\nduring the build process, rather than maintaining complex hashing logic in the application code.\nThis ensures that schema versions only change when the actual schema structure changes.\n\nThe GitHub Actions workflows enforce schema compatibility across environments and automate\nthe configuration publishing process, making it easier to manage configuration changes\nacross different environments.\n\nCloses #291",
+        "author": "keithharvey",
+        "source": "github",
+        "url": "https://github.com/beyond-all-reason/bar-lobby/commit/639831274f02db63f8e5668417b3f1bdf95d5b34",
+        "retrievedAt": "2026-09-18T02:39:37.334Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "commit:beyond-all-reason/bar-lobby@e70118a2a11aa239472336f6a961784f04c63c9d",
+        "repository": "beyond-all-reason/bar-lobby",
+        "sha": "e70118a2a11aa239472336f6a961784f04c63c9d",
+        "message": "Add GitHub actions workflow to push dynamic config.\n\nFor now just basic piece, to show that pushing works. The workflow\nneeds to be expanded to validate and push real one once it exists.\n\nResolves #291",
+        "author": "p2004a",
+        "source": "github",
+        "url": "https://github.com/beyond-all-reason/bar-lobby/commit/e70118a2a11aa239472336f6a961784f04c63c9d",
+        "retrievedAt": "2026-09-18T02:39:37.872Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "commit:beyond-all-reason/bar-lobby@fe99285a056451e9fad9754c109048a4ad5e33d8",
+        "repository": "beyond-all-reason/bar-lobby",
+        "sha": "fe99285a056451e9fad9754c109048a4ad5e33d8",
+        "message": "Config Service Added (#597)\n\nCloses #291 #293 #596 \n\nThis enables us to reconfigure some values without requiring an entire release of the client. Upon initialization, the client will attempt to handle 4 possible sources of config information and apply them in a cascading fashion. The first will be our remote config service, which will be updated with `remoteConfig/config.json` on a push to `master`.",
+        "author": "Hectate",
+        "source": "github",
+        "url": "https://github.com/beyond-all-reason/bar-lobby/commit/fe99285a056451e9fad9754c109048a4ad5e33d8",
+        "retrievedAt": "2026-09-18T02:39:38.486Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "repo": [
+      {
+        "id": "commit:beyond-all-reason/bar-lobby@639831274f02db63f8e5668417b3f1bdf95d5b34",
+        "repository": "beyond-all-reason/bar-lobby",
+        "sha": "639831274f02db63f8e5668417b3f1bdf95d5b34",
+        "message": "chore: Implement schema-based configuration versioning with GitHub Actions\n\nThis commit introduces a robust configuration management system with automatic schema versioning:\n\n- Removed complex schema hash generation from application code\n- Added schema versioning based on direct file hashing during CI/CD\n- Implemented two GitHub Actions workflows:\n  1. Schema compatibility check for PRs to ensure configs are updated when schema changes\n  2. Configuration publishing workflow for deploying to dev/staging/prod environments\n- Set placeholder schemaVersion in default config that gets replaced during build\n- Fixed TypeScript type imports for Zod schemas\n- Added npm caching to speed up CI/CD processes\n\nThe new approach simplifies schema versioning by generating a hash directly from the schema file\nduring the build process, rather than maintaining complex hashing logic in the application code.\nThis ensures that schema versions only change when the actual schema structure changes.\n\nThe GitHub Actions workflows enforce schema compatibility across environments and automate\nthe configuration publishing process, making it easier to manage configuration changes\nacross different environments.\n\nCloses #291",
+        "author": "keithharvey",
+        "source": "github",
+        "url": "https://github.com/beyond-all-reason/bar-lobby/commit/639831274f02db63f8e5668417b3f1bdf95d5b34",
+        "retrievedAt": "2026-09-18T02:39:37.334Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "commit:beyond-all-reason/bar-lobby@e70118a2a11aa239472336f6a961784f04c63c9d",
+        "repository": "beyond-all-reason/bar-lobby",
+        "sha": "e70118a2a11aa239472336f6a961784f04c63c9d",
+        "message": "Add GitHub actions workflow to push dynamic config.\n\nFor now just basic piece, to show that pushing works. The workflow\nneeds to be expanded to validate and push real one once it exists.\n\nResolves #291",
+        "author": "p2004a",
+        "source": "github",
+        "url": "https://github.com/beyond-all-reason/bar-lobby/commit/e70118a2a11aa239472336f6a961784f04c63c9d",
+        "retrievedAt": "2026-09-18T02:39:37.872Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "commit:beyond-all-reason/bar-lobby@fe99285a056451e9fad9754c109048a4ad5e33d8",
+        "repository": "beyond-all-reason/bar-lobby",
+        "sha": "fe99285a056451e9fad9754c109048a4ad5e33d8",
+        "message": "Config Service Added (#597)\n\nCloses #291 #293 #596 \n\nThis enables us to reconfigure some values without requiring an entire release of the client. Upon initialization, the client will attempt to handle 4 possible sources of config information and apply them in a cascading fashion. The first will be our remote config service, which will be updated with `remoteConfig/config.json` on a push to `master`.",
+        "author": "Hectate",
+        "source": "github",
+        "url": "https://github.com/beyond-all-reason/bar-lobby/commit/fe99285a056451e9fad9754c109048a4ad5e33d8",
+        "retrievedAt": "2026-09-18T02:39:38.486Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commitIndex": {
+    "639831274f02db63f8e5668417b3f1bdf95d5b34": {
+      "id": "commit:beyond-all-reason/bar-lobby@639831274f02db63f8e5668417b3f1bdf95d5b34",
+      "repository": "beyond-all-reason/bar-lobby",
+      "sha": "639831274f02db63f8e5668417b3f1bdf95d5b34",
+      "message": "chore: Implement schema-based configuration versioning with GitHub Actions\n\nThis commit introduces a robust configuration management system with automatic schema versioning:\n\n- Removed complex schema hash generation from application code\n- Added schema versioning based on direct file hashing during CI/CD\n- Implemented two GitHub Actions workflows:\n  1. Schema compatibility check for PRs to ensure configs are updated when schema changes\n  2. Configuration publishing workflow for deploying to dev/staging/prod environments\n- Set placeholder schemaVersion in default config that gets replaced during build\n- Fixed TypeScript type imports for Zod schemas\n- Added npm caching to speed up CI/CD processes\n\nThe new approach simplifies schema versioning by generating a hash directly from the schema file\nduring the build process, rather than maintaining complex hashing logic in the application code.\nThis ensures that schema versions only change when the actual schema structure changes.\n\nThe GitHub Actions workflows enforce schema compatibility across environments and automate\nthe configuration publishing process, making it easier to manage configuration changes\nacross different environments.\n\nCloses #291",
+      "author": "keithharvey",
+      "source": "github",
+      "url": "https://github.com/beyond-all-reason/bar-lobby/commit/639831274f02db63f8e5668417b3f1bdf95d5b34",
+      "retrievedAt": "2026-09-18T02:39:37.334Z",
+      "trust": "external_untrusted"
+    },
+    "e70118a2a11aa239472336f6a961784f04c63c9d": {
+      "id": "commit:beyond-all-reason/bar-lobby@e70118a2a11aa239472336f6a961784f04c63c9d",
+      "repository": "beyond-all-reason/bar-lobby",
+      "sha": "e70118a2a11aa239472336f6a961784f04c63c9d",
+      "message": "Add GitHub actions workflow to push dynamic config.\n\nFor now just basic piece, to show that pushing works. The workflow\nneeds to be expanded to validate and push real one once it exists.\n\nResolves #291",
+      "author": "p2004a",
+      "source": "github",
+      "url": "https://github.com/beyond-all-reason/bar-lobby/commit/e70118a2a11aa239472336f6a961784f04c63c9d",
+      "retrievedAt": "2026-09-18T02:39:37.872Z",
+      "trust": "external_untrusted"
+    },
+    "fe99285a056451e9fad9754c109048a4ad5e33d8": {
+      "id": "commit:beyond-all-reason/bar-lobby@fe99285a056451e9fad9754c109048a4ad5e33d8",
+      "repository": "beyond-all-reason/bar-lobby",
+      "sha": "fe99285a056451e9fad9754c109048a4ad5e33d8",
+      "message": "Config Service Added (#597)\n\nCloses #291 #293 #596 \n\nThis enables us to reconfigure some values without requiring an entire release of the client. Upon initialization, the client will attempt to handle 4 possible sources of config information and apply them in a cascading fashion. The first will be our remote config service, which will be updated with `remoteConfig/config.json` on a push to `master`.",
+      "author": "Hectate",
+      "source": "github",
+      "url": "https://github.com/beyond-all-reason/bar-lobby/commit/fe99285a056451e9fad9754c109048a4ad5e33d8",
+      "retrievedAt": "2026-09-18T02:39:38.486Z",
+      "trust": "external_untrusted"
+    }
+  }
+}

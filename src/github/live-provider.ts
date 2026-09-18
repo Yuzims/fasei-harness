@@ -72,24 +72,22 @@ export class LiveGitHubProvider implements GitHubDataProvider {
 
   async getIssueComments(ref: IssueRef): Promise<CommentSnapshot[]> {
     const { owner, repo } = requireId(ref.owner, ref.repo, "getIssueComments");
-    const raw = await this.http.getJson(
+    const raw = await this.http.getJsonPages(
       "getIssueComments",
       `/repos/${encodeRepo(owner, repo)}/issues/${ref.issueNumber}/comments?per_page=100`,
     );
     const retrievedAt = this.http.retrievedAt();
-    return asArray(raw).map((item) =>
-      normalizeComment(item, owner, repo, ref.issueNumber, retrievedAt),
-    );
+    return raw.map((item) => normalizeComment(item, owner, repo, ref.issueNumber, retrievedAt));
   }
 
   async getIssueTimeline(ref: IssueRef): Promise<TimelineEventSnapshot[]> {
     const { owner, repo } = requireId(ref.owner, ref.repo, "getIssueTimeline");
-    const raw = await this.http.getJson(
+    const raw = await this.http.getJsonPages(
       "getIssueTimeline",
       `/repos/${encodeRepo(owner, repo)}/issues/${ref.issueNumber}/timeline?per_page=100`,
     );
     const retrievedAt = this.http.retrievedAt();
-    return asArray(raw).map((item) => normalizeTimelineEvent(item, owner, repo, retrievedAt));
+    return raw.map((item) => normalizeTimelineEvent(item, owner, repo, retrievedAt));
   }
 
   async getPullRequest(ref: PullRef): Promise<PullRequestSnapshot> {
@@ -103,24 +101,22 @@ export class LiveGitHubProvider implements GitHubDataProvider {
 
   async getPullRequestReviews(ref: PullRef): Promise<ReviewSnapshot[]> {
     const { owner, repo } = requireId(ref.owner, ref.repo, "getPullRequestReviews");
-    const raw = await this.http.getJson(
+    const raw = await this.http.getJsonPages(
       "getPullRequestReviews",
-      `/repos/${encodeRepo(owner, repo)}/pulls/${ref.pullNumber}/reviews`,
+      `/repos/${encodeRepo(owner, repo)}/pulls/${ref.pullNumber}/reviews?per_page=100`,
     );
     const retrievedAt = this.http.retrievedAt();
-    return asArray(raw).map((item) =>
-      normalizeReview(item, owner, repo, ref.pullNumber, retrievedAt),
-    );
+    return raw.map((item) => normalizeReview(item, owner, repo, ref.pullNumber, retrievedAt));
   }
 
   async getPullRequestFiles(ref: PullRef): Promise<FileChangeSnapshot[]> {
     const { owner, repo } = requireId(ref.owner, ref.repo, "getPullRequestFiles");
-    const raw = await this.http.getJson(
+    const raw = await this.http.getJsonPages(
       "getPullRequestFiles",
       `/repos/${encodeRepo(owner, repo)}/pulls/${ref.pullNumber}/files?per_page=100`,
     );
     const retrievedAt = this.http.retrievedAt();
-    return asArray(raw).map((item) =>
+    return raw.map((item) =>
       normalizeFileChange(item, owner, repo, ref.pullNumber, retrievedAt),
     );
   }
@@ -129,13 +125,13 @@ export class LiveGitHubProvider implements GitHubDataProvider {
     const { owner, repo } = requireId(query.owner, query.repo, "listCommits");
     const path =
       query.pullNumber && query.pullNumber > 0
-        ? `/repos/${encodeRepo(owner, repo)}/pulls/${query.pullNumber}/commits`
+        ? `/repos/${encodeRepo(owner, repo)}/pulls/${query.pullNumber}/commits?per_page=100`
         : `/repos/${encodeRepo(owner, repo)}/commits?per_page=30${
             query.sha ? `&sha=${encodeURIComponent(query.sha)}` : ""
           }`;
-    const raw = await this.http.getJson("listCommits", path);
+    const raw = await this.http.getJsonPages("listCommits", path);
     const retrievedAt = this.http.retrievedAt();
-    return asArray(raw).map((item) => normalizeCommit(item, owner, repo, retrievedAt));
+    return raw.map((item) => normalizeCommit(item, owner, repo, retrievedAt));
   }
 
   async getCommit(ref: CommitRef): Promise<CommitSnapshot> {

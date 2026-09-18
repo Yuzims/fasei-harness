@@ -1,0 +1,715 @@
+{
+  "snapshotId": "real-v1-C01",
+  "schemaVersion": 1,
+  "createdAt": "2026-09-18T01:49:27.646Z",
+  "source": "github",
+  "owner": "microsoft",
+  "repository": "vscode",
+  "issueNumber": 258694,
+  "retrievedAt": "2026-09-18T01:49:27.646Z",
+  "trust": "external_untrusted",
+  "repositoryData": {
+    "id": "repo:microsoft/vscode",
+    "repository": "microsoft/vscode",
+    "owner": "microsoft",
+    "name": "vscode",
+    "description": "Visual Studio Code",
+    "defaultBranch": "main",
+    "source": "github",
+    "url": "https://github.com/microsoft/vscode",
+    "retrievedAt": "2026-09-18T01:49:29.196Z",
+    "trust": "external_untrusted"
+  },
+  "issue": {
+    "id": "issue:microsoft/vscode#258694",
+    "repository": "microsoft/vscode",
+    "number": 258694,
+    "title": "Terminal suggestions aren't dismissed when terminal is resized or moved",
+    "body": "Testing #258293\n\n1. Trigger suggestions in terminal\n2. Resize the terminal or use a command that shifts it around (such as expanding the sidebar)\n\n**bug**\nTerminal suggestions are still showing \n\n<img width=\"1246\" height=\"686\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/d8595db6-5d07-40f5-8a53-8bb0ddea5423\" />",
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2025-12-17T23:06:08Z",
+    "source": "github",
+    "url": "https://github.com/microsoft/vscode/issues/258694",
+    "retrievedAt": "2026-09-18T01:49:29.582Z",
+    "trust": "external_untrusted"
+  },
+  "comments": [
+    {
+      "id": "comment:microsoft/vscode#258694:3667477354",
+      "repository": "microsoft/vscode",
+      "issueNumber": 258694,
+      "body": "Terminal suggestions should still be showing - that's how it works in the editor. But right now, the bug is that they don't move to be in the right place relative to the cursor.",
+      "author": "meganrogge",
+      "createdAt": "2025-12-17T22:39:54Z",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode/issues/258694#issuecomment-3667477354",
+      "retrievedAt": "2026-09-18T01:49:29.920Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "timeline": [
+    {
+      "id": "timeline:microsoft/vscode:18888131876",
+      "repository": "microsoft/vscode",
+      "event": "assigned",
+      "createdAt": "2025-07-29T22:54:08Z",
+      "actor": "mjbvz",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/18888131876",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:18888131899",
+      "repository": "microsoft/vscode",
+      "event": "assigned",
+      "createdAt": "2025-07-29T22:54:09Z",
+      "actor": "mjbvz",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/18888131899",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20660149427",
+      "repository": "microsoft/vscode",
+      "event": "unassigned",
+      "createdAt": "2025-11-02T10:55:07Z",
+      "actor": "Tyriar",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20660149427",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20660149431",
+      "repository": "microsoft/vscode",
+      "event": "unassigned",
+      "createdAt": "2025-11-02T10:55:07Z",
+      "actor": "Tyriar",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20660149431",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20660149441",
+      "repository": "microsoft/vscode",
+      "event": "assigned",
+      "createdAt": "2025-11-02T10:55:07Z",
+      "actor": "Tyriar",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20660149441",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20660149544",
+      "repository": "microsoft/vscode",
+      "event": "labeled",
+      "createdAt": "2025-11-02T10:55:09Z",
+      "actor": "Tyriar",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20660149544",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20660149624",
+      "repository": "microsoft/vscode",
+      "event": "unsubscribed",
+      "createdAt": "2025-11-02T10:55:10Z",
+      "actor": "Tyriar",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20660149624",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20682391999",
+      "repository": "microsoft/vscode",
+      "event": "labeled",
+      "createdAt": "2025-11-03T18:46:13Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20682391999",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20682393493",
+      "repository": "microsoft/vscode",
+      "event": "milestoned",
+      "createdAt": "2025-11-03T18:46:17Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20682393493",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:cross-referenced-2025-11-05T14:36:58Z",
+      "repository": "microsoft/vscode",
+      "event": "cross-referenced",
+      "createdAt": "2025-11-05T14:36:58Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20732381916",
+      "repository": "microsoft/vscode",
+      "event": "assigned",
+      "createdAt": "2025-11-05T14:37:16Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20732381916",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:cross-referenced-2025-11-05T14:37:19Z",
+      "repository": "microsoft/vscode",
+      "event": "cross-referenced",
+      "createdAt": "2025-11-05T14:37:19Z",
+      "actor": "Copilot",
+      "body": "",
+      "pullRequestNumber": 275576,
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20732384422",
+      "repository": "microsoft/vscode",
+      "event": "demilestoned",
+      "createdAt": "2025-11-05T14:37:21Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20732384422",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20732384434",
+      "repository": "microsoft/vscode",
+      "event": "milestoned",
+      "createdAt": "2025-11-05T14:37:21Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20732384434",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20735756173",
+      "repository": "microsoft/vscode",
+      "event": "demilestoned",
+      "createdAt": "2025-11-05T16:43:26Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20735756173",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:20735756189",
+      "repository": "microsoft/vscode",
+      "event": "milestoned",
+      "createdAt": "2025-11-05T16:43:26Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/20735756189",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21286706167",
+      "repository": "microsoft/vscode",
+      "event": "demilestoned",
+      "createdAt": "2025-12-01T20:16:45Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21286706167",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21286706183",
+      "repository": "microsoft/vscode",
+      "event": "milestoned",
+      "createdAt": "2025-12-01T20:16:45Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21286706183",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21629022941",
+      "repository": "microsoft/vscode",
+      "event": "labeled",
+      "createdAt": "2025-12-17T22:32:15Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21629022941",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21629104512",
+      "repository": "microsoft/vscode",
+      "event": "unlabeled",
+      "createdAt": "2025-12-17T22:39:14Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21629104512",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:3667477354",
+      "repository": "microsoft/vscode",
+      "event": "commented",
+      "createdAt": "2025-12-17T22:39:54Z",
+      "actor": "meganrogge",
+      "body": "Terminal suggestions should still be showing - that's how it works in the editor. But right now, the bug is that they don't move to be in the right place relative to the cursor.",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode/issues/258694#issuecomment-3667477354",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21629169216",
+      "repository": "microsoft/vscode",
+      "event": "labeled",
+      "createdAt": "2025-12-17T22:44:45Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21629169216",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21629192355",
+      "repository": "microsoft/vscode",
+      "event": "referenced",
+      "createdAt": "2025-12-17T22:46:40Z",
+      "actor": "meganrogge",
+      "body": "67f18f167f3b21708fbd2c35a7cce20670c59b12",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21629192355",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:cross-referenced-2025-12-17T22:47:14Z",
+      "repository": "microsoft/vscode",
+      "event": "cross-referenced",
+      "createdAt": "2025-12-17T22:47:14Z",
+      "actor": "meganrogge",
+      "body": "",
+      "pullRequestNumber": 284149,
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21629417169",
+      "repository": "microsoft/vscode",
+      "event": "closed",
+      "createdAt": "2025-12-17T23:06:09Z",
+      "actor": "meganrogge",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21629417169",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21629417412",
+      "repository": "microsoft/vscode",
+      "event": "referenced",
+      "createdAt": "2025-12-17T23:06:10Z",
+      "actor": "meganrogge",
+      "body": "32a3ad5307cd412be2f5e1613fa1eea363259c63",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21629417412",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21629425211",
+      "repository": "microsoft/vscode",
+      "event": "labeled",
+      "createdAt": "2025-12-17T23:06:47Z",
+      "actor": "vs-code-engineering[bot]",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21629425211",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21634379406",
+      "repository": "microsoft/vscode",
+      "event": "unlabeled",
+      "createdAt": "2025-12-18T06:18:06Z",
+      "actor": "vs-code-engineering[bot]",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21634379406",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21634379775",
+      "repository": "microsoft/vscode",
+      "event": "labeled",
+      "createdAt": "2025-12-18T06:18:07Z",
+      "actor": "vs-code-engineering[bot]",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21634379775",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:21888380486",
+      "repository": "microsoft/vscode",
+      "event": "labeled",
+      "createdAt": "2026-01-07T02:10:09Z",
+      "actor": "anthonykim1",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/21888380486",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:microsoft/vscode:22435089220",
+      "repository": "microsoft/vscode",
+      "event": "locked",
+      "createdAt": "2026-01-31T23:31:57Z",
+      "actor": "vs-code-engineering[bot]",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/microsoft/vscode/issues/events/22435089220",
+      "retrievedAt": "2026-09-18T01:49:30.660Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "pullRequests": {
+    "275576": {
+      "id": "pr:microsoft/vscode#275576",
+      "repository": "microsoft/vscode",
+      "number": 275576,
+      "title": "Fix terminal suggestions not dismissed on resize",
+      "body": "Fixes #258694\r\n\r\nTerminal suggestions remain visible after terminal resize/reflow, appearing in incorrect positions and overlapping UI elements when sidebar expands or pane dimensions change.\r\n\r\n## Changes\r\n\r\n- Register `onResize` handler in `SuggestAddon.activate()` to dismiss widget on terminal dimension changes\r\n- Add test coverage for resize event handling\r\n\r\n```typescript\r\nactivate(xterm: Terminal): void {\r\n    this._terminal = xterm;\r\n    this._register(xterm.onKey(async e => { ... }));\r\n    this._register(xterm.onScroll(() => this.hideSuggestWidget(true)));\r\n    this._register(xterm.onResize(() => this.hideSuggestWidget(true))); // new\r\n}\r\n```\r\n\r\nPattern mirrors existing `onScroll` dismissal behavior. Widget now hides on any layout-driven resize event.\r\n\r\n<!-- START COPILOT CODING AGENT SUFFIX -->\r\n\r\n\r\n\r\n<details>\r\n\r\n<summary>Original prompt</summary>\r\n\r\n> \r\n> ----\r\n> \r\n> *This section details on the original issue you should resolve*\r\n> \r\n> <issue_title>Terminal suggestions aren't dismissed when terminal is resized or moved</issue_title>\r\n> <issue_description>Testing microsoft/vscode#258293\r\n> \r\n> 1. Trigger suggestions in terminal\r\n> 2. Resize the terminal or use a command that shifts it around (such as expanding the sidebar)\r\n> \r\n> **bug**\r\n> Terminal suggestions are still showing \r\n> \r\n> <img width=\"1246\" height=\"686\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/d8595db6-5d07-40f5-8a53-8bb0ddea5423\" /></issue_description>\r\n> \r\n> ## Comments on the Issue (you are @copilot in this section)\r\n> \r\n> <comments>\r\n> </comments>\r\n> \r\n\r\n\r\n</details>\r\n\r\n- Fixes microsoft/vscode#258694\r\n\r\n<!-- START COPILOT CODING AGENT TIPS -->\r\n---\r\n\r\n✨ Let Copilot coding agent [set things up for you](https://github.com/microsoft/vscode/issues/new?title=✨+Set+up+Copilot+instructions&body=Configure%20instructions%20for%20this%20repository%20as%20documented%20in%20%5BBest%20practices%20for%20Copilot%20coding%20agent%20in%20your%20repository%5D%28https://gh.io/copilot-coding-agent-tips%29%2E%0A%0A%3COnboard%20this%20repo%3E&assignees=copilot) — coding agent works faster and does higher quality work when set up for your repo.\r\n",
+      "state": "closed",
+      "merged": false,
+      "mergeCommitSha": "5e13dfed117787ff135d13af8d60c557c52ddeaf",
+      "headSha": "23cf7d48302b99dbd6fb753cd46d245b6b25e628",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode/pull/275576",
+      "retrievedAt": "2026-09-18T01:49:31.146Z",
+      "trust": "external_untrusted"
+    },
+    "284149": {
+      "id": "pr:microsoft/vscode#284149",
+      "repository": "microsoft/vscode",
+      "number": 284149,
+      "title": "relayout suggest widget on resize of terminal",
+      "body": "fixes #258694\r\n\r\ncc @tyriar\r\n\r\nBefore:\r\n\r\nhttps://github.com/user-attachments/assets/196629ba-b047-47ba-8e95-ef20fbfa76b5\r\n\r\n\r\nAfter:\r\n\r\nhttps://github.com/user-attachments/assets/b053f656-4c75-486e-a076-7079772c8e7d\r\n\r\n",
+      "state": "closed",
+      "merged": true,
+      "mergeCommitSha": "32a3ad5307cd412be2f5e1613fa1eea363259c63",
+      "headSha": "67f18f167f3b21708fbd2c35a7cce20670c59b12",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode/pull/284149",
+      "retrievedAt": "2026-09-18T01:49:35.968Z",
+      "trust": "external_untrusted"
+    }
+  },
+  "reviews": {
+    "275576": [
+      {
+        "id": "review:microsoft/vscode#275576:3423101057",
+        "repository": "microsoft/vscode",
+        "pullNumber": 275576,
+        "state": "APPROVED",
+        "body": "",
+        "author": "meganrogge",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/pull/275576#pullrequestreview-3423101057",
+        "retrievedAt": "2026-09-18T01:49:34.781Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "review:microsoft/vscode#275576:3423102617",
+        "repository": "microsoft/vscode",
+        "pullNumber": 275576,
+        "state": "COMMENTED",
+        "body": "## Pull Request Overview\n\nFixes terminal suggestions remaining visible in incorrect positions after terminal resize events. When the terminal dimensions change (e.g., from sidebar expansion or manual resize), the suggestion widget now properly dismisses itself.\n\n**Key changes:**\n- Added `onResize` event handler to dismiss suggestion widget on terminal dimension changes\n- New handler follows same dismissal pattern as existing `onScroll` handler\n\n\n\n",
+        "author": "copilot-pull-request-reviewer[bot]",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/pull/275576#pullrequestreview-3423102617",
+        "retrievedAt": "2026-09-18T01:49:34.781Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "review:microsoft/vscode#275576:3423150037",
+        "repository": "microsoft/vscode",
+        "pullNumber": 275576,
+        "state": "CHANGES_REQUESTED",
+        "body": "",
+        "author": "Tyriar",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/pull/275576#pullrequestreview-3423150037",
+        "retrievedAt": "2026-09-18T01:49:34.781Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "review:microsoft/vscode#275576:3423152383",
+        "repository": "microsoft/vscode",
+        "pullNumber": 275576,
+        "state": "COMMENTED",
+        "body": "",
+        "author": "Tyriar",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/pull/275576#pullrequestreview-3423152383",
+        "retrievedAt": "2026-09-18T01:49:34.781Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "284149": [
+      {
+        "id": "review:microsoft/vscode#284149:3589985560",
+        "repository": "microsoft/vscode",
+        "pullNumber": 284149,
+        "state": "APPROVED",
+        "body": "",
+        "author": "rzhao271",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/pull/284149#pullrequestreview-3589985560",
+        "retrievedAt": "2026-09-18T01:49:36.480Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "review:microsoft/vscode#284149:3589991108",
+        "repository": "microsoft/vscode",
+        "pullNumber": 284149,
+        "state": "COMMENTED",
+        "body": "## Pull request overview\n\nThis PR fixes an issue where the terminal suggest widget doesn't properly reposition itself when the terminal is resized. The fix adds a new `relayout` method to the `SimpleSuggestWidget` that can be called to reposition the widget, and wires it up to the terminal's resize event.\n\n**Key changes:**\n- Added a public `relayout()` method to `SimpleSuggestWidget` that repositions the widget when visible\n- Connected the terminal's `onResize` event to trigger relayout of the suggest widget\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed files in this pull request and generated no comments.\n\n| File | Description |\n| ---- | ----------- |\n| src/vs/workbench/services/suggest/browser/simpleSuggestWidget.ts | Adds `relayout()` method to reposition the widget with updated cursor position |\n| src/vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon.ts | Registers resize event handler and implements `_relayoutOnResize()` to call the widget's relayout method |\n\n\n\n",
+        "author": "copilot-pull-request-reviewer[bot]",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/pull/284149#pullrequestreview-3589991108",
+        "retrievedAt": "2026-09-18T01:49:36.480Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "files": {
+    "275576": [
+      {
+        "id": "file:microsoft/vscode#275576:src/vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon.ts",
+        "repository": "microsoft/vscode",
+        "pullNumber": 275576,
+        "filename": "src/vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon.ts",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 0,
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/blob/23cf7d48302b99dbd6fb753cd46d245b6b25e628/src%2Fvs%2Fworkbench%2Fcontrib%2FterminalContrib%2Fsuggest%2Fbrowser%2FterminalSuggestAddon.ts",
+        "retrievedAt": "2026-09-18T01:49:35.184Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "284149": [
+      {
+        "id": "file:microsoft/vscode#284149:src/vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon.ts",
+        "repository": "microsoft/vscode",
+        "pullNumber": 284149,
+        "filename": "src/vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon.ts",
+        "status": "modified",
+        "additions": 13,
+        "deletions": 1,
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/blob/67f18f167f3b21708fbd2c35a7cce20670c59b12/src%2Fvs%2Fworkbench%2Fcontrib%2FterminalContrib%2Fsuggest%2Fbrowser%2FterminalSuggestAddon.ts",
+        "retrievedAt": "2026-09-18T01:49:36.895Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:microsoft/vscode#284149:src/vs/workbench/services/suggest/browser/simpleSuggestWidget.ts",
+        "repository": "microsoft/vscode",
+        "pullNumber": 284149,
+        "filename": "src/vs/workbench/services/suggest/browser/simpleSuggestWidget.ts",
+        "status": "modified",
+        "additions": 9,
+        "deletions": 0,
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/blob/67f18f167f3b21708fbd2c35a7cce20670c59b12/src%2Fvs%2Fworkbench%2Fservices%2Fsuggest%2Fbrowser%2FsimpleSuggestWidget.ts",
+        "retrievedAt": "2026-09-18T01:49:36.895Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commits": {
+    "pr:275576": [
+      {
+        "id": "commit:microsoft/vscode@65a74f58632a4ec4a5d9b81444b641126e6f928c",
+        "repository": "microsoft/vscode",
+        "sha": "65a74f58632a4ec4a5d9b81444b641126e6f928c",
+        "message": "Initial plan",
+        "author": "Copilot",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/commit/65a74f58632a4ec4a5d9b81444b641126e6f928c",
+        "retrievedAt": "2026-09-18T01:49:35.613Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "commit:microsoft/vscode@8cf213eabcfd1a7fde7b1fb1bb6f91e6d5077864",
+        "repository": "microsoft/vscode",
+        "sha": "8cf213eabcfd1a7fde7b1fb1bb6f91e6d5077864",
+        "message": "Add onResize handler to dismiss terminal suggestions\n\nCo-authored-by: meganrogge <29464607+meganrogge@users.noreply.github.com>",
+        "author": "Copilot",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/commit/8cf213eabcfd1a7fde7b1fb1bb6f91e6d5077864",
+        "retrievedAt": "2026-09-18T01:49:35.613Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "commit:microsoft/vscode@23cf7d48302b99dbd6fb753cd46d245b6b25e628",
+        "repository": "microsoft/vscode",
+        "sha": "23cf7d48302b99dbd6fb753cd46d245b6b25e628",
+        "message": "undo test",
+        "author": "meganrogge",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/commit/23cf7d48302b99dbd6fb753cd46d245b6b25e628",
+        "retrievedAt": "2026-09-18T01:49:35.613Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "pr:284149": [
+      {
+        "id": "commit:microsoft/vscode@67f18f167f3b21708fbd2c35a7cce20670c59b12",
+        "repository": "microsoft/vscode",
+        "sha": "67f18f167f3b21708fbd2c35a7cce20670c59b12",
+        "message": "fixes #258694",
+        "author": "meganrogge",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/commit/67f18f167f3b21708fbd2c35a7cce20670c59b12",
+        "retrievedAt": "2026-09-18T01:49:37.315Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "referenced": [
+      {
+        "id": "commit:microsoft/vscode@32a3ad5307cd412be2f5e1613fa1eea363259c63",
+        "repository": "microsoft/vscode",
+        "sha": "32a3ad5307cd412be2f5e1613fa1eea363259c63",
+        "message": "relayout suggest widget on resize of terminal (#284149)\n\nfixes #258694",
+        "author": "meganrogge",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/commit/32a3ad5307cd412be2f5e1613fa1eea363259c63",
+        "retrievedAt": "2026-09-18T01:49:37.831Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "repo": [
+      {
+        "id": "commit:microsoft/vscode@32a3ad5307cd412be2f5e1613fa1eea363259c63",
+        "repository": "microsoft/vscode",
+        "sha": "32a3ad5307cd412be2f5e1613fa1eea363259c63",
+        "message": "relayout suggest widget on resize of terminal (#284149)\n\nfixes #258694",
+        "author": "meganrogge",
+        "source": "github",
+        "url": "https://github.com/microsoft/vscode/commit/32a3ad5307cd412be2f5e1613fa1eea363259c63",
+        "retrievedAt": "2026-09-18T01:49:37.831Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commitIndex": {
+    "65a74f58632a4ec4a5d9b81444b641126e6f928c": {
+      "id": "commit:microsoft/vscode@65a74f58632a4ec4a5d9b81444b641126e6f928c",
+      "repository": "microsoft/vscode",
+      "sha": "65a74f58632a4ec4a5d9b81444b641126e6f928c",
+      "message": "Initial plan",
+      "author": "Copilot",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode/commit/65a74f58632a4ec4a5d9b81444b641126e6f928c",
+      "retrievedAt": "2026-09-18T01:49:35.613Z",
+      "trust": "external_untrusted"
+    },
+    "8cf213eabcfd1a7fde7b1fb1bb6f91e6d5077864": {
+      "id": "commit:microsoft/vscode@8cf213eabcfd1a7fde7b1fb1bb6f91e6d5077864",
+      "repository": "microsoft/vscode",
+      "sha": "8cf213eabcfd1a7fde7b1fb1bb6f91e6d5077864",
+      "message": "Add onResize handler to dismiss terminal suggestions\n\nCo-authored-by: meganrogge <29464607+meganrogge@users.noreply.github.com>",
+      "author": "Copilot",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode/commit/8cf213eabcfd1a7fde7b1fb1bb6f91e6d5077864",
+      "retrievedAt": "2026-09-18T01:49:35.613Z",
+      "trust": "external_untrusted"
+    },
+    "23cf7d48302b99dbd6fb753cd46d245b6b25e628": {
+      "id": "commit:microsoft/vscode@23cf7d48302b99dbd6fb753cd46d245b6b25e628",
+      "repository": "microsoft/vscode",
+      "sha": "23cf7d48302b99dbd6fb753cd46d245b6b25e628",
+      "message": "undo test",
+      "author": "meganrogge",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode/commit/23cf7d48302b99dbd6fb753cd46d245b6b25e628",
+      "retrievedAt": "2026-09-18T01:49:35.613Z",
+      "trust": "external_untrusted"
+    },
+    "67f18f167f3b21708fbd2c35a7cce20670c59b12": {
+      "id": "commit:microsoft/vscode@67f18f167f3b21708fbd2c35a7cce20670c59b12",
+      "repository": "microsoft/vscode",
+      "sha": "67f18f167f3b21708fbd2c35a7cce20670c59b12",
+      "message": "fixes #258694",
+      "author": "meganrogge",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode/commit/67f18f167f3b21708fbd2c35a7cce20670c59b12",
+      "retrievedAt": "2026-09-18T01:49:37.315Z",
+      "trust": "external_untrusted"
+    },
+    "32a3ad5307cd412be2f5e1613fa1eea363259c63": {
+      "id": "commit:microsoft/vscode@32a3ad5307cd412be2f5e1613fa1eea363259c63",
+      "repository": "microsoft/vscode",
+      "sha": "32a3ad5307cd412be2f5e1613fa1eea363259c63",
+      "message": "relayout suggest widget on resize of terminal (#284149)\n\nfixes #258694",
+      "author": "meganrogge",
+      "source": "github",
+      "url": "https://github.com/microsoft/vscode/commit/32a3ad5307cd412be2f5e1613fa1eea363259c63",
+      "retrievedAt": "2026-09-18T01:49:37.831Z",
+      "trust": "external_untrusted"
+    }
+  }
+}

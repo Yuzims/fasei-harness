@@ -9,8 +9,19 @@ export type {
   BenchmarkDatasetSource,
   LoadedDatasetCase,
 } from "./types.js";
-export { SYNTHETIC_DATASET_ID, syntheticDatasetManifestPath, syntheticDatasetRootDir } from "./paths.js";
+export type { BenchmarkGroundTruth, GroundTruthRecord } from "./ground-truth.js";
 export {
+  GROUND_TRUTH_FILE_NAME,
+  REAL_DATASET_ID,
+  SYNTHETIC_DATASET_ID,
+  realDatasetGroundTruthPath,
+  realDatasetManifestPath,
+  realDatasetRootDir,
+  syntheticDatasetManifestPath,
+  syntheticDatasetRootDir,
+} from "./paths.js";
+export {
+  assertSnapshotHasNoGroundTruth,
   loadCase,
   loadCaseSnapshot,
   loadDataset,
@@ -18,4 +29,10 @@ export {
   resolveDatasetSnapshotPath,
   validateDataset,
 } from "./loader.js";
+export {
+  assertGroundTruthMatchesCase,
+  groundTruthPathFor,
+  loadGroundTruth,
+  loadGroundTruthCase,
+} from "./ground-truth.js";
 export { convertCaseToScenario } from "./adapter.js";

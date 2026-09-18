@@ -1,0 +1,517 @@
+{
+  "snapshotId": "real-v1-C02",
+  "schemaVersion": 1,
+  "createdAt": "2026-09-18T01:49:27.646Z",
+  "source": "github",
+  "owner": "pytest-dev",
+  "repository": "pytest",
+  "issueNumber": 14524,
+  "retrievedAt": "2026-09-18T01:49:27.646Z",
+  "trust": "external_untrusted",
+  "repositoryData": {
+    "id": "repo:pytest-dev/pytest",
+    "repository": "pytest-dev/pytest",
+    "owner": "pytest-dev",
+    "name": "pytest",
+    "description": "The pytest framework makes it easy to write small tests, yet scales to support complex functional testing",
+    "defaultBranch": "main",
+    "source": "github",
+    "url": "https://github.com/pytest-dev/pytest",
+    "retrievedAt": "2026-09-18T01:49:38.164Z",
+    "trust": "external_untrusted"
+  },
+  "issue": {
+    "id": "issue:pytest-dev/pytest#14524",
+    "repository": "pytest-dev/pytest",
+    "number": 14524,
+    "title": "Python 3.15 support",
+    "body": "[heads up] AssertionError in test_dont_write_bytecode and leaking deprecation warnings with Python 3.15.0b1\n\nIn Fedora Linux we are building packages with Python 3.15. While pytest itself builds fine and we have successfully used it for many dependent packages, its own test suite doesn't pass the run.\n\nThere are two issues with Python 3.15.0b1, one actual AssertionError and 38 deprecation warnings leaking from ptyprocess, treated as errors.\nWe have pytest 9.0.3, the first failure is reproducible on current main with `tox -e py315`.\nThe deprecation warnings appear only in our downstream build, I couldn't reproduce with the current main nor 9.0.3 tag.\n\n1.\n```\n_________________ TestRewriteOnImport.test_dont_write_bytecode _________________\n[gw3] linux -- Python 3.15.0 /usr/bin/python3\n\nself = <test_assertrewrite.TestRewriteOnImport object at 0x7fa98bbffdf0>\npytester = <Pytester PosixPath('/tmp/pytest-of-mockbuild/pytest-0/popen-gw3/test_dont_write_bytecode0')>\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fa988ff4750>\n\n    def test_dont_write_bytecode(self, pytester: Pytester, monkeypatch) -> None:\n        monkeypatch.delenv(\"PYTHONPYCACHEPREFIX\", raising=False)\n    \n        pytester.makepyfile(\n            \"\"\"\n            import os\n            def test_no_bytecode():\n                assert \"__pycache__\" in __cached__\n                assert not os.path.exists(__cached__)\n                assert not os.path.exists(os.path.dirname(__cached__))\"\"\"\n        )\n        monkeypatch.setenv(\"PYTHONDONTWRITEBYTECODE\", \"1\")\n>       assert pytester.runpytest_subprocess().ret == 0\nE       AssertionError: assert <ExitCode.TESTS_FAILED: 1> == 0\nE        +  where <ExitCode.TESTS_FAILED: 1> = <RunResult ret=1 len(stdout.lines)=19 len(stderr.lines)=0 duration=0.30s>.ret\nE        +    where <RunResult ret=1 len(stdout.lines)=19 len(stderr.lines)=0 duration=0.30s> = runpytest_subprocess()\nE        +      where runpytest_subprocess = <Pytester PosixPath('/tmp/pytest-of-mockbuild/pytest-0/popen-gw3/test_dont_write_bytecode0')>.runpytest_subprocess\n\n/builddir/build/BUILD/pytest-9.0.3-build/pytest-9.0.3/testing/test_assertrewrite.py:1090: AssertionError\n----------------------------- Captured stdout call -----------------------------\nrunning: /usr/bin/python3 -mpytest --basetemp=/tmp/pytest-of-mockbuild/pytest-0/popen-gw3/test_dont_write_bytecode0/runpytest-0\n     in: /tmp/pytest-of-mockbuild/pytest-0/popen-gw3/test_dont_write_bytecode0\n============================= test session starts ==============================\nplatform linux -- Python 3.15.0b1, pytest-9.0.3, pluggy-1.6.0\nrootdir: /tmp/pytest-of-mockbuild/pytest-0/popen-gw3/test_dont_write_bytecode0\ncollected 1 item\n\ntest_dont_write_bytecode.py F                                            [100%]\n\n=================================== FAILURES ===================================\n_______________________________ test_no_bytecode _______________________________\n\n    def test_no_bytecode():\n>       assert \"__pycache__\" in __cached__\n                                ^^^^^^^^^^\nE       NameError: name '__cached__' is not defined\n\ntest_dont_write_bytecode.py:3: NameError\n```\n\n```\n_______________________ TestTrialUnittest.test_trial_pdb _______________________\n[gw2] linux -- Python 3.15.0 /usr/bin/python3\n\nself = <test_unittest.TestTrialUnittest object at 0x7f126977c2b0>\npytester = <Pytester PosixPath('/tmp/pytest-of-mockbuild/pytest-0/popen-gw2/test_trial_pdb0')>\n\n    def test_trial_pdb(self, pytester: Pytester) -> None:\n        p = pytester.makepyfile(\n            \"\"\"\n            from twisted.trial import unittest\n            import pytest\n            class TC(unittest.TestCase):\n                def test_hello(self):\n                    assert 0, \"hellopdb\"\n        \"\"\"\n        )\n>       child = pytester.spawn_pytest(str(p))\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n/builddir/build/BUILD/pytest-9.0.3-build/pytest-9.0.3/testing/test_unittest.py:617: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/builddir/build/BUILD/pytest-9.0.3-build/BUILDROOT/usr/lib/python3.15/site-packages/_pytest/pytester.py:1531: in spawn_pytest\n    return self.spawn(cmd, expect_timeout=expect_timeout)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/builddir/build/BUILD/pytest-9.0.3-build/BUILDROOT/usr/lib/python3.15/site-packages/_pytest/pytester.py:1545: in spawn\n    child = pexpect.spawn(cmd, logfile=logfile, timeout=expect_timeout)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/lib/python3.15/site-packages/pexpect/pty_spawn.py:205: in __init__\n    self._spawn(command, args, preexec_fn, dimensions)\n/usr/lib/python3.15/site-packages/pexpect/pty_spawn.py:303: in _spawn\n    self.ptyproc = self._spawnpty(self.args, env=self.env,\n/usr/lib/python3.15/site-packages/pexpect/pty_spawn.py:315: in _spawnpty\n    return ptyprocess.PtyProcess.spawn(args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/lib/python3.15/site-packages/ptyprocess/ptyprocess.py:230: in spawn\n    pid, fd = pty.fork()\n              ^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\n    def fork():\n        \"\"\"fork() -> (pid, master_fd)\n        Fork and make the child a session leader with a controlling terminal.\"\"\"\n    \n        try:\n>           pid, fd = os.forkpty()\n                      ^^^^^^^^^^^^\nE           DeprecationWarning: This process (pid=1140) is multi-threaded, use of forkpty() may lead to deadlocks in the child.\n```",
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-05-27T19:53:16Z",
+    "source": "github",
+    "url": "https://github.com/pytest-dev/pytest/issues/14524",
+    "retrievedAt": "2026-09-18T01:49:38.753Z",
+    "trust": "external_untrusted"
+  },
+  "comments": [
+    {
+      "id": "comment:pytest-dev/pytest#14524:4544018534",
+      "repository": "pytest-dev/pytest",
+      "issueNumber": 14524,
+      "body": "For the first issue, it looks like pytest needs to update its tests: https://docs.python.org/3/deprecations/pending-removal-in-3.15.html\n\nFor the second issue, that's a `pexpect` / `ptyprocess` issue, which already seems to be reported here: https://github.com/pexpect/pexpect/issues/827 - I guess the best pytest could do there is to ignore the warning at least.",
+      "author": "The-Compiler",
+      "createdAt": "2026-05-26T12:22:23Z",
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest/issues/14524#issuecomment-4544018534",
+      "retrievedAt": "2026-09-18T01:49:39.084Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "comment:pytest-dev/pytest#14524:4552705943",
+      "repository": "pytest-dev/pytest",
+      "issueNumber": 14524,
+      "body": "I'm working on this. I'm going to hijack this issue to \"Python 3.15 support\".",
+      "author": "bluetech",
+      "createdAt": "2026-05-27T08:12:44Z",
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest/issues/14524#issuecomment-4552705943",
+      "retrievedAt": "2026-09-18T01:49:39.084Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "timeline": [
+    {
+      "id": "timeline:pytest-dev/pytest:4544018534",
+      "repository": "pytest-dev/pytest",
+      "event": "commented",
+      "createdAt": "2026-05-26T12:22:23Z",
+      "actor": "The-Compiler",
+      "body": "For the first issue, it looks like pytest needs to update its tests: https://docs.python.org/3/deprecations/pending-removal-in-3.15.html\n\nFor the second issue, that's a `pexpect` / `ptyprocess` issue, which already seems to be reported here: https://github.com/pexpect/pexpect/issues/827 - I guess the best pytest could do there is to ignore the warning at least.",
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest/issues/14524#issuecomment-4544018534",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26004886913",
+      "repository": "pytest-dev/pytest",
+      "event": "assigned",
+      "createdAt": "2026-05-27T08:11:55Z",
+      "actor": "bluetech",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26004886913",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:4552705943",
+      "repository": "pytest-dev/pytest",
+      "event": "commented",
+      "createdAt": "2026-05-27T08:12:44Z",
+      "actor": "bluetech",
+      "body": "I'm working on this. I'm going to hijack this issue to \"Python 3.15 support\".",
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest/issues/14524#issuecomment-4552705943",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26004954602",
+      "repository": "pytest-dev/pytest",
+      "event": "renamed",
+      "createdAt": "2026-05-27T08:13:48Z",
+      "actor": "bluetech",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26004954602",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26005287625",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-05-27T08:22:50Z",
+      "actor": "bluetech",
+      "body": "c71700621365c4241bae38464a3d792691020af6",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26005287625",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:cross-referenced-2026-05-27T08:23:37Z",
+      "repository": "pytest-dev/pytest",
+      "event": "cross-referenced",
+      "createdAt": "2026-05-27T08:23:37Z",
+      "actor": "bluetech",
+      "body": "",
+      "pullRequestNumber": 14527,
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26031690685",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-05-27T19:38:55Z",
+      "actor": "bluetech",
+      "body": "3cd19882adacc6baeb5374f6c416962768a92ca0",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26031690685",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26032195120",
+      "repository": "pytest-dev/pytest",
+      "event": "closed",
+      "createdAt": "2026-05-27T19:53:16Z",
+      "actor": "bluetech",
+      "body": "",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26032195120",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26928848643",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-06-18T19:52:15Z",
+      "actor": "luketainton",
+      "body": "07b66b665ffb0e2efb5707d6e8dca93259e078b3",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26928848643",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26928856388",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-06-18T19:52:28Z",
+      "actor": "luketainton",
+      "body": "30a3984ac053572aac5addd0b740ca0ae5172bb0",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26928856388",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26928860701",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-06-18T19:52:36Z",
+      "actor": "luketainton",
+      "body": "741356109e2a3f1edb485b10966d050a0590738b",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26928860701",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26928867524",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-06-18T19:52:47Z",
+      "actor": "luketainton",
+      "body": "04c74e2bae9593c4a0a01d5dcce08ff580cab356",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26928867524",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26928886954",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-06-18T19:53:20Z",
+      "actor": "luketainton",
+      "body": "dc0b20bf92337c866a8bd257a5b746fb1f6d5792",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26928886954",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:26928888292",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-06-18T19:53:22Z",
+      "actor": "luketainton",
+      "body": "c69f667d07e6e4911786bde223beffa1efd565e3",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/26928888292",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:27554090740",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-07-04T09:56:22Z",
+      "actor": "MateoGreil",
+      "body": "45da72949a67e976f991bf601bd992abffbfface",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/27554090740",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:28188380651",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-07-19T22:12:34Z",
+      "actor": "luketainton",
+      "body": "fca183bfc7d976d5bbb169c382b1f078a9cfe2a1",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/28188380651",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:29535860298",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-08-17T00:19:51Z",
+      "actor": "736-c41-2c1-e464fc974",
+      "body": "98a82777cba720a5718a6bdee808070483a3b86a",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/29535860298",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:pytest-dev/pytest:30263298640",
+      "repository": "pytest-dev/pytest",
+      "event": "referenced",
+      "createdAt": "2026-08-31T07:17:18Z",
+      "actor": "Djeex",
+      "body": "f96ce2f8c9b7bf89298dc186bb5b44ff7fe84185",
+      "source": "github",
+      "url": "https://api.github.com/repos/pytest-dev/pytest/issues/events/30263298640",
+      "retrievedAt": "2026-09-18T01:49:39.652Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "pullRequests": {
+    "14527": {
+      "id": "pr:pytest-dev/pytest#14527",
+      "repository": "pytest-dev/pytest",
+      "number": 14527,
+      "title": "Add official support for Python 3.15",
+      "body": "Currently at beta 1.\r\n\r\nFix #14524.",
+      "state": "closed",
+      "merged": true,
+      "mergeCommitSha": "ea98f72badc085bdff17c784cfe9a611af5196a4",
+      "headSha": "3cd19882adacc6baeb5374f6c416962768a92ca0",
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest/pull/14527",
+      "retrievedAt": "2026-09-18T01:49:40.036Z",
+      "trust": "external_untrusted"
+    }
+  },
+  "reviews": {
+    "14527": [
+      {
+        "id": "review:pytest-dev/pytest#14527:4370895686",
+        "repository": "pytest-dev/pytest",
+        "pullNumber": 14527,
+        "state": "APPROVED",
+        "body": "",
+        "author": "RonnyPfannschmidt",
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/pull/14527#pullrequestreview-4370895686",
+        "retrievedAt": "2026-09-18T01:49:40.483Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "review:pytest-dev/pytest#14527:4371768208",
+        "repository": "pytest-dev/pytest",
+        "pullNumber": 14527,
+        "state": "APPROVED",
+        "body": "",
+        "author": "The-Compiler",
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/pull/14527#pullrequestreview-4371768208",
+        "retrievedAt": "2026-09-18T01:49:40.483Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "review:pytest-dev/pytest#14527:4375516021",
+        "repository": "pytest-dev/pytest",
+        "pullNumber": 14527,
+        "state": "COMMENTED",
+        "body": "",
+        "author": "bluetech",
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/pull/14527#pullrequestreview-4375516021",
+        "retrievedAt": "2026-09-18T01:49:40.483Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "files": {
+    "14527": [
+      {
+        "id": "file:pytest-dev/pytest#14527:.github/workflows/test.yml",
+        "repository": "pytest-dev/pytest",
+        "pullNumber": 14527,
+        "filename": ".github/workflows/test.yml",
+        "status": "modified",
+        "additions": 19,
+        "deletions": 0,
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/blob/3cd19882adacc6baeb5374f6c416962768a92ca0/.github%2Fworkflows%2Ftest.yml",
+        "retrievedAt": "2026-09-18T01:49:40.956Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:pytest-dev/pytest#14527:changelog/14524.improvement.rst",
+        "repository": "pytest-dev/pytest",
+        "pullNumber": 14527,
+        "filename": "changelog/14524.improvement.rst",
+        "status": "added",
+        "additions": 1,
+        "deletions": 0,
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/blob/3cd19882adacc6baeb5374f6c416962768a92ca0/changelog%2F14524.improvement.rst",
+        "retrievedAt": "2026-09-18T01:49:40.956Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:pytest-dev/pytest#14527:pyproject.toml",
+        "repository": "pytest-dev/pytest",
+        "pullNumber": 14527,
+        "filename": "pyproject.toml",
+        "status": "modified",
+        "additions": 4,
+        "deletions": 1,
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/blob/3cd19882adacc6baeb5374f6c416962768a92ca0/pyproject.toml",
+        "retrievedAt": "2026-09-18T01:49:40.956Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:pytest-dev/pytest#14527:testing/test_assertrewrite.py",
+        "repository": "pytest-dev/pytest",
+        "pullNumber": 14527,
+        "filename": "testing/test_assertrewrite.py",
+        "status": "modified",
+        "additions": 4,
+        "deletions": 3,
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/blob/3cd19882adacc6baeb5374f6c416962768a92ca0/testing%2Ftest_assertrewrite.py",
+        "retrievedAt": "2026-09-18T01:49:40.956Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "file:pytest-dev/pytest#14527:tox.ini",
+        "repository": "pytest-dev/pytest",
+        "pullNumber": 14527,
+        "filename": "tox.ini",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 0,
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/blob/3cd19882adacc6baeb5374f6c416962768a92ca0/tox.ini",
+        "retrievedAt": "2026-09-18T01:49:40.956Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commits": {
+    "pr:14527": [
+      {
+        "id": "commit:pytest-dev/pytest@7202c3af81c208521524389fcf374fd73211b51b",
+        "repository": "pytest-dev/pytest",
+        "sha": "7202c3af81c208521524389fcf374fd73211b51b",
+        "message": "testing: fix `test_dont_write_bytecode` for Python 3.15\n\nPython 3.15b1 no longer sets `module.__cached__`. But\n`module.__spec__.cached` is still set, is recommended over\n`module.__cached__` by Python documentation, and it works for all\nprevious versions as well, so switch to that.\n\nRef:\nhttps://docs.python.org/3.15/reference/datamodel.html#module.__file__",
+        "author": "bluetech",
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/commit/7202c3af81c208521524389fcf374fd73211b51b",
+        "retrievedAt": "2026-09-18T01:49:41.373Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "commit:pytest-dev/pytest@15427697a510c163313c04a19ab2a5ea8cc2dcf8",
+        "repository": "pytest-dev/pytest",
+        "sha": "15427697a510c163313c04a19ab2a5ea8cc2dcf8",
+        "message": "testing: ignore \"forkpty\" deprecation errors coming from pexpect on Python 3.15\n\nNothing we can do about it, needs a new pexpect release, so ignore for\nnow.",
+        "author": "bluetech",
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/commit/15427697a510c163313c04a19ab2a5ea8cc2dcf8",
+        "retrievedAt": "2026-09-18T01:49:41.373Z",
+        "trust": "external_untrusted"
+      },
+      {
+        "id": "commit:pytest-dev/pytest@3cd19882adacc6baeb5374f6c416962768a92ca0",
+        "repository": "pytest-dev/pytest",
+        "sha": "3cd19882adacc6baeb5374f6c416962768a92ca0",
+        "message": "Add official support for Python 3.15\n\nCurrently at beta 1.\n\nFix #14524.",
+        "author": "bluetech",
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/commit/3cd19882adacc6baeb5374f6c416962768a92ca0",
+        "retrievedAt": "2026-09-18T01:49:41.373Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "referenced": [
+      {
+        "id": "commit:pytest-dev/pytest@c71700621365c4241bae38464a3d792691020af6",
+        "repository": "pytest-dev/pytest",
+        "sha": "c71700621365c4241bae38464a3d792691020af6",
+        "message": "Add official support for Python 3.15\n\nCurrently at beta 1.\n\nFix #14524.",
+        "author": "bluetech",
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/commit/c71700621365c4241bae38464a3d792691020af6",
+        "retrievedAt": "2026-09-18T01:49:41.802Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "repo": [
+      {
+        "id": "commit:pytest-dev/pytest@c71700621365c4241bae38464a3d792691020af6",
+        "repository": "pytest-dev/pytest",
+        "sha": "c71700621365c4241bae38464a3d792691020af6",
+        "message": "Add official support for Python 3.15\n\nCurrently at beta 1.\n\nFix #14524.",
+        "author": "bluetech",
+        "source": "github",
+        "url": "https://github.com/pytest-dev/pytest/commit/c71700621365c4241bae38464a3d792691020af6",
+        "retrievedAt": "2026-09-18T01:49:41.802Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commitIndex": {
+    "7202c3af81c208521524389fcf374fd73211b51b": {
+      "id": "commit:pytest-dev/pytest@7202c3af81c208521524389fcf374fd73211b51b",
+      "repository": "pytest-dev/pytest",
+      "sha": "7202c3af81c208521524389fcf374fd73211b51b",
+      "message": "testing: fix `test_dont_write_bytecode` for Python 3.15\n\nPython 3.15b1 no longer sets `module.__cached__`. But\n`module.__spec__.cached` is still set, is recommended over\n`module.__cached__` by Python documentation, and it works for all\nprevious versions as well, so switch to that.\n\nRef:\nhttps://docs.python.org/3.15/reference/datamodel.html#module.__file__",
+      "author": "bluetech",
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest/commit/7202c3af81c208521524389fcf374fd73211b51b",
+      "retrievedAt": "2026-09-18T01:49:41.373Z",
+      "trust": "external_untrusted"
+    },
+    "15427697a510c163313c04a19ab2a5ea8cc2dcf8": {
+      "id": "commit:pytest-dev/pytest@15427697a510c163313c04a19ab2a5ea8cc2dcf8",
+      "repository": "pytest-dev/pytest",
+      "sha": "15427697a510c163313c04a19ab2a5ea8cc2dcf8",
+      "message": "testing: ignore \"forkpty\" deprecation errors coming from pexpect on Python 3.15\n\nNothing we can do about it, needs a new pexpect release, so ignore for\nnow.",
+      "author": "bluetech",
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest/commit/15427697a510c163313c04a19ab2a5ea8cc2dcf8",
+      "retrievedAt": "2026-09-18T01:49:41.373Z",
+      "trust": "external_untrusted"
+    },
+    "3cd19882adacc6baeb5374f6c416962768a92ca0": {
+      "id": "commit:pytest-dev/pytest@3cd19882adacc6baeb5374f6c416962768a92ca0",
+      "repository": "pytest-dev/pytest",
+      "sha": "3cd19882adacc6baeb5374f6c416962768a92ca0",
+      "message": "Add official support for Python 3.15\n\nCurrently at beta 1.\n\nFix #14524.",
+      "author": "bluetech",
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest/commit/3cd19882adacc6baeb5374f6c416962768a92ca0",
+      "retrievedAt": "2026-09-18T01:49:41.373Z",
+      "trust": "external_untrusted"
+    },
+    "c71700621365c4241bae38464a3d792691020af6": {
+      "id": "commit:pytest-dev/pytest@c71700621365c4241bae38464a3d792691020af6",
+      "repository": "pytest-dev/pytest",
+      "sha": "c71700621365c4241bae38464a3d792691020af6",
+      "message": "Add official support for Python 3.15\n\nCurrently at beta 1.\n\nFix #14524.",
+      "author": "bluetech",
+      "source": "github",
+      "url": "https://github.com/pytest-dev/pytest/commit/c71700621365c4241bae38464a3d792691020af6",
+      "retrievedAt": "2026-09-18T01:49:41.802Z",
+      "trust": "external_untrusted"
+    }
+  }
+}

@@ -1,4 +1,11 @@
 import { codeFromStatus, GitHubProviderError } from "./errors.js";
+import { setDefaultResultOrder } from "node:dns";
+
+try {
+  setDefaultResultOrder("ipv4first");
+} catch {
+  // Node versions without this API keep the default resolver order.
+}
 
 const API = "https://api.github.com";
 const UA = "failure-aware-agent-harness";
@@ -38,20 +45,33 @@ export class GithubHttpClient {
 
   async getJson(operation: string, path: string): Promise<unknown> {
     const { status, text } = await this.request(operation, path, "application/vnd.github+json");
-    if (text.trim() === "") {
-      return null;
+    return parseJsonBody(operation, status, text);
+  }
+
+  async getJsonPages(operation: string, path: string): Promise<unknown[]> {
+    const items: unknown[] = [];
+    let next: string | null = path;
+    const seen = new Set<string>();
+    while (next) {
+      if (seen.has(next) || seen.size >= 20) {
+        break;
+      }
+      seen.add(next);
+      const { status, text, link } = await this.request(operation, next, "application/vnd.github+json");
+      const parsed = parseJsonBody(operation, status, text);
+      if (!Array.isArray(parsed)) {
+        throw new GitHubProviderError({
+          code: "malformed_response",
+          operation,
+          status,
+          message: `${operation} expected a JSON array page`,
+          retryable: false,
+        });
+      }
+      items.push(...parsed);
+      next = nextLinkPath(link);
     }
-    try {
-      return JSON.parse(text) as unknown;
-    } catch {
-      throw new GitHubProviderError({
-        code: "malformed_response",
-        operation,
-        status,
-        message: `${operation} 返回的不是 JSON`,
-        retryable: false,
-      });
-    }
+    return items;
   }
 
   async getText(operation: string, path: string, accept: string): Promise<string> {
@@ -63,7 +83,7 @@ export class GithubHttpClient {
     operation: string,
     path: string,
     accept: string,
-  ): Promise<{ status: number; text: string }> {
+  ): Promise<{ status: number; text: string; link: string | null }> {
     let lastError: GitHubProviderError | undefined;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
@@ -72,9 +92,9 @@ export class GithubHttpClient {
       }
 
       try {
-        const { status, text } = await this.send(path, accept);
+        const { status, text, link } = await this.send(path, accept);
         if (status < 400) {
-          return { status, text };
+          return { status, text, link };
         }
 
         const code = codeFromStatus(status, text);
@@ -106,7 +126,10 @@ export class GithubHttpClient {
     });
   }
 
-  private async send(path: string, accept: string): Promise<{ status: number; text: string }> {
+  private async send(
+    path: string,
+    accept: string,
+  ): Promise<{ status: number; text: string; link: string | null }> {
     const headers: Record<string, string> = {
       accept,
       "user-agent": UA,
@@ -126,7 +149,11 @@ export class GithubHttpClient {
         headers,
         signal: controller.signal,
       });
-      return { status: response.status, text: await response.text() };
+      return {
+        status: response.status,
+        text: await response.text(),
+        link: response.headers.get("link"),
+      };
     } catch (error) {
       if (isAbort(error)) {
         throw new GitHubProviderError({
@@ -188,4 +215,40 @@ export function daysAgoIso(days: number, now = new Date()): string {
 
 export function encodeRepo(owner: string, repo: string): string {
   return `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+}
+
+function parseJsonBody(operation: string, status: number, text: string): unknown {
+  if (text.trim() === "") {
+    return null;
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new GitHubProviderError({
+      code: "malformed_response",
+      operation,
+      status,
+      message: `${operation} 返回的不是 JSON`,
+      retryable: false,
+    });
+  }
+}
+
+export function nextLinkPath(link: string | null): string | null {
+  if (!link) {
+    return null;
+  }
+  const match = link.match(/<([^>]+)>\s*;\s*rel="next"/i);
+  if (!match?.[1]) {
+    return null;
+  }
+  try {
+    const url = new URL(match[1]);
+    if (url.origin !== API) {
+      return null;
+    }
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
 }

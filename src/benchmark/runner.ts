@@ -421,6 +421,7 @@ export function formatDatasetBenchmarkSummary(
   lines.push(`  evidenceCoverage: ${result.metrics.evidenceCoverage}`);
   lines.push(`  unsupportedClaimRate: ${result.metrics.unsupportedClaimRate}`);
   lines.push(`  recoveryRate: ${result.metrics.recoveryRate}`);
+  lines.push(`  recoverySuccessRate: ${result.metrics.recoverySuccessRate}`);
   lines.push(`  averageAttempts: ${result.metrics.averageAttempts}`);
   lines.push(`  averageToolCalls: ${result.metrics.averageToolCalls}`);
   lines.push(`  verifierFalsePositiveRate: ${result.metrics.verifierFalsePositiveRate}`);

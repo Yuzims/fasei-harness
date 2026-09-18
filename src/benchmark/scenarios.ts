@@ -100,3 +100,39 @@ export const FASEI_BENCHMARK_SCENARIOS: BenchmarkScenario[] = [
   ...FASEI_REGRESSION_SCENARIOS,
   ...FASEI_FAILURE_SCENARIOS,
 ];
+
+/**
+ * Synthetic closed-loop recovery suite. Reuses the Phase 7.1 scenario
+ * contract and fixtures. Not part of Real-v1.
+ */
+export const FASEI_RECOVERY_SCENARIOS: BenchmarkScenario[] = [
+  ...FASEI_FAILURE_SCENARIOS.filter((item) => item.id === "tool-failure"),
+  {
+    id: "recovery-insufficient-evidence",
+    description:
+      "Attempt 1 observes issue + timeline only; recovery gathers resolution-candidate evidence.",
+    kind: "failure",
+    failureMode: "insufficient_evidence",
+    fixture: "resolved",
+    target: createTarget({ owner: "acme", repository: "box", issueNumber: 42 }),
+    expectedOutcome: {
+      verificationStatus: "verified_complete",
+      failureModes: ["insufficient_evidence"],
+      recovery: { required: true },
+    },
+  },
+  {
+    id: "recovery-premature-completion",
+    description:
+      "Agent claims complete after the issue observation; verifier rejects; recovery continues investigation.",
+    kind: "failure",
+    failureMode: "premature_completion",
+    fixture: "resolved",
+    target: createTarget({ owner: "acme", repository: "box", issueNumber: 42 }),
+    expectedOutcome: {
+      verificationStatus: "verified_complete",
+      failureModes: ["premature_completion"],
+      recovery: { required: true },
+    },
+  },
+];

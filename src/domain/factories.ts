@@ -151,14 +151,22 @@ export function createInvestigationRun(input: {
 
 export function appendAttempt(
   run: InvestigationRun,
-  attempt: Omit<InvestigationAttempt, "attempt" | "startedAt"> & {
+  attempt: Omit<InvestigationAttempt, "attempt" | "startedAt" | "id"> & {
+    id?: string;
     startedAt?: string;
   },
 ): InvestigationRun {
+  const attemptNumber = run.attempts.length + 1;
   const next: InvestigationAttempt = {
-    attempt: run.attempts.length + 1,
+    id: attempt.id?.trim() || `attempt-${attemptNumber}`,
+    attempt: attemptNumber,
     startedAt: attempt.startedAt ?? new Date().toISOString(),
     endedAt: attempt.endedAt,
+    parentAttemptId: attempt.parentAttemptId,
+    recoveryPlanId: attempt.recoveryPlanId,
+    failureEventId: attempt.failureEventId,
+    strategy: attempt.strategy,
+    status: attempt.status,
     agentConclusion: attempt.agentConclusion,
     report: attempt.report,
     evidenceIds: [...attempt.evidenceIds],

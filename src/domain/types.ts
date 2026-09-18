@@ -100,12 +100,41 @@ export type RecoveryAction =
   | "revalidate_evidence"
   | "recheck_target";
 
+/**
+ * How the next Investigation Attempt will proceed.
+ * Distinct from RecoveryAction ("what recovery decided").
+ */
+export type InvestigationStrategyType =
+  | "observe_issue"
+  | "retry_failed_tool"
+  | "gather_resolution_evidence"
+  | "continue_investigation"
+  | "change_retrieval"
+  | "replan"
+  | "recheck_target"
+  | "revalidate_evidence";
+
+export interface InvestigationStrategy {
+  type: InvestigationStrategyType;
+  reason: string;
+  recoveryPlanId?: string;
+  scope?: string[];
+}
+
+export type InvestigationAttemptStatus =
+  | "incomplete"
+  | "failed"
+  | "verified"
+  | "stopped"
+  | "recovery_exhausted";
+
 export type InvestigationRunStatus =
   | "in_progress"
   | "verified_complete"
   | "not_verified"
   | "insufficient_evidence"
-  | "stopped";
+  | "stopped"
+  | "recovery_exhausted";
 
 export interface EvidenceRequirement {
   id: string;
@@ -198,6 +227,7 @@ export interface VerificationResult {
 }
 
 export interface FailureEvent {
+  id?: string;
   type: FailureType;
   reason: string;
   evidenceIds: string[];
@@ -212,6 +242,9 @@ export interface FailureEvent {
 }
 
 export interface RecoveryPlan {
+  id?: string;
+  /** FailureEvent that produced this plan. */
+  failureEventId?: string;
   action: RecoveryAction;
   reason: string;
   resetEvidence?: boolean;
@@ -235,9 +268,15 @@ export interface InvestigationReport {
 }
 
 export interface InvestigationAttempt {
+  id: string;
   attempt: number;
   startedAt: string;
   endedAt?: string;
+  parentAttemptId?: string;
+  recoveryPlanId?: string;
+  failureEventId?: string;
+  strategy?: InvestigationStrategy;
+  status?: InvestigationAttemptStatus;
   agentConclusion?: string;
   report?: InvestigationReport;
   evidenceIds: string[];

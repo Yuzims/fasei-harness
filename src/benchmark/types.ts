@@ -6,7 +6,7 @@ import type { FailureType, InvestigationTarget, RecoveryAction, VerificationStat
 import type { GithubFixtureId } from "../github/snapshot-store.js";
 
 export const FASEI_BENCHMARK_NAME = "fasei-investigation-benchmark";
-export const FASEI_BENCHMARK_VERSION = "7.1";
+export const FASEI_BENCHMARK_VERSION = "7.3";
 
 export type BenchmarkScenarioKind = "normal" | "failure";
 
@@ -81,6 +81,11 @@ export interface BenchmarkMetrics {
   evidenceCoverage: number;
   unsupportedClaimRate: number;
   recoveryRate: number;
+  /**
+   * Among cases that attempted recovery, the fraction that later reached
+   * verified_complete. Recovery attempted ≠ recovery success.
+   */
+  recoverySuccessRate: number;
   averageAttempts: number;
   averageToolCalls: number;
   /** Verifier said verified_complete where ground truth says the task should not be verified. */

@@ -681,6 +681,83 @@ Remaining limitations:
 - C10 Ground Truth is `not_verified`; without explicit non-resolution the contract yields `insufficient_evidence`.
 - Evaluator does not introduce a second disposition enum; exact status match remains the pass/fail rule.
 
+## Phase 7.3 — Closed-Loop Recovery Validation — DONE
+
+Recovery is a control mechanism inside the existing AgentLoop. It is not a second agent and not a benchmark-side simulation.
+
+```text
+Failure
+  ↓
+FailureAnalyzer
+  ↓
+RecoveryPlan
+  ↓
+applyRecovery → InvestigationStrategy
+  ↓
+new append-only Attempt
+  ↓
+changed investigation behavior
+  ↓
+new evidence
+  ↓
+IndependentCompletionVerifier
+```
+
+Recovery Contract:
+
+1. Trigger: Independent verifier did not produce `verified_complete`.
+2. FailureAnalyzer classifies structured investigation state into `FailureEvent`. It does not parse `error.message`.
+3. RecoveryPlanner maps `FailureType` to a `RecoveryPlan` action ("what to do").
+4. `applyRecoveryPlan` mutates runtime state and installs an `InvestigationStrategy` ("how the next attempt investigates").
+5. The next AgentLoop iteration reads strategy + recovery context from `InvestigationState` / `ModelContext`.
+6. Provenance: Attempt 2 `parentAttemptId` / `recoveryPlanId` / `failureEventId` → Attempt 1 failure/recovery.
+7. Bounds remain `maxInvestigationAttempts = 3`, `maxRecoveryAttempts = 3`, `maxToolRetries = 2`. Exhaustion is `recovery_exhausted`.
+
+Recovery action and investigation strategy are separate objects. Recovery is deterministic / policy-driven. The Harness does not learn recovery strategies.
+
+Closed loops implemented:
+
+| Scenario | Failure | Recovery action | Next strategy | Proof |
+|---|---|---|---|---|
+| TOOL_FAILURE | retryable tool error | `retry_with_backoff` | `retry_failed_tool` | Attempt 1 tool_result success=false; Attempt 2 retries the same tool |
+| INSUFFICIENT_EVIDENCE | missing resolution evidence | `gather_missing_evidence` | `gather_resolution_evidence` | Attempt 2 strategy ≠ Attempt 1; new PR/commit evidence |
+| PREMATURE_COMPLETION | agent claimed complete | `continue_investigation` | `continue_investigation` | Agent final answer does not stop the run; verifier rejection recovers |
+
+Trace events added: `investigation_attempt_started`, `recovery_applied`. Existing failure/recovery events remain.
+
+Metric added (synthetic recovery suite; not a Real-v1 scoring change):
+
+```text
+recoverySuccessRate
+  = count(recoveryAttempted AND recovered to verified_complete)
+    / count(recoveryAttempted)
+```
+
+Recovery invoked is not recovery success. CLI: `npm run benchmark:recovery`.
+
+Real-v1 Dataset was not modified. Ground Truth is still evaluator-only and is not an input to FailureAnalyzer / RecoveryPlanner / applyRecovery.
+
+Actual Real-v1 run after this phase (same outcomes as Phase 7.2D):
+
+```text
+Evaluator: 8 passed / 2 failed
+taskSuccessRate: 0.6
+falseCompletionRate: 0.1
+insufficientEvidenceRate: 0.2
+recoveryRate: 0
+recoverySuccessRate: 0
+averageAttempts: 1
+verifierFalsePositiveRate: 0
+```
+
+C07/C10 still fail exact-status match. Recovery did not change Real-v1 attempts because primary classified failures are non-retryable `not_found` or have no remaining sources.
+
+Known limitations:
+
+- Recovery remains deterministic policy, not learned.
+- Real-v1 still often stops after one attempt when the primary classified failure is a non-retryable tool error or no remaining sources exist.
+- `recoverySuccessRate` is meaningful on the synthetic recovery suite. Real-v1 may stay near 0 without claiming that recovery is ineffective on live GitHub.
+
 ## Not started
 
-Phase 7.3+ waits for a new task.
+Phase 7.4+ waits for a new task.

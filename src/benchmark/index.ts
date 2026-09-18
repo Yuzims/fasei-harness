@@ -21,6 +21,7 @@ export type {
 export {
   FASEI_BENCHMARK_SCENARIOS,
   FASEI_FAILURE_SCENARIOS,
+  FASEI_RECOVERY_SCENARIOS,
   FASEI_REGRESSION_SCENARIOS,
 } from "./scenarios.js";
 export {

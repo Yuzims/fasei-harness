@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import type { Task, ToolResult } from "../core/types.js";
 import type { HistoryMessage, Model, ModelContext, ModelResponse } from "../agent/model.js";
 import { closingKeywordReferencesIssue, type ClaimPolarity } from "../domain/index.js";
-import { resourceKey, type InvestigationState } from "./state.js";
+import { resourceKey, resourceKeyForTool, type InvestigationState } from "./state.js";
 
 export const TEST_DRIVER_NOTICE =
   "SnapshotInvestigationDriver is a deterministic test fixture, not a real Investigation Agent.";
@@ -209,11 +209,102 @@ export function buildDriverClaims(state: InvestigationState): Record<string, unk
   };
 }
 
+function retryFailedToolAction(state: InvestigationState): DriverAction | undefined {
+  if (state.investigationStrategy?.type !== "retry_failed_tool") {
+    return undefined;
+  }
+  const tool = state.lastFailure?.tool;
+  if (!tool) {
+    return undefined;
+  }
+  const last = [...state.toolHistory].reverse().find((item) => item.tool === tool && !item.success);
+  if (!last) {
+    return undefined;
+  }
+  const resolved = state.toolHistory.some(
+    (item) =>
+      item.success &&
+      item.tool === last.tool &&
+      JSON.stringify(item.arguments) === JSON.stringify(last.arguments),
+  );
+  if (resolved) {
+    return undefined;
+  }
+  const key = resourceKeyForTool(last.tool, last.arguments);
+  if (key && state.investigatedResources.has(key) && !state.refetchResources.has(key)) {
+    return undefined;
+  }
+  return {
+    type: "tool_call",
+    name: last.tool,
+    arguments: last.arguments,
+    reason: `Recovery requested a bounded retry of ${last.tool}.`,
+  };
+}
+
+function resolutionCandidateAction(state: InvestigationState): DriverAction | undefined {
+  const gather =
+    state.investigationStrategy?.type === "gather_resolution_evidence" ||
+    state.retrievalStrategy === "linked_pr";
+  if (!gather) {
+    return undefined;
+  }
+  const target = targetArgs(state);
+  const unfetchedPr = [...state.candidatePrs].find(
+    (n) => !state.investigatedResources.has(resourceKey("pull", String(n))),
+  );
+  if (unfetchedPr !== undefined) {
+    return {
+      type: "tool_call",
+      name: "github_get_pull_request",
+      arguments: { owner: target.owner, repo: target.repo, pullNumber: unfetchedPr },
+      reason: "Recovery strategy is resolution-candidate discovery; inspect the linked pull request.",
+    };
+  }
+  const unfetchedFiles = [...state.mergedPrs].find(
+    (n) => !state.investigatedResources.has(resourceKey("files", String(n))),
+  );
+  if (unfetchedFiles !== undefined) {
+    return {
+      type: "tool_call",
+      name: "github_get_pull_request_files",
+      arguments: { owner: target.owner, repo: target.repo, pullNumber: unfetchedFiles },
+      reason: "Recovery strategy continues on the landed PR; observe changed files.",
+    };
+  }
+  const unfetchedCommits = [...state.mergedPrs].find(
+    (n) => !state.investigatedResources.has(resourceKey("commits", String(n))),
+  );
+  if (unfetchedCommits !== undefined) {
+    return {
+      type: "tool_call",
+      name: "github_list_commits",
+      arguments: { owner: target.owner, repo: target.repo, pullNumber: unfetchedCommits },
+      reason: "Recovery strategy continues on the landed PR; observe commits.",
+    };
+  }
+  const repoCommitsKey = resourceKey("commits", "repo");
+  if (state.mergedPrs.size === 0 && !state.investigatedResources.has(repoCommitsKey)) {
+    return {
+      type: "tool_call",
+      name: "github_list_commits",
+      arguments: { owner: target.owner, repo: target.repo },
+      reason: "Recovery strategy looks up commit resolution evidence after issue observations.",
+    };
+  }
+  return undefined;
+}
+
 export function nextInvestigationAction(state: InvestigationState): DriverAction {
   const target = targetArgs(state);
   const issueKey = resourceKey("issue", String(target.issueNumber));
   const timelineKey = resourceKey("timeline", String(target.issueNumber));
   const commentsKey = resourceKey("comments", String(target.issueNumber));
+
+  const retry = retryFailedToolAction(state);
+  if (retry) {
+    return retry;
+  }
 
   if (!state.investigatedResources.has(issueKey)) {
     return {
@@ -222,6 +313,11 @@ export function nextInvestigationAction(state: InvestigationState): DriverAction
       arguments: target,
       reason: "Task target is an issue; observe the issue before inferring resolution.",
     };
+  }
+
+  const resolution = resolutionCandidateAction(state);
+  if (resolution) {
+    return resolution;
   }
 
   if (

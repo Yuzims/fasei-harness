@@ -1,7 +1,7 @@
 {
   "dataset": "real-v1",
   "datasetVersion": "v1.1",
-  "timestamp": "2026-09-18T04:00:54.749Z",
+  "timestamp": "2026-09-18T04:21:13.512Z",
   "cases": [
     {
       "caseId": "C01",
@@ -238,6 +238,7 @@
     "evidenceCoverage": 0.7999999999999999,
     "unsupportedClaimRate": 0,
     "recoveryRate": 0,
+    "recoverySuccessRate": 0,
     "averageAttempts": 1,
     "averageToolCalls": 7.2,
     "verifierFalsePositiveRate": 0

@@ -1,5 +1,13 @@
 import { appendAttempt, createInvestigationRun, createInvestigationTask, RECOVERY_BOUNDS } from "../domain/index.js";
-import type { FailureEvent, InvestigationTask, RecoveryBounds, RecoveryPlan, VerificationResult } from "../domain/index.js";
+import type {
+  FailureEvent,
+  InvestigationAttemptStatus,
+  InvestigationStrategy,
+  InvestigationTask,
+  RecoveryBounds,
+  RecoveryPlan,
+  VerificationResult,
+} from "../domain/index.js";
 import type { Model, ModelContext, ModelResponse } from "../agent/model.js";
 import { AgentLoop } from "../agent/agent-loop.js";
 import { OpenAICompatModel } from "../agent/openai-compat-model.js";
@@ -11,7 +19,7 @@ import { ToolRegistry } from "../tools/tool-registry.js";
 import { TraceCollector } from "../trace/trace-collector.js";
 import { IndependentCompletionVerifier } from "../verification/independent-completion-verifier.js";
 import type { AnalysisContext } from "./analysis-context.js";
-import { applyRecoveryPlan, waitBackoff } from "./apply-recovery.js";
+import { applyRecoveryPlan, defaultInvestigationStrategy, waitBackoff } from "./apply-recovery.js";
 import { FailureAnalyzer } from "./failure-analyzer.js";
 import { createInvestigationToolList } from "./investigation-tools.js";
 import type { InvestigationSession } from "./investigation-tools.js";
@@ -159,13 +167,53 @@ function unconfiguredReport(state: InvestigationState): InvestigationAgentReport
   return report;
 }
 
+function withFailureId(failure: FailureEvent, attempt: number): FailureEvent {
+  return { ...failure, id: failure.id ?? `attempt-${attempt}:failure:${failure.type}` };
+}
+
+function withRecoveryId(
+  plan: RecoveryPlan,
+  failure: FailureEvent | undefined,
+  attempt: number,
+): RecoveryPlan {
+  return {
+    ...plan,
+    id: plan.id ?? `attempt-${attempt}:recovery:${plan.action}`,
+    failureEventId: plan.failureEventId ?? failure?.id,
+  };
+}
+
+function statusForAttempt(input: {
+  verification?: VerificationResult;
+  failure?: FailureEvent;
+  recovery?: RecoveryPlan;
+  exhausted?: boolean;
+}): InvestigationAttemptStatus {
+  if (input.verification?.status === "verified_complete") {
+    return "verified";
+  }
+  if (input.exhausted) {
+    return "recovery_exhausted";
+  }
+  if (input.recovery?.action === "stop") {
+    return "stopped";
+  }
+  if (input.failure) {
+    return "failed";
+  }
+  return "incomplete";
+}
+
 /**
- * Run a bounded GitHub investigation.
- * Reuses AgentLoop + ToolRegistry + TraceCollector. Does not rewrite the loop.
- * Never lets the Agent set InvestigationRun.status to verified_complete.
- * IndependentCompletionVerifier alone produces VerificationResult.
- * FailureAnalyzer / RecoveryPlanner decide recovery; this loop executes the plan
- * as a new append-only attempt and re-verifies.
+ * Recovery Contract (Phase 7.3):
+ * 1. Trigger: Independent verifier did not produce verified_complete.
+ * 2. FailureAnalyzer classifies structured state into FailureEvent (not error.message).
+ * 3. RecoveryPlanner maps FailureType → RecoveryPlan action ("what to do").
+ * 4. applyRecoveryPlan mutates InvestigationState and installs InvestigationStrategy
+ *    for the next attempt ("how to investigate next").
+ * 5. The next AgentLoop iteration reads strategy + recovery context from state / ModelContext.
+ * 6. Provenance: Attempt N.parentAttemptId / recoveryPlanId / failureEventId → Attempt N-1.
+ * 7. Bounds: RECOVERY_BOUNDS; exceeding them stops with recovery_exhausted.
  */
 export async function investigate(options: InvestigateOptions): Promise<InvestigationAgentReport> {
   const task = asTask(options.task);
@@ -237,16 +285,35 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   let lastVerification: VerificationResult | undefined;
   let lastFailure: FailureEvent | undefined;
   let lastRecovery: RecoveryPlan | undefined;
+  let previousAttemptId: string | undefined;
   const recoveries: RecoveryPlan[] = [];
+  if (!state.investigationStrategy) {
+    state.investigationStrategy = defaultInvestigationStrategy();
+  }
 
   for (let attempt = 1; attempt <= bounds.maxInvestigationAttempts; attempt++) {
     const startedAt = new Date().toISOString();
-    trace.record(run.id, state.currentStep, "attempt_started", { attempt });
+    const attemptId = `attempt-${attempt}`;
+    const strategy: InvestigationStrategy =
+      state.investigationStrategy ?? defaultInvestigationStrategy();
+
+    trace.record(run.id, state.currentStep, "attempt_started", { attempt, attemptId });
+    trace.record(run.id, state.currentStep, "investigation_attempt_started", {
+      investigationRunId: run.id,
+      attemptId,
+      attempt,
+      parentAttemptId: previousAttemptId,
+      recoveryPlanId: lastRecovery?.id,
+      failureEventId: lastFailure?.id,
+      strategy,
+      sequence: attempt,
+    });
 
     lastAgentResult = await loop.run(coreTask, run.id, {
       attempt,
       investigationFailure: lastFailure,
       investigationRecovery: lastRecovery,
+      investigationStrategy: strategy,
     });
 
     const claimedComplete = state.run.claims.some(
@@ -272,8 +339,14 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
 
     if (lastVerification.status === "verified_complete") {
       const next = appendAttempt(run, {
+        id: attemptId,
         startedAt,
         endedAt: new Date().toISOString(),
+        parentAttemptId: previousAttemptId,
+        recoveryPlanId: lastRecovery?.id,
+        failureEventId: lastFailure?.id,
+        strategy,
+        status: "verified",
         agentConclusion: snapshot.report.conclusion,
         report: snapshot.report,
         evidenceIds: snapshot.evidence.map((item) => item.id),
@@ -298,15 +371,21 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     const fingerprint = investigationFingerprint(state);
 
     trace.record(run.id, state.currentStep, "failure_detected", {
+      investigationRunId: run.id,
+      attemptId,
       attempt,
       verificationStatus: lastVerification.status,
       missingRequirementIds: lastVerification.missingRequirementIds,
     });
 
     const failures = analyzer.analyze(ctx);
-    const failure = analyzer.classify(ctx);
+    const classified = analyzer.classify(ctx);
+    const failure = classified ? withFailureId(classified, attempt) : undefined;
     trace.record(run.id, state.currentStep, "failure_analyzed", {
+      investigationRunId: run.id,
+      attemptId,
       attempt,
+      failureEventId: failure?.id,
       types: failures.map((item) => item.type),
       primary: failure?.type,
       reason: failure?.reason,
@@ -315,27 +394,58 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       missingRequirementIds: failure?.missingRequirementIds,
     });
 
-    const recovery = failure
-      ? planner.plan(failure, ctx)
-      : {
-          action: "stop" as const,
-          reason: "No recoverable investigation failure; keeping independent verification result.",
-          nextStep: "Stop.",
-        };
+    const recovery = withRecoveryId(
+      failure
+        ? planner.plan(failure, ctx)
+        : {
+            action: "stop",
+            reason: "No recoverable investigation failure; keeping independent verification result.",
+            nextStep: "Stop.",
+          },
+      failure,
+      attempt,
+    );
 
     trace.record(run.id, state.currentStep, "recovery_planned", {
+      investigationRunId: run.id,
+      attemptId,
       attempt,
+      failureEventId: failure?.id,
+      recoveryPlanId: recovery.id,
       action: recovery.action,
       reason: recovery.reason,
       nextStep: recovery.nextStep,
       nextRequirementIds: recovery.nextRequirementIds,
       resetEvidence: recovery.resetEvidence === true,
       retrievalStrategy: recovery.retrievalStrategy,
+      sequence: recoveries.length + 1,
     });
 
+    const bounded =
+      attempt >= bounds.maxInvestigationAttempts ||
+      state.recoveryCount >= bounds.maxRecoveryAttempts;
+    const willStop = !failure || recovery.action === "stop" || bounded;
+    const exhausted =
+      willStop &&
+      recoveries.length > 0 &&
+      (attempt >= bounds.maxInvestigationAttempts ||
+        state.recoveryCount >= bounds.maxRecoveryAttempts ||
+        /budget exhausted|attempt budget/i.test(recovery.reason));
+
     const next = appendAttempt(run, {
+      id: attemptId,
       startedAt,
       endedAt: new Date().toISOString(),
+      parentAttemptId: previousAttemptId,
+      recoveryPlanId: lastRecovery?.id,
+      failureEventId: lastFailure?.id,
+      strategy,
+      status: statusForAttempt({
+        verification: lastVerification,
+        failure,
+        recovery,
+        exhausted,
+      }),
       agentConclusion: snapshot.report.conclusion,
       report: snapshot.report,
       evidenceIds: snapshot.evidence.map((item) => item.id),
@@ -346,28 +456,44 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     });
     run.attempts = next.attempts;
     state.fingerprints.push(fingerprint);
+    previousAttemptId = attemptId;
 
-    const bounded =
-      attempt >= bounds.maxInvestigationAttempts ||
-      state.recoveryCount >= bounds.maxRecoveryAttempts;
-    if (!failure || recovery.action === "stop" || bounded) {
-      run.status = lastVerification.status;
+    if (willStop || !failure) {
+      run.status = exhausted ? "recovery_exhausted" : lastVerification.status;
       break;
     }
 
     trace.record(run.id, state.currentStep, "recovery_started", {
+      investigationRunId: run.id,
+      attemptId,
       attempt,
       action: recovery.action,
       nextAttempt: attempt + 1,
+      recoveryPlanId: recovery.id,
+      failureEventId: failure.id,
     });
     applyRecoveryPlan(state, recovery, failure);
     await waitBackoff(recovery, options.executeBackoff === true);
     recoveries.push(recovery);
     lastFailure = failure;
     lastRecovery = recovery;
+    trace.record(run.id, state.currentStep, "recovery_applied", {
+      investigationRunId: run.id,
+      attemptId,
+      attempt,
+      failureEventId: failure.id,
+      recoveryPlanId: recovery.id,
+      sequence: recoveries.length,
+      action: recovery.action,
+      nextAttemptId: `attempt-${attempt + 1}`,
+      nextStrategy: state.investigationStrategy,
+    });
     trace.record(run.id, state.currentStep, "recovery_completed", {
+      investigationRunId: run.id,
+      attemptId,
       attempt,
       action: recovery.action,
+      recoveryPlanId: recovery.id,
       recoveryCount: state.recoveryCount,
       remainingAttempts: bounds.maxInvestigationAttempts - attempt,
     });

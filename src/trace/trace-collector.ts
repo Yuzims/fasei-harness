@@ -25,7 +25,9 @@ export type TraceEventType =
   | "failure_analyzed"
   | "recovery_planned"
   | "recovery_started"
-  | "recovery_completed";
+  | "recovery_applied"
+  | "recovery_completed"
+  | "investigation_attempt_started";
 
 export interface TraceEvent {
   id: string;

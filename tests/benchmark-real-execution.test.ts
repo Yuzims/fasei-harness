@@ -53,6 +53,7 @@ test("Real-v1 full execution produces 10 harness results", async () => {
   assert.equal(typeof result.metrics.evidenceCoverage, "number");
   assert.equal(typeof result.metrics.unsupportedClaimRate, "number");
   assert.equal(typeof result.metrics.recoveryRate, "number");
+  assert.equal(typeof result.metrics.recoverySuccessRate, "number");
   assert.equal(typeof result.metrics.averageAttempts, "number");
   assert.equal(typeof result.metrics.averageToolCalls, "number");
   assert.equal(typeof result.metrics.verifierFalsePositiveRate, "number");

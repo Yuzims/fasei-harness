@@ -6,6 +6,7 @@ import type {
   EvidenceRelation,
   FailureEvent,
   InvestigationRun,
+  InvestigationStrategy,
   InvestigationTask,
   RecoveryPlan,
 } from "../domain/index.js";
@@ -42,6 +43,7 @@ export class InvestigationState {
 
   issueState?: "open" | "closed";
   retrievalStrategy: RetrievalStrategy = "default";
+  investigationStrategy?: InvestigationStrategy;
   recoveryCount = 0;
   toolRetryCount = 0;
   readonly fingerprints: string[] = [];
@@ -146,8 +148,11 @@ export class InvestigationState {
       investigatedResources: [...this.investigatedResources],
       remainingSources: remainingEvidenceSources(this),
       retrievalStrategy: this.retrievalStrategy,
+      investigationStrategy: this.investigationStrategy,
       lastFailureType: this.lastFailure?.type,
+      lastFailureId: this.lastFailure?.id,
       lastRecoveryAction: this.lastRecovery?.action,
+      lastRecoveryPlanId: this.lastRecovery?.id,
       nextStep: this.lastRecovery?.nextStep,
     };
   }

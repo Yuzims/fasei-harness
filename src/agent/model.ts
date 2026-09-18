@@ -1,6 +1,6 @@
 import type { Task, ToolCall, ToolResult } from "../core/types.js";
 import type { Workspace } from "../core/workspace.js";
-import type { FailureEvent, RecoveryPlan } from "../domain/types.js";
+import type { FailureEvent, InvestigationStrategy, RecoveryPlan } from "../domain/types.js";
 import type { Failure } from "../legacy/failure/failure-types.js";
 import type { RecoveryPlan as WorkspaceRecoveryPlan } from "../legacy/recovery/recovery-planner.js";
 
@@ -21,6 +21,7 @@ export interface ModelContext {
   lastRecovery?: WorkspaceRecoveryPlan;
   investigationFailure?: FailureEvent;
   investigationRecovery?: RecoveryPlan;
+  investigationStrategy?: InvestigationStrategy;
   workspace?: Workspace;
   onDelta?: (text: string) => void;
 }

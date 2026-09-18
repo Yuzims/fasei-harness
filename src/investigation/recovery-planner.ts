@@ -103,6 +103,7 @@ function planRetrievalFailure(failure: FailureEvent, ctx: RecoveryContext): Reco
 function planPrematureCompletion(failure: FailureEvent, ctx: RecoveryContext): RecoveryPlan {
   const remaining = remainingEvidenceSources(ctx.state);
   const missing = failure.missingRequirementIds ?? ctx.verification.missingRequirementIds;
+  const strategy = nextRetrievalStrategy(ctx.state.retrievalStrategy, remaining);
   return {
     action: "continue_investigation",
     reason:
@@ -113,6 +114,7 @@ function planPrematureCompletion(failure: FailureEvent, ctx: RecoveryContext): R
       remaining.length > 0
         ? `Gather missing evidence (${[...new Set([...(missing ?? []), ...remaining])].join(", ")}).`
         : "Continue investigation focusing on missing evidence requirements.",
+    retrievalStrategy: remaining.length > 0 ? strategy : undefined,
   };
 }
 
@@ -143,12 +145,21 @@ function planInsufficientEvidence(failure: FailureEvent, ctx: RecoveryContext): 
       nextRequirementIds: failure.missingRequirementIds,
     };
   }
+  const resolutionSources = remaining.filter(
+    (item) => item.startsWith("pull/") || item.startsWith("files/") || item.startsWith("commits/"),
+  );
+  const strategy =
+    resolutionSources.length > 0 ? "linked_pr" : nextRetrievalStrategy(ctx.state.retrievalStrategy, remaining);
   return {
     action: "gather_missing_evidence",
     reason: "Required evidence is missing. Collect only the missing kinds; do not retry the whole investigation.",
     resetEvidence: false,
     nextRequirementIds: failure.missingRequirementIds,
-    nextStep: `Gather missing evidence: ${remaining.join(", ")}.`,
+    nextStep:
+      resolutionSources.length > 0
+        ? `Discover resolution candidates: ${resolutionSources.join(", ")}.`
+        : `Gather missing evidence: ${remaining.join(", ")}.`,
+    retrievalStrategy: strategy,
   };
 }
 

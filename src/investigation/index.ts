@@ -9,7 +9,18 @@ export {
 export { InvestigationState, formatStateForModel, remainingEvidenceSources, investigationFingerprint } from "./state.js";
 export { FailureAnalyzer } from "./failure-analyzer.js";
 export { RecoveryPlanner } from "./recovery-planner.js";
-export { applyRecoveryPlan } from "./apply-recovery.js";
+export {
+  applyRecoveryPlan,
+  defaultInvestigationStrategy,
+  strategyFromRecoveryPlan,
+} from "./apply-recovery.js";
+export {
+  attemptProvenance,
+  attemptToolNames,
+  canonicalRecoveryTrace,
+  CLOSED_LOOP_TRACE_TYPES,
+} from "./recovery-trace.js";
+export type { CanonicalRecoveryEvent, ClosedLoopTraceType } from "./recovery-trace.js";
 export type { AnalysisContext } from "./analysis-context.js";
 export {
   deriveInvestigationStatus,

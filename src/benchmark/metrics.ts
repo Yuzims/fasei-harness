@@ -42,6 +42,7 @@ export function computeBenchmarkMetrics(results: readonly ScenarioResult[]): Ben
       evidenceCoverage: 0,
       unsupportedClaimRate: 0,
       recoveryRate: 0,
+      recoverySuccessRate: 0,
       averageAttempts: 0,
       averageToolCalls: 0,
       verifierFalsePositiveRate: 0,
@@ -52,6 +53,8 @@ export function computeBenchmarkMetrics(results: readonly ScenarioResult[]): Ben
     (item) => item.recovered || item.observedOutcome !== "verified_complete",
   );
   const recovered = results.filter((item) => item.recovered).length;
+  const recoveryAttempted = results.filter((item) => item.recoveryAttempted);
+  const recoverySuccesses = recoveryAttempted.filter((item) => item.recovered).length;
   const shouldNotVerify = results.filter((item) => item.expectedOutcome !== "verified_complete");
   const verifierFalsePositives = shouldNotVerify.filter((item) =>
     isVerifierFalsePositive(item.expectedOutcome, item.observedOutcome),
@@ -65,6 +68,8 @@ export function computeBenchmarkMetrics(results: readonly ScenarioResult[]): Ben
     evidenceCoverage: mean(results.map((item) => item.evidenceCoverage)),
     unsupportedClaimRate: mean(results.map((item) => item.unsupportedClaimRate)),
     recoveryRate: failedFirst.length === 0 ? 0 : recovered / failedFirst.length,
+    recoverySuccessRate:
+      recoveryAttempted.length === 0 ? 0 : recoverySuccesses / recoveryAttempted.length,
     averageAttempts: mean(results.map((item) => item.attemptCount)),
     averageToolCalls: mean(results.map((item) => item.toolCallCount)),
     verifierFalsePositiveRate:

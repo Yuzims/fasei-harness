@@ -2,11 +2,93 @@
  * Product applyRecovery. Executes a RecoveryPlan against investigation state.
  * Planner never calls this. The investigation loop does.
  *
- * This is the Investigation Recovery path, not workspace Harness.applyRecovery.
+ * RecoveryPlan = what recovery decided.
+ * InvestigationStrategy = how the next attempt will investigate.
  */
-import type { FailureEvent, RecoveryPlan } from "../domain/index.js";
+import type {
+  FailureEvent,
+  InvestigationStrategy,
+  RecoveryPlan,
+} from "../domain/index.js";
 import type { RetrievalStrategy } from "./state.js";
-import { resourceKeyForTool, type InvestigationState } from "./state.js";
+import { remainingEvidenceSources, resourceKeyForTool, type InvestigationState } from "./state.js";
+
+export function defaultInvestigationStrategy(): InvestigationStrategy {
+  return {
+    type: "observe_issue",
+    reason: "Initial investigation of the assigned GitHub issue.",
+  };
+}
+
+export function strategyFromRecoveryPlan(
+  plan: RecoveryPlan,
+  failure: FailureEvent,
+  state: InvestigationState,
+): InvestigationStrategy {
+  const scope =
+    plan.nextRequirementIds ??
+    remainingEvidenceSources(state);
+  const recoveryPlanId = plan.id;
+  switch (plan.action) {
+    case "retry_with_backoff":
+      return {
+        type: "retry_failed_tool",
+        reason: plan.reason,
+        recoveryPlanId,
+        scope: failure.tool ? [failure.tool] : scope,
+      };
+    case "gather_missing_evidence":
+      return {
+        type: "gather_resolution_evidence",
+        reason: plan.reason,
+        recoveryPlanId,
+        scope,
+      };
+    case "continue_investigation":
+      return {
+        type: "continue_investigation",
+        reason: plan.reason,
+        recoveryPlanId,
+        scope,
+      };
+    case "change_retrieval_strategy":
+    case "refine_query":
+      return {
+        type: "change_retrieval",
+        reason: plan.reason,
+        recoveryPlanId,
+        scope: plan.retrievalStrategy ? [plan.retrievalStrategy, ...scope] : scope,
+      };
+    case "replan":
+      return {
+        type: "replan",
+        reason: plan.reason,
+        recoveryPlanId,
+        scope,
+      };
+    case "recheck_target":
+      return {
+        type: "recheck_target",
+        reason: plan.reason,
+        recoveryPlanId,
+        scope,
+      };
+    case "revalidate_evidence":
+      return {
+        type: "revalidate_evidence",
+        reason: plan.reason,
+        recoveryPlanId,
+        scope: plan.discardEvidenceIds ?? failure.evidenceIds,
+      };
+    default:
+      return {
+        type: "observe_issue",
+        reason: plan.reason,
+        recoveryPlanId,
+        scope,
+      };
+  }
+}
 
 function isRetrievalStrategy(value: string | undefined): value is RetrievalStrategy {
   return (
@@ -68,6 +150,9 @@ export function applyRecoveryPlan(
   state.recoveryCount += 1;
   state.lastFailure = failure;
   state.lastRecovery = plan;
+  if (plan.action !== "stop") {
+    state.investigationStrategy = strategyFromRecoveryPlan(plan, failure, state);
+  }
 
   if (plan.retrievalStrategy && isRetrievalStrategy(plan.retrievalStrategy)) {
     state.retrievalStrategy = plan.retrievalStrategy;

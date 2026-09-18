@@ -299,6 +299,8 @@ test("Domain：Attempt 只能追加，不能覆盖既有调查轨迹", () => {
   assert.equal(run.attempts.length, 2);
   assert.equal(run.attempts[0]?.attempt, 1);
   assert.equal(run.attempts[1]?.attempt, 2);
+  assert.equal(run.attempts[0]?.id, "attempt-1");
+  assert.equal(run.attempts[1]?.id, "attempt-2");
   assert.equal(run.attempts[0]?.evidenceIds.length, 1);
   assert.equal(latestAttempt(run)?.recovery?.action, "gather_missing_evidence");
 });

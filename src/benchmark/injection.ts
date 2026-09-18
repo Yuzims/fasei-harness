@@ -131,6 +131,22 @@ function snapshotIssueNumber(provider: GitHubDataProvider): number | undefined {
   return undefined;
 }
 
+function timelineKey(session: InvestigationSession): string {
+  return resourceKey("timeline", String(session.state.task.target.issueNumber));
+}
+
+function callGetTimeline(session: InvestigationSession, reason: string): ModelResponse {
+  session.state.pendingReason = reason;
+  return {
+    type: "tool_call",
+    call: {
+      id: randomUUID(),
+      name: "github_get_issue_timeline",
+      arguments: targetArgs(session),
+    },
+  };
+}
+
 function modelFor(mode: BenchmarkFailureMode, session: InvestigationSession): Model {
   if (mode === "tool_failure") {
     return firstAttemptThenDriver(session, {
@@ -187,6 +203,49 @@ function modelFor(mode: BenchmarkFailureMode, session: InvestigationSession): Mo
           return callGetIssue(session, "First retrieval only.");
         }
         return { type: "final", message: "Stopped after the first retrieval. Not verified." };
+      },
+    });
+  }
+
+  if (mode === "insufficient_evidence") {
+    return firstAttemptThenDriver(session, {
+      async decide() {
+        if (issueNotObserved(session)) {
+          return callGetIssue(session, "Observe the issue first.");
+        }
+        if (!session.state.investigatedResources.has(timelineKey(session))) {
+          return callGetTimeline(
+            session,
+            "Observe the timeline; do not yet fetch resolution candidates.",
+          );
+        }
+        if (!session.state.claimsRecorded) {
+          session.state.pendingReason = "Record that resolution evidence is still missing.";
+          return {
+            type: "tool_call",
+            call: {
+              id: randomUUID(),
+              name: "record_claim",
+              arguments: {
+                claims: [
+                  {
+                    text: `Issue #${session.state.task.target.issueNumber} is closed; resolution evidence is missing.`,
+                    polarity: "unknown",
+                    critical: true,
+                    evidenceIds: session.state.run.evidence.map((item) => item.id),
+                    role: "contextual",
+                  },
+                ],
+                conclusion: "Insufficient resolution evidence.",
+                polarity: "unknown",
+              },
+            },
+          };
+        }
+        return {
+          type: "final",
+          message: "Issue is closed; resolution evidence is insufficient. Not verified.",
+        };
       },
     });
   }
@@ -255,6 +314,14 @@ export function prepareScenarioEnvironment(
       provider: inner,
       useTestDriver: false,
       modelFactory: (session) => modelFor(mode, session),
+    };
+  }
+
+  if (mode === "insufficient_evidence" && scenario.expectedOutcome?.recovery?.required) {
+    return {
+      provider: inner,
+      useTestDriver: false,
+      modelFactory: (session) => modelFor("insufficient_evidence", session),
     };
   }
 

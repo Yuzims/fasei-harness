@@ -219,3 +219,27 @@ Future:
 This is not a representative real-world GitHub workload benchmark.
 
 See [`implementation-status.md`](implementation-status.md).
+
+## Phase 7.3 — Closed-Loop Recovery Validation — DONE
+
+Recovery is loop control, not a second Agent.
+
+```text
+AgentLoop
+  ↓
+Attempt
+  ↓
+Independent Completion Verifier
+  ↓
+FailureAnalyzer
+  ↓
+RecoveryPlanner
+  ↓
+applyRecovery (new InvestigationStrategy)
+  ↓
+next append-only Attempt
+```
+
+Attempt 2 must differ from Attempt 1 because of the Recovery Plan. Provenance is `Attempt 1 → FailureEvent → RecoveryPlan → Attempt 2`. Recovery is bounded and deterministic / policy-driven.
+
+See [`implementation-status.md`](implementation-status.md).

@@ -114,6 +114,7 @@ test("Benchmark：metrics 由合成结果计算", () => {
       observedOutcome: "verified_complete",
       agentClaimedComplete: true,
       recovered: true,
+      recoveryAttempted: true,
       attemptCount: 2,
       toolCallCount: 10,
       evidenceCoverage: 1,
@@ -126,6 +127,7 @@ test("Benchmark：metrics 由合成结果计算", () => {
   assert.equal(metrics.falseCompletionRate, 0.25);
   assert.equal(metrics.insufficientEvidenceRate, 0.25);
   assert.equal(metrics.recoveryRate, 1 / 3);
+  assert.equal(metrics.recoverySuccessRate, 1);
   assert.equal(metrics.averageAttempts, 2);
   assert.equal(metrics.averageToolCalls, 7);
   assert.equal(metrics.evidenceCoverage, 0.6875);
@@ -139,6 +141,7 @@ test("Benchmark：空结果的 metrics 为 0，不除零", () => {
   assert.equal(metrics.falseCompletionRate, 0);
   assert.equal(metrics.insufficientEvidenceRate, 0);
   assert.equal(metrics.recoveryRate, 0);
+  assert.equal(metrics.recoverySuccessRate, 0);
   assert.equal(metrics.averageAttempts, 0);
   assert.equal(metrics.averageToolCalls, 0);
   assert.equal(metrics.verifierFalsePositiveRate, 0);

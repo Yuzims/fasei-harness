@@ -306,8 +306,11 @@ test("Investigation：注入的 LLM 走 function calling，不经过 keyword cla
   assert.ok(calls >= 2);
   assert.ok(provider.operations.includes("getIssue"));
   assert.ok(result.evidence.some((item) => item.kind === "issue"));
-  assert.equal(result.run.status, "insufficient_evidence");
   assert.equal(result.verification?.status, "insufficient_evidence");
+  assert.ok(
+    result.run.status === "insufficient_evidence" || result.run.status === "recovery_exhausted",
+  );
+  assert.ok(result.run.attempts.length <= 3);
   assert.notEqual(result.status, "verified_complete");
 });
 
@@ -340,8 +343,11 @@ test("Investigation：自定义 Model 也走 Tool → Provider，不走 Workspac
   assert.equal(result.actor, "llm");
   assert.deepEqual(provider.operations, ["getIssue"]);
   assert.equal(result.evidence[0]?.kind, "issue");
-  assert.equal(result.run.status, "insufficient_evidence");
   assert.equal(result.verification?.status, "insufficient_evidence");
+  assert.ok(
+    result.run.status === "insufficient_evidence" || result.run.status === "recovery_exhausted",
+  );
+  assert.ok(result.run.attempts.length <= 3);
 });
 
 test("Investigation：模块不依赖 React / Hono / keyword classifier / WorkspaceAgent", () => {

@@ -43,6 +43,7 @@ import {
 import { INVESTIGATION_SYSTEM_PROMPT } from "./policy.js";
 import { RecoveryPlanner } from "./recovery-planner.js";
 import {
+  ILLEGAL_INVESTIGATION_ACTION,
   NO_LEGAL_INVESTIGATION_ACTION,
   isLegalInvestigationAction,
   legalActionViews,
@@ -131,28 +132,44 @@ class InvestigationLoopModel implements Model {
         : history;
 
     if (this.injectState && planned && planned.legalActions.length === 0) {
+      const legalTools: string[] = [];
       this.session.trace.record(this.session.runId, this.session.state.currentStep, "agent_step", {
         tool: undefined,
         reason: NO_LEGAL_INVESTIGATION_ACTION,
         evidenceGapMissing: planned.gap.missingRequirements.map((item) => item.requirementId),
-        legalTools: [],
+        legalTools,
+        code: "NO_LEGAL_INVESTIGATION_ACTION",
       });
-      return { type: "final", message: NO_LEGAL_INVESTIGATION_ACTION };
+      return {
+        type: "investigation_blocked",
+        code: "NO_LEGAL_INVESTIGATION_ACTION",
+        reason: NO_LEGAL_INVESTIGATION_ACTION,
+        legalTools,
+      };
     }
 
     const response = await this.inner.decide(task, nextHistory, toolResults, context);
     if (this.injectState && planned && response.type === "tool_call") {
       if (!isLegalInvestigationAction(response.call, planned.legalActions)) {
+        const legalTools = planned.legalActions.map((item) => item.tool);
         this.session.trace.record(
           this.session.runId,
           this.session.state.currentStep,
           "illegal_investigation_action_rejected",
           {
             tool: response.call.name,
-            arguments: response.call.arguments,
-            legalTools: planned.legalActions.map((item) => item.tool),
+            reason: ILLEGAL_INVESTIGATION_ACTION,
+            legalTools,
+            legalActionBoundary: legalTools,
           },
         );
+        return {
+          type: "investigation_blocked",
+          code: "illegal_investigation_action",
+          reason: ILLEGAL_INVESTIGATION_ACTION,
+          attemptedTool: response.call.name,
+          legalTools,
+        };
       }
     }
 

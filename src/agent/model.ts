@@ -5,9 +5,20 @@ import type { Failure } from "../legacy/failure/failure-types.js";
 import type { RecoveryPlan as WorkspaceRecoveryPlan } from "../legacy/recovery/recovery-planner.js";
 import type { LlmRuntimeGuard } from "./llm-runtime.js";
 
+export type InvestigationBlockCode =
+  | "NO_LEGAL_INVESTIGATION_ACTION"
+  | "illegal_investigation_action";
+
 export type ModelResponse =
   | { type: "tool_call"; call: ToolCall }
-  | { type: "final"; message: string };
+  | { type: "final"; message: string }
+  | {
+      type: "investigation_blocked";
+      code: InvestigationBlockCode;
+      reason: string;
+      attemptedTool?: string;
+      legalTools?: string[];
+    };
 
 export type HistoryRole = "user" | "assistant" | "tool";
 

@@ -58,6 +58,79 @@ test("Loop：把 user / assistant(tool_call) / tool 写回下一轮 decide", asy
   );
 });
 
+test("Loop：illegal investigation action terminals without executing the tool", async () => {
+  let executed = 0;
+  let decides = 0;
+  const tools = new ToolRegistry();
+  tools.register({
+    name: "github_get_issue",
+    description: "spy issue tool",
+    async execute() {
+      executed += 1;
+      return { ok: true };
+    },
+  });
+  const model: Model = {
+    async decide(): Promise<ModelResponse> {
+      decides += 1;
+      return {
+        type: "tool_call",
+        call: {
+          id: "illegal-issue",
+          name: "github_get_issue",
+          arguments: { owner: "acme", repo: "box", issueNumber: 42 },
+        },
+      };
+    },
+  };
+  const trace = new TraceCollector();
+  const loop = new AgentLoop(model, tools, trace, 8);
+  const result = await loop.run(
+    { id: "inv", description: "Investigate" },
+    "run-illegal",
+    {
+      attempt: 1,
+      legalInvestigationActions: [
+        { tool: "github_list_commits", arguments: { owner: "acme", repo: "box" } },
+      ],
+    },
+  );
+
+  assert.equal(executed, 0);
+  assert.equal(decides, 1);
+  assert.equal(result.status, "failed");
+  assert.equal(result.decision, "illegal_investigation_action");
+  assert.equal(
+    trace.getEvents().some((event) => event.type === "illegal_investigation_action_rejected"),
+    true,
+  );
+  assert.equal(
+    trace.getEvents().some((event) => event.type === "investigation_blocked"),
+    true,
+  );
+});
+
+test("Loop：strategy_exhausted is not an Agent final", async () => {
+  const loop = new AgentLoop(
+    {
+      async decide(): Promise<ModelResponse> {
+        return {
+          type: "investigation_blocked",
+          code: "NO_LEGAL_INVESTIGATION_ACTION",
+          reason: "Harness stopped: no remaining legal investigation actions. Not verified.",
+          legalTools: [],
+        };
+      },
+    },
+    new ToolRegistry(),
+    new TraceCollector(),
+  );
+  const result = await loop.run({ id: "blocked", description: "Investigate" }, "run-blocked");
+  assert.equal(result.status, "failed");
+  assert.equal(result.decision, "strategy_exhausted");
+  assert.notEqual(result.status, "completed");
+});
+
 test("Loop：model_call trace 带上 historyLength", async () => {
   const spy = new HistorySpyModel();
   const tools = new ToolRegistry();

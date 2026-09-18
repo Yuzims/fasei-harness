@@ -50,6 +50,41 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function legalInvestigationToolResponse(
+  callIndex: number,
+  issueNumber: number,
+  usage: Record<string, unknown>,
+): Response {
+  const tools: Array<{ name: string; arguments: Record<string, unknown> }> = [
+    { name: "github_get_issue", arguments: { owner: "acme", repo: "box", issueNumber } },
+    { name: "github_get_issue_timeline", arguments: { owner: "acme", repo: "box", issueNumber } },
+    { name: "github_get_issue_comments", arguments: { owner: "acme", repo: "box", issueNumber } },
+    { name: "github_list_commits", arguments: { owner: "acme", repo: "box" } },
+  ];
+  const pick =
+    callIndex <= tools.length
+      ? tools[callIndex - 1]!
+      : { name: "record_claim", arguments: { claims: [] } };
+  return jsonResponse({
+    choices: [
+      {
+        message: {
+          tool_calls: [
+            {
+              id: `c${callIndex}`,
+              function: {
+                name: pick.name,
+                arguments: JSON.stringify(pick.arguments),
+              },
+            },
+          ],
+        },
+      },
+    ],
+    usage,
+  });
+}
+
 function hangingFetch(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const signal = init?.signal;
   return new Promise((_, reject) => {
@@ -250,28 +285,11 @@ test("Test 5 — attempt 1 step 5 is not confused with attempt 2 step 1", async 
     fetchImpl: async () => {
       llmCalls += 1;
       if (llmCalls <= 4) {
-        return jsonResponse({
-          choices: [
-            {
-              message: {
-                tool_calls: [
-                  {
-                    id: `c${llmCalls}`,
-                    function: {
-                      name: "github_get_issue",
-                      arguments: JSON.stringify({ owner: "acme", repo: "box", issueNumber: 7 }),
-                    },
-                  },
-                ],
-              },
-            },
-          ],
-          usage: {
-            prompt_tokens: 1000 + llmCalls,
-            completion_tokens: 10,
-            total_tokens: 1010 + llmCalls,
-            prompt_tokens_details: { cached_tokens: llmCalls === 5 ? 0 : 100 },
-          },
+        return legalInvestigationToolResponse(llmCalls, 7, {
+          prompt_tokens: 1000 + llmCalls,
+          completion_tokens: 10,
+          total_tokens: 1010 + llmCalls,
+          prompt_tokens_details: { cached_tokens: llmCalls === 5 ? 0 : 100 },
         });
       }
       return jsonResponse({
@@ -444,23 +462,10 @@ test("Test 9 — Phase 8.7.4 safety still holds", async () => {
     fetchImpl: async (_input, init) => {
       httpCalls += 1;
       assert.ok(init?.signal);
-      return jsonResponse({
-        choices: [
-          {
-            message: {
-              tool_calls: [
-                {
-                  id: `c${httpCalls}`,
-                  function: {
-                    name: "github_get_issue",
-                    arguments: JSON.stringify({ owner: "acme", repo: "box", issueNumber: 42 }),
-                  },
-                },
-              ],
-            },
-          },
-        ],
-        usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
+      return legalInvestigationToolResponse(httpCalls, 42, {
+        prompt_tokens: 10,
+        completion_tokens: 2,
+        total_tokens: 12,
       });
     },
   });

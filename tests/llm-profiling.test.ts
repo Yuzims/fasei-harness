@@ -37,6 +37,41 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function legalInvestigationToolResponse(
+  callIndex: number,
+  issueNumber: number,
+  usage: Record<string, unknown>,
+): Response {
+  const tools: Array<{ name: string; arguments: Record<string, unknown> }> = [
+    { name: "github_get_issue", arguments: { owner: "acme", repo: "box", issueNumber } },
+    { name: "github_get_issue_timeline", arguments: { owner: "acme", repo: "box", issueNumber } },
+    { name: "github_get_issue_comments", arguments: { owner: "acme", repo: "box", issueNumber } },
+    { name: "github_list_commits", arguments: { owner: "acme", repo: "box" } },
+  ];
+  const pick =
+    callIndex <= tools.length
+      ? tools[callIndex - 1]!
+      : { name: "record_claim", arguments: { claims: [] } };
+  return jsonResponse({
+    choices: [
+      {
+        message: {
+          tool_calls: [
+            {
+              id: `c${callIndex}`,
+              function: {
+                name: pick.name,
+                arguments: JSON.stringify(pick.arguments),
+              },
+            },
+          ],
+        },
+      },
+    ],
+    usage,
+  });
+}
+
 function callRecord(
   index: number,
   usage: LlmCallRecord["usage"],
@@ -249,23 +284,10 @@ test("Test 7 — maxLlmCalls = 8 still blocks the 9th HTTP call", async () => {
     llmRuntimeBudget: { maxLlmCalls: 8, maxWallClockMs: 120_000 },
     fetchImpl: async () => {
       httpCalls += 1;
-      return jsonResponse({
-        choices: [
-          {
-            message: {
-              tool_calls: [
-                {
-                  id: `c${httpCalls}`,
-                  function: {
-                    name: "github_get_issue",
-                    arguments: JSON.stringify({ owner: "acme", repo: "box", issueNumber: 42 }),
-                  },
-                },
-              ],
-            },
-          },
-        ],
-        usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
+      return legalInvestigationToolResponse(httpCalls, 42, {
+        prompt_tokens: 10,
+        completion_tokens: 2,
+        total_tokens: 12,
       });
     },
   });

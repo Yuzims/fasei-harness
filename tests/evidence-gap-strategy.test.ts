@@ -21,6 +21,7 @@ import {
   ILLEGAL_INVESTIGATION_ACTION,
   IndependentCompletionVerifier,
   NO_LEGAL_INVESTIGATION_ACTION,
+  SnapshotInvestigationDriver,
   UNTRUSTED_NOTICE,
   computeEvidenceGap,
   formatStateForModel,
@@ -195,6 +196,57 @@ function legalSelectingModel(): Model {
           arguments: pick.arguments,
         },
       };
+    },
+  };
+}
+
+function exhaustLegalModel(counter: { decides: number }): Model {
+  return {
+    async decide(
+      _task: Task,
+      _history: HistoryMessage[],
+      _toolResults: ToolResult[],
+      context?: ModelContext,
+    ): Promise<ModelResponse> {
+      counter.decides += 1;
+      const legal = context?.legalInvestigationActions ?? [];
+      assert.ok(
+        legal.length > 0,
+        "inner model must not be invoked when Strategy has no legal investigation action",
+      );
+      const github = legal.find((item) => item.tool.startsWith("github_"));
+      if (github) {
+        return {
+          type: "tool_call",
+          call: {
+            id: randomUUID(),
+            name: github.tool,
+            arguments: github.arguments,
+          },
+        };
+      }
+      const claim = legal.find((item) => item.tool === "record_claim");
+      if (claim) {
+        return {
+          type: "tool_call",
+          call: {
+            id: randomUUID(),
+            name: "record_claim",
+            arguments: {
+              claims: [
+                {
+                  text: "Recorded after remaining GitHub observations.",
+                  polarity: "unknown",
+                  critical: false,
+                  evidenceIds: [],
+                  role: "contextual",
+                },
+              ],
+            },
+          },
+        };
+      }
+      throw new Error("legal actions were non-empty but none could be selected");
     },
   };
 }
@@ -379,12 +431,11 @@ test("Test 7 — illegal tool is not executed", async () => {
     trace.getEvents().some((event) => event.type === "illegal_investigation_action_rejected"),
     true,
   );
-  assert.equal(
-    result.agentResult?.output === MAX_STEPS_REACHED ||
-      (typeof result.agentResult?.output === "string" &&
-        String(result.agentResult.output).includes(ILLEGAL_INVESTIGATION_ACTION)),
-    true,
-  );
+  assert.equal(result.agentResult?.status, "failed");
+  assert.equal(result.agentResult?.decision, "illegal_investigation_action");
+  assert.equal(result.agentResult?.output, ILLEGAL_INVESTIGATION_ACTION);
+  assert.notEqual(result.agentResult?.output, MAX_STEPS_REACHED);
+  assert.notEqual(result.agentResult?.decision, "final");
 });
 
 test("Test 8 — successful action that satisfied a requirement is not repeated", () => {
@@ -743,3 +794,292 @@ test("Hard constraint matcher rejects a tool that is not in the legal set", () =
     true,
   );
 });
+
+test("Test A1 — no legal action with an unresolved gap is strategy_exhausted, not Agent final", async () => {
+  const counter = { decides: 0 };
+  const trace = new TraceCollector();
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 7 },
+    provider: new SnapshotGitHubProvider(githubFixturePath("insufficient-evidence")),
+    model: exhaustLegalModel(counter),
+    trace,
+    maxAttempts: 1,
+    maxSteps: 12,
+  });
+  assert.notEqual(result.agentResult?.status, "completed");
+  assert.notEqual(result.agentResult?.decision, "final");
+  assert.equal(result.agentResult?.decision, "strategy_exhausted");
+  assert.equal(result.agentResult?.output, NO_LEGAL_INVESTIGATION_ACTION);
+  const blocked = trace.getEvents().find((event) => event.type === "investigation_blocked");
+  assert.equal(blocked?.data.code, "NO_LEGAL_INVESTIGATION_ACTION");
+  assert.equal(
+    trace.getEvents().some((event) => event.type === "verification_completed"),
+    true,
+  );
+  const gap = computeEvidenceGap(result.task, result.run);
+  assert.ok(gap.missingRequirements.length + gap.rejectedRequirements.length > 0);
+});
+
+test("Test A2 — no legal action cannot become verified_complete by Strategy", async () => {
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 7 },
+    provider: new SnapshotGitHubProvider(githubFixturePath("insufficient-evidence")),
+    model: exhaustLegalModel({ decides: 0 }),
+    maxAttempts: 1,
+    maxSteps: 12,
+  });
+  assert.equal(result.agentResult?.decision, "strategy_exhausted");
+  assert.notEqual(result.verification?.status, "verified_complete");
+  assert.notEqual(result.run.status, "verified_complete");
+  assert.notEqual(result.status, "verified_complete");
+});
+
+test("Test A3 — strategy_exhausted does not own the verifier verdict", async () => {
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider: new SnapshotGitHubProvider(githubFixturePath("resolved")),
+    model: exhaustLegalModel({ decides: 0 }),
+    maxAttempts: 1,
+    maxSteps: 12,
+  });
+  assert.equal(result.agentResult?.decision, "strategy_exhausted");
+  assert.notEqual(result.agentResult?.status, "completed");
+  const independent = new IndependentCompletionVerifier().verify({
+    task: result.task,
+    run: result.run,
+  });
+  assert.equal(result.verification?.status, independent.status);
+  assert.equal(independent.status, "verified_complete");
+  assert.equal(result.verification?.status, "verified_complete");
+});
+
+test("Test B1 — github_get_issue is not executed when only github_list_commits is legal", async () => {
+  const provider = new SpyProvider(githubFixturePath("resolved"));
+  let requestedIllegalIssue = false;
+  const model: Model = {
+    async decide(_task, _history, _toolResults, context): Promise<ModelResponse> {
+      const legal = context?.legalInvestigationActions ?? [];
+      const listCommitsLegal = legal.some((item) => item.tool === "github_list_commits");
+      const issueLegal = legal.some((item) => item.tool === "github_get_issue");
+      if (listCommitsLegal && !issueLegal) {
+        requestedIllegalIssue = true;
+        return {
+          type: "tool_call",
+          call: {
+            id: "illegal-issue",
+            name: "github_get_issue",
+            arguments: { owner: "acme", repo: "box", issueNumber: 42 },
+          },
+        };
+      }
+      const issue = legal.find((item) => item.tool === "github_get_issue");
+      if (issue) {
+        return {
+          type: "tool_call",
+          call: { id: "legal-issue", name: issue.tool, arguments: issue.arguments },
+        };
+      }
+      return { type: "final", message: "Stopped after the legal issue observation. Not verified." };
+    },
+  };
+  await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider,
+    model,
+    maxAttempts: 1,
+  });
+  assert.equal(requestedIllegalIssue, true);
+  assert.equal(provider.operations.filter((item) => item === "getIssue").length, 1);
+  assert.equal(provider.operations.includes("listCommits"), false);
+});
+
+test("Test B2 — illegal tool rejection is a structured trace event, not only error.message", async () => {
+  const trace = new TraceCollector();
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider: new SpyProvider(githubFixturePath("resolved")),
+    model: {
+      async decide(): Promise<ModelResponse> {
+        return {
+          type: "tool_call",
+          call: {
+            id: "illegal",
+            name: "github_merge",
+            arguments: { owner: "acme", repo: "box", pullNumber: 7, huge: "x".repeat(200) },
+          },
+        };
+      },
+    },
+    trace,
+    maxAttempts: 1,
+  });
+  const rejected = trace.getEvents().find((event) => event.type === "illegal_investigation_action_rejected");
+  assert.ok(rejected);
+  assert.equal(rejected?.data.tool, "github_merge");
+  assert.equal(rejected?.data.reason, ILLEGAL_INVESTIGATION_ACTION);
+  assert.ok(Array.isArray(rejected?.data.legalTools) || Array.isArray(rejected?.data.legalActionBoundary));
+  assert.equal(rejected?.data.arguments, undefined);
+  const blocked = trace.getEvents().find((event) => event.type === "investigation_blocked");
+  assert.equal(blocked?.data.code, "illegal_investigation_action");
+  assert.equal(blocked?.data.attemptedTool, "github_merge");
+  assert.equal(result.agentResult?.decision, "illegal_investigation_action");
+});
+
+test("Test B3 — illegal tool does not create an unbounded LLM loop", async () => {
+  const counter = { decides: 0 };
+  const model: Model = {
+    async decide(): Promise<ModelResponse> {
+      counter.decides += 1;
+      return {
+        type: "tool_call",
+        call: {
+          id: `illegal-${counter.decides}`,
+          name: "github_merge",
+          arguments: { owner: "acme", repo: "box", pullNumber: 7 },
+        },
+      };
+    },
+  };
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider: new SpyProvider(githubFixturePath("resolved")),
+    model,
+    maxAttempts: 1,
+    maxSteps: 12,
+  });
+  assert.equal(counter.decides, 1);
+  assert.equal(result.agentResult?.steps, 1);
+  assert.notEqual(result.agentResult?.output, MAX_STEPS_REACHED);
+});
+
+test("Test B4 — illegal tool does not exceed maxLlmCalls", async () => {
+  const counter = { decides: 0 };
+  const maxLlmCalls = 8;
+  const model: Model = {
+    async decide(): Promise<ModelResponse> {
+      counter.decides += 1;
+      return {
+        type: "tool_call",
+        call: {
+          id: `illegal-${counter.decides}`,
+          name: "github_merge",
+          arguments: { owner: "acme", repo: "box", pullNumber: 7 },
+        },
+      };
+    },
+  };
+  await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider: new SpyProvider(githubFixturePath("resolved")),
+    model,
+    maxAttempts: 3,
+    maxSteps: 12,
+    llmRuntimeBudget: { maxLlmCalls, maxWallClockMs: 120_000 },
+  });
+  assert.ok(counter.decides <= maxLlmCalls);
+  assert.ok(counter.decides <= 3);
+});
+
+test("Test B5 — a legal action still executes", async () => {
+  const provider = new SpyProvider(githubFixturePath("insufficient-evidence"));
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 7 },
+    provider,
+    model: {
+      async decide(_task, _history, toolResults, context): Promise<ModelResponse> {
+        if (toolResults.length > 0) {
+          return { type: "final", message: "Stopped after one legal action. Not verified." };
+        }
+        const legal = context?.legalInvestigationActions ?? [];
+        const comments = legal.find((item) => item.tool === "github_get_issue_comments");
+        assert.ok(comments);
+        return {
+          type: "tool_call",
+          call: {
+            id: "pick-comments",
+            name: comments.tool,
+            arguments: comments.arguments,
+          },
+        };
+      },
+    },
+    maxAttempts: 1,
+  });
+  assert.equal(provider.operations.includes("getIssueComments"), true);
+  assert.deepEqual(
+    result.investigationSteps.map((step) => step.tool),
+    ["github_get_issue_comments"],
+  );
+  assert.equal(result.agentResult?.decision, "final");
+});
+
+test("Test B6 — premature completion still recovers through FailureAnalyzer and RecoveryPlanner", async () => {
+  const provider = new SnapshotGitHubProvider(githubFixturePath("resolved"));
+  const trace = new TraceCollector();
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider,
+    trace,
+    maxAttempts: 3,
+    modelFactory: (session: InvestigationSession): Model => {
+      const driver = new SnapshotInvestigationDriver(session.state);
+      return {
+        async decide(task, history, toolResults, context): Promise<ModelResponse> {
+          const attempt = context?.attempt ?? 1;
+          if (attempt === 1) {
+            const issueKey = resourceKey("issue", String(session.state.task.target.issueNumber));
+            if (!session.state.investigatedResources.has(issueKey)) {
+              return {
+                type: "tool_call",
+                call: {
+                  id: "p1",
+                  name: "github_get_issue",
+                  arguments: { owner: "acme", repo: "box", issueNumber: 42 },
+                },
+              };
+            }
+            if (!session.state.claimsRecorded) {
+              return {
+                type: "tool_call",
+                call: {
+                  id: "p2",
+                  name: "record_claim",
+                  arguments: {
+                    claims: [
+                      {
+                        text: "Issue #42 is resolved.",
+                        polarity: "resolved",
+                        critical: true,
+                        evidenceIds: session.state.run.evidence.map((item) => item.id),
+                        role: "supports",
+                      },
+                    ],
+                    conclusion: "Resolved.",
+                    polarity: "resolved",
+                  },
+                },
+              };
+            }
+            return { type: "final", message: "Done. Issue is resolved." };
+          }
+          return driver.decide(task, history, toolResults, context);
+        },
+      };
+    },
+  });
+  assert.ok(result.run.attempts.length >= 2);
+  assert.equal(result.run.attempts[0]?.failure?.type, "premature_completion");
+  assert.ok(
+    result.run.attempts[0]?.recovery?.action === "continue_investigation" ||
+      result.run.attempts[0]?.recovery?.action === "gather_missing_evidence",
+  );
+  assert.equal(
+    trace.getEvents().some((event) => event.type === "failure_analyzed"),
+    true,
+  );
+  assert.equal(
+    trace.getEvents().some((event) => event.type === "recovery_planned"),
+    true,
+  );
+});
+

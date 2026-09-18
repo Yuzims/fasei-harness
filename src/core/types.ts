@@ -12,10 +12,21 @@ export interface Task {
   expected?: TaskExpectation;
 }
 
+/**
+ * Why AgentLoop terminated.
+ * Ordinary Agent finals use "final" or omit this field.
+ * Investigation strategy terminals must not be treated as an Agent final answer.
+ */
+export type AgentLoopDecision =
+  | "final"
+  | "strategy_exhausted"
+  | "illegal_investigation_action";
+
 export interface AgentResult {
   status: "completed" | "failed";
   output?: unknown;
   steps: number;
+  decision?: AgentLoopDecision;
 }
 
 export interface ToolCall {

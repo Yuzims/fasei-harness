@@ -7,21 +7,29 @@
  * This module does not price requests or alter model behavior.
  */
 
+import { contextTraceData, type LlmContextProfile } from "./llm-context-profile.js";
+
 export const ESTIMATED_CHARS_PER_TOKEN = 4;
+
+export {
+  contextFingerprintDelta,
+  contextTraceData,
+  emptyLlmContextProfile,
+  largestContextContributor,
+  normalizeToolName,
+  profileLlmRequest,
+  profileRequestMessages,
+  type LlmContextBreakdown,
+  type LlmContextProfile,
+  type LlmMessageProfile,
+  type LlmToolContribution,
+} from "./llm-context-profile.js";
 
 export interface LlmUsage {
   inputTokens: number | null;
   cachedInputTokens: number | null;
   outputTokens: number | null;
   totalTokens: number | null;
-}
-
-/** Local context-size proxy. Not provider-reported token usage. */
-export interface LlmContextProfile {
-  estimatedInputTokens: number | null;
-  historyLength: number;
-  serializedRequestChars: number;
-  messageCount: number;
 }
 
 export interface LlmCallRecord {
@@ -38,6 +46,7 @@ export interface LlmCallRecord {
   serializedRequestChars?: number;
   estimatedInputTokens?: number | null;
   messageCount?: number;
+  context?: LlmContextProfile;
 }
 
 export interface LlmUsageAggregate {
@@ -62,15 +71,6 @@ export function emptyLlmUsage(): LlmUsage {
   };
 }
 
-export function emptyLlmContextProfile(historyLength = 0): LlmContextProfile {
-  return {
-    estimatedInputTokens: null,
-    historyLength,
-    serializedRequestChars: 0,
-    messageCount: 0,
-  };
-}
-
 /**
  * Local estimate only. Not provider inputTokens.
  * estimatedInputTokens ≈ serializedRequestChars / 4.
@@ -80,26 +80,6 @@ export function estimateInputTokensFromChars(serializedRequestChars: number): nu
     return null;
   }
   return Math.ceil(serializedRequestChars / ESTIMATED_CHARS_PER_TOKEN);
-}
-
-/** Counts and lengths only. Never returns message contents. */
-export function profileRequestMessages(
-  messages: unknown,
-  historyLength: number,
-): LlmContextProfile {
-  let serializedRequestChars = 0;
-  try {
-    serializedRequestChars = JSON.stringify(messages)?.length ?? 0;
-  } catch {
-    return emptyLlmContextProfile(historyLength);
-  }
-  const messageCount = Array.isArray(messages) ? messages.length : 0;
-  return {
-    estimatedInputTokens: estimateInputTokensFromChars(serializedRequestChars),
-    historyLength,
-    serializedRequestChars,
-    messageCount,
-  };
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -261,6 +241,7 @@ function formatOptional(value: number | null | undefined): string {
 }
 
 function formatCallLine(record: LlmCallRecord): string[] {
+  const context = record.context;
   return [
     `Call #${record.callIndex}`,
     `  attempt: ${formatOptional(record.attempt)}`,
@@ -273,6 +254,14 @@ function formatCallLine(record: LlmCallRecord): string[] {
     `  duration: ${record.durationMs}ms`,
     `  estimatedInputTokens: ${formatOptional(record.estimatedInputTokens)}`,
     `  serializedRequestChars: ${formatOptional(record.serializedRequestChars)}`,
+    `  serializedMessagesChars: ${formatOptional(context?.serializedMessagesChars)}`,
+    `  serializedToolsChars: ${formatOptional(context?.serializedToolsChars)}`,
+    `  estimatedMessageTokens: ${formatOptional(context?.estimatedMessageTokens)}`,
+    `  estimatedToolsTokens: ${formatOptional(context?.estimatedToolsTokens)}`,
+    `  estimatedTotalInputTokens: ${formatOptional(context?.estimatedTotalInputTokens)}`,
+    `  toolResultChars: ${formatOptional(context?.totalToolResultChars)}`,
+    `  messagesFingerprint: ${context?.messagesFingerprint ?? "unavailable"}`,
+    `  toolsFingerprint: ${context?.toolsFingerprint ?? "unavailable"}`,
   ];
 }
 
@@ -315,6 +304,7 @@ export function llmCallTraceData(
     agentStep?: number;
   } = {},
 ): Record<string, unknown> {
+  const profile = record.context;
   return {
     investigationRunId: context.investigationRunId,
     attempt: context.attempt ?? record.attempt,
@@ -337,6 +327,7 @@ export function llmCallTraceData(
     serializedRequestChars: record.serializedRequestChars,
     estimatedInputTokens: record.estimatedInputTokens,
     messageCount: record.messageCount,
+    context: profile ? contextTraceData(profile) : undefined,
     ok: record.ok,
     ...(record.errorCategory ? { errorCategory: record.errorCategory } : {}),
   };

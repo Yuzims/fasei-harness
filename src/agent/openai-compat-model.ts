@@ -417,6 +417,7 @@ export class OpenAICompatModel implements Model {
         serializedRequestChars: contextProfile.serializedRequestChars,
         estimatedInputTokens: contextProfile.estimatedInputTokens,
         messageCount: contextProfile.messageCount,
+        context: contextProfile,
         ...(errorCategory ? { errorCategory } : {}),
       };
       const record = this.options.usageCollector
@@ -445,7 +446,8 @@ export class OpenAICompatModel implements Model {
         context,
         this.options.systemPrompt,
       );
-      contextProfile = profileRequestMessages(messages, historyLength);
+      const serializedTools = tools.length > 0 ? toOpenAITools(tools) : [];
+      contextProfile = profileRequestMessages(messages, historyLength, serializedTools);
       const body: Record<string, unknown> = {
         model: this.options.model,
         temperature: 0,
@@ -456,7 +458,7 @@ export class OpenAICompatModel implements Model {
       };
 
       if (tools.length > 0) {
-        body.tools = toOpenAITools(tools);
+        body.tools = serializedTools;
         body.tool_choice = "auto";
       }
 

@@ -325,8 +325,51 @@ export interface LlmCallDTO {
   serializedRequestChars?: number;
   estimatedInputTokens?: number | null;
   messageCount?: number;
+  context?: LlmContextBreakdownDTO;
   ok: boolean;
   errorCategory?: string;
+}
+
+export interface LlmMessageProfileDTO {
+  role: string;
+  count: number;
+  totalChars: number;
+}
+
+export interface LlmToolContributionDTO {
+  toolName: string;
+  invocationCount: number;
+  totalChars: number;
+  largestResultChars: number;
+}
+
+export interface LlmContextBreakdownDTO {
+  systemMessageChars: number;
+  userMessageChars: number;
+  assistantMessageChars: number;
+  toolMessageChars: number;
+  systemMessageCount: number;
+  userMessageCount: number;
+  assistantMessageCount: number;
+  toolMessageCount: number;
+  messageCount: number;
+  serializedMessagesChars: number;
+  serializedToolsChars: number;
+  estimatedMessageTokens: number | null;
+  estimatedToolsTokens: number | null;
+  estimatedTotalInputTokens: number | null;
+  estimatedInputTokens: number | null;
+  historyLength: number;
+  serializedRequestChars: number;
+  messageRoles: LlmMessageProfileDTO[];
+  toolResultCount: number;
+  totalToolResultChars: number;
+  largestToolResultChars: number;
+  toolContributions: LlmToolContributionDTO[];
+  messagesFingerprint: string | null;
+  toolsFingerprint: string | null;
+  messagesPrefixFingerprint: string | null;
+  messageSequenceFingerprint: string | null;
 }
 
 export interface LlmUsageAggregateDTO {

@@ -8,27 +8,6 @@ function formatRate(value: number | null | undefined): string {
   return value === null || value === undefined ? "unavailable" : `${(value * 100).toFixed(2)}%`;
 }
 
-function CallRecord({ call }: { call: LlmCallDTO }) {
-  return (
-    <article className="llm-call">
-      <p className="kicker">Call #{call.callIndex}</p>
-      <p className="muted mono">
-        attempt {formatCount(call.attempt)} · step {formatCount(call.agentStep)} · history{" "}
-        {formatCount(call.historyLength)}
-      </p>
-      <p className="muted mono">
-        input {formatCount(call.usage.inputTokens)} · cached {formatCount(call.usage.cachedInputTokens)} ·
-        output {formatCount(call.usage.outputTokens)} · total {formatCount(call.usage.totalTokens)} ·{" "}
-        {call.durationMs}ms
-      </p>
-      <p className="muted mono">
-        estimatedInputTokens {formatCount(call.estimatedInputTokens)} · chars{" "}
-        {formatCount(call.serializedRequestChars)}
-      </p>
-    </article>
-  );
-}
-
 export function LlmProfilingPanel({ session }: { session: InvestigationSessionDTO }) {
   const usage = session.llmUsage;
   if (!usage) {
@@ -74,9 +53,54 @@ export function LlmProfilingPanel({ session }: { session: InvestigationSessionDT
         total {formatCount(usage.totalTokens)} · avg input {formatCount(usage.averageInputTokensPerCall)} ·
         avg output {formatCount(usage.averageOutputTokensPerCall)}
       </p>
-      {usage.calls.map((call) => (
-        <CallRecord key={call.callId} call={call} />
-      ))}
+      <h3 className="kicker" style={{ marginTop: 16 }}>
+        Context Profile
+      </h3>
+      {usage.calls.length === 0 ? (
+        <p className="muted">No LLM calls. Token fields stay unavailable.</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table context-profile" data-testid="llm-context-profile">
+            <thead>
+              <tr>
+                <th>Call</th>
+                <th>Attempt</th>
+                <th>Step</th>
+                <th>History</th>
+                <th>Messages</th>
+                <th>Tools</th>
+                <th>Est. Input</th>
+                <th>Input</th>
+                <th>Cached</th>
+                <th>Output</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usage.calls.map((call) => (
+                <ContextProfileRow key={call.callId} call={call} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
+  );
+}
+
+function ContextProfileRow({ call }: { call: LlmCallDTO }) {
+  const context = call.context;
+  return (
+    <tr>
+      <td>{call.callIndex}</td>
+      <td>{formatCount(call.attempt)}</td>
+      <td>{formatCount(call.agentStep)}</td>
+      <td>{formatCount(call.historyLength)}</td>
+      <td>{formatCount(context?.serializedMessagesChars)}</td>
+      <td>{formatCount(context?.serializedToolsChars)}</td>
+      <td>{formatCount(context?.estimatedTotalInputTokens ?? call.estimatedInputTokens)}</td>
+      <td>{formatCount(call.usage.inputTokens)}</td>
+      <td>{formatCount(call.usage.cachedInputTokens)}</td>
+      <td>{formatCount(call.usage.outputTokens)}</td>
+    </tr>
   );
 }

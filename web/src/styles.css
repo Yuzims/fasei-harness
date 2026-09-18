@@ -714,6 +714,18 @@ a {
   text-transform: uppercase;
 }
 
+.data-table.context-profile th,
+.data-table.context-profile td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.data-table.context-profile th:first-child,
+.data-table.context-profile td:first-child {
+  text-align: left;
+}
+
 .status-text.verified,
 .status-text.pass {
   color: var(--verified);

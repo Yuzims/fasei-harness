@@ -6,6 +6,7 @@
  */
 
 import { extractMentionedNumbers } from "../github/normalize.js";
+import { extractSemanticReferences, mentionedIssueNumbers } from "../github/semantic-references.js";
 import { UNTRUSTED } from "../github/types.js";
 import { UNTRUSTED_NOTICE } from "./policy.js";
 import { resourceKeyForTool } from "./state.js";
@@ -105,11 +106,20 @@ function compactPullRequest(output: unknown): Record<string, unknown> {
   if (!isRecord(output)) {
     return { observed: false };
   }
+  const number = Number(output.number);
+  const title = firstLine(output.title);
+  const body = typeof output.body === "string" ? output.body : "";
+  const text = `${typeof output.title === "string" ? output.title : title}\n${body}`;
+  const exclude = Number.isInteger(number) && number > 0 ? number : undefined;
   return {
-    number: Number(output.number),
+    number,
     state: String(output.state ?? "unknown"),
     merged: output.merged === true,
-    title: firstLine(output.title),
+    title,
+    mentionedIssueNumbers: mentionedIssueNumbers(text, exclude),
+    semanticReferences: extractSemanticReferences(text).filter(
+      (ref) => ref.issueNumber === undefined || ref.issueNumber !== exclude,
+    ),
   };
 }
 

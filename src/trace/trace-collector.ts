@@ -4,6 +4,7 @@ export type TraceEventType =
   | "run_started"
   | "attempt_started"
   | "model_call"
+  | "model_call_completed"
   | "tool_call"
   | "tool_result"
   | "run_completed"

@@ -10,6 +10,7 @@ export * from "./agent/mock-model.js";
 export * from "./agent/create-model.js";
 export * from "./agent/llm-config.js";
 export * from "./agent/openai-compat-model.js";
+export * from "./agent/llm-usage.js";
 export * from "./agent/premature-model.js";
 export * from "./agent/tool-failure-model.js";
 export * from "./agent/retrieval-failure-model.js";

@@ -12,6 +12,11 @@ import type { Model, ModelContext, ModelResponse } from "../agent/model.js";
 import { AgentLoop } from "../agent/agent-loop.js";
 import { OpenAICompatModel } from "../agent/openai-compat-model.js";
 import { readLlmConfig } from "../agent/llm-config.js";
+import {
+  formatLlmUsageSummary,
+  llmCallTraceData,
+  LlmUsageCollector,
+} from "../agent/llm-usage.js";
 import type { HistoryMessage } from "../agent/model.js";
 import type { AgentResult, Task, ToolResult } from "../core/types.js";
 import type { GitHubDataProvider } from "../github/provider.js";
@@ -79,6 +84,7 @@ class InvestigationLoopModel implements Model {
     toolResults: ToolResult[],
     context?: ModelContext,
   ): Promise<ModelResponse> {
+    this.session.currentAttempt = context?.attempt ?? this.session.currentAttempt;
     this.session.state.currentStep += 1;
     const nextHistory =
       this.injectState && history.length > 0
@@ -149,17 +155,52 @@ function resolveActorAndModel(input: {
         tools: input.tools,
         fetchImpl: input.options.fetchImpl,
         systemPrompt: INVESTIGATION_SYSTEM_PROMPT,
+        usageCollector: input.session.llmUsage,
+        onLlmCall: (record) => {
+          input.session.trace.record(
+            input.session.runId,
+            input.session.state.currentStep,
+            "model_call_completed",
+            llmCallTraceData(record, {
+              investigationRunId: input.session.runId,
+              attempt: input.session.currentAttempt ?? record.attempt,
+              agentStep: input.session.state.currentStep,
+            }),
+          );
+        },
       }),
     };
   }
   return { actor: "unconfigured", model: undefined };
 }
 
-function unconfiguredReport(state: InvestigationState): InvestigationAgentReport {
+function llmUsageTraceFields(usage: ReturnType<LlmUsageCollector["aggregate"]>): Record<string, unknown> {
+  return {
+    model: usage.model,
+    llmCalls: usage.llmCalls,
+    totalInputTokens: usage.totalInputTokens,
+    totalCachedInputTokens: usage.totalCachedInputTokens,
+    totalOutputTokens: usage.totalOutputTokens,
+    totalTokens: usage.totalTokens,
+    overallCacheHitRate: usage.overallCacheHitRate,
+    averageInputTokensPerCall: usage.averageInputTokensPerCall,
+    averageOutputTokensPerCall: usage.averageOutputTokensPerCall,
+  };
+}
+
+function unconfiguredReport(
+  state: InvestigationState,
+  llmUsage = new LlmUsageCollector().aggregate(),
+): InvestigationAgentReport {
   state.run.status = "not_verified";
   state.run.endedAt = new Date().toISOString();
   state.addQuestion("LLM is not configured; investigation did not run.");
-  const report = toAgentReport({ state, actor: "unconfigured", status: "unconfigured" });
+  const report = toAgentReport({
+    state,
+    actor: "unconfigured",
+    status: "unconfigured",
+    llmUsage,
+  });
   report.report.conclusion =
     "Investigation Agent is unconfigured: no OpenAI-compatible API key. Not running WorkspaceAgentModel / keyword classifier. SnapshotInvestigationDriver is a test fixture only (pass useTestDriver: true).";
   report.report.uncertainty =
@@ -220,7 +261,8 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   const trace = options.trace ?? new TraceCollector();
   const run = createInvestigationRun({ task });
   const state = new InvestigationState(task, run);
-  const session: InvestigationSession = { state, trace, runId: run.id };
+  const llmUsage = new LlmUsageCollector();
+  const session: InvestigationSession = { state, trace, runId: run.id, llmUsage };
   const tools = createInvestigationToolList(options.provider, session);
   const registry = new ToolRegistry();
   for (const tool of tools) {
@@ -255,12 +297,15 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   });
 
   if (!resolved.model) {
-    const report = unconfiguredReport(state);
+    const report = unconfiguredReport(state, llmUsage.aggregate());
+    const usage = report.llmUsage;
     trace.record(run.id, 0, "investigation_completed", {
       status: report.status,
       actor: report.actor,
       notice: report.report.conclusion,
       verifiedComplete: false,
+      llmUsage: llmUsageTraceFields(usage),
+      llmUsageSummary: formatLlmUsageSummary(usage),
     });
     return report;
   }
@@ -297,6 +342,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     const strategy: InvestigationStrategy =
       state.investigationStrategy ?? defaultInvestigationStrategy();
 
+    session.currentAttempt = attempt;
     trace.record(run.id, state.currentStep, "attempt_started", { attempt, attemptId });
     trace.record(run.id, state.currentStep, "investigation_attempt_started", {
       investigationRunId: run.id,
@@ -335,6 +381,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       actor: resolved.actor,
       agentResult: lastAgentResult,
       verification: lastVerification,
+      llmUsage: llmUsage.aggregate(),
     });
 
     if (lastVerification.status === "verified_complete") {
@@ -514,6 +561,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     actor: resolved.actor,
     agentResult: lastAgentResult,
     verification: lastVerification,
+    llmUsage: llmUsage.aggregate(),
   });
 
   trace.record(run.id, state.currentStep, "investigation_completed", {
@@ -530,6 +578,8 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     recoveryCount: Math.max(0, run.attempts.length - 1),
     agentSetVerifiedComplete: false,
     notice: resolved.notice,
+    llmUsage: llmUsageTraceFields(report.llmUsage),
+    llmUsageSummary: formatLlmUsageSummary(report.llmUsage),
   });
 
   return report;

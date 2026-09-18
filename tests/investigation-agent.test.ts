@@ -304,6 +304,8 @@ test("Investigation：注入的 LLM 走 function calling，不经过 keyword cla
 
   assert.equal(result.actor, "llm");
   assert.ok(calls >= 2);
+  assert.ok(result.llmUsage.llmCalls >= 2);
+  assert.notEqual(result.llmUsage.llmCalls, result.investigationSteps.filter((step) => step.tool.startsWith("github_")).length);
   assert.ok(provider.operations.includes("getIssue"));
   assert.ok(result.evidence.some((item) => item.kind === "issue"));
   assert.equal(result.verification?.status, "insufficient_evidence");

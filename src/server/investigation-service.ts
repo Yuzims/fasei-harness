@@ -6,6 +6,7 @@ import type {
   InvestigationMode,
   InvestigationRequest,
   InvestigationSessionDTO,
+  LlmUsageAggregateDTO,
 } from "../api/dto.js";
 import {
   convertCaseToScenario,
@@ -19,6 +20,7 @@ import {
 import type { BenchmarkScenario, DatasetBenchmarkResult } from "../benchmark/index.js";
 import type { InvestigationAttempt } from "../domain/index.js";
 import { investigate, type InvestigationAgentReport } from "../investigation/index.js";
+import { formatLlmUsageSummary } from "../agent/llm-usage.js";
 import type { GitHubDataProvider } from "../github/provider.js";
 import { LiveGitHubProvider } from "../github/live-provider.js";
 import { parseGitHubIssueInput, type ParsedGitHubIssue } from "../github/issue-input.js";
@@ -195,6 +197,32 @@ function issueFromReport(report: InvestigationAgentReport): InvestigationIssueDT
   };
 }
 
+function toLlmUsageDTO(usage: InvestigationAgentReport["llmUsage"]): LlmUsageAggregateDTO {
+  return {
+    model: usage.model,
+    llmCalls: usage.llmCalls,
+    totalInputTokens: usage.totalInputTokens,
+    totalCachedInputTokens: usage.totalCachedInputTokens,
+    totalOutputTokens: usage.totalOutputTokens,
+    totalTokens: usage.totalTokens,
+    overallCacheHitRate: usage.overallCacheHitRate,
+    averageInputTokensPerCall: usage.averageInputTokensPerCall,
+    averageOutputTokensPerCall: usage.averageOutputTokensPerCall,
+    summary: formatLlmUsageSummary(usage),
+    calls: usage.calls.map((call) => ({
+      callId: call.callId,
+      callIndex: call.callIndex,
+      model: call.model,
+      usage: { ...call.usage },
+      durationMs: call.durationMs,
+      historyLength: call.historyLength,
+      attempt: call.attempt,
+      ok: call.ok,
+      errorCategory: call.errorCategory,
+    })),
+  };
+}
+
 export function toInvestigationSessionDTO(
   report: InvestigationAgentReport,
   meta: {
@@ -272,6 +300,7 @@ export function toInvestigationSessionDTO(
       uncertainty: report.report.uncertainty,
       openQuestions: report.report.openQuestions,
     },
+    llmUsage: toLlmUsageDTO(report.llmUsage),
   };
 }
 

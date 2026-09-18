@@ -180,6 +180,8 @@ test("LIVE with a configured model uses the real Investigation Agent path", asyn
   assert.notEqual(session.verification?.status, undefined);
   assert.ok(calls.some((url) => url.includes("api.github.com/repos/debug-js/debug/issues/1")));
   assert.ok(calls.some((url) => url.includes("https://llm.test/v1/chat/completions")));
+  assert.ok((session.llmUsage?.llmCalls ?? 0) >= 1);
+  assert.equal(session.llmUsage?.calls.some((call) => call.ok), true);
 });
 
 test("SNAPSHOT → SnapshotInvestigationDriver and never calls GitHub HTTP", async () => {

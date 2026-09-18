@@ -299,4 +299,38 @@ export interface InvestigationSessionDTO {
     uncertainty: string;
     openQuestions: string[];
   };
+  llmUsage?: LlmUsageAggregateDTO;
+}
+
+export interface LlmUsageDTO {
+  inputTokens: number | null;
+  cachedInputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+}
+
+export interface LlmCallDTO {
+  callId: string;
+  callIndex: number;
+  model: string;
+  usage: LlmUsageDTO;
+  durationMs: number;
+  historyLength?: number;
+  attempt?: number;
+  ok: boolean;
+  errorCategory?: string;
+}
+
+export interface LlmUsageAggregateDTO {
+  model: string | null;
+  llmCalls: number;
+  totalInputTokens: number | null;
+  totalCachedInputTokens: number | null;
+  totalOutputTokens: number | null;
+  totalTokens: number | null;
+  overallCacheHitRate: number | null;
+  averageInputTokensPerCall: number | null;
+  averageOutputTokensPerCall: number | null;
+  summary: string;
+  calls: LlmCallDTO[];
 }

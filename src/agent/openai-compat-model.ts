@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { Task, ToolResult } from "../core/types.js";
 import type { Tool } from "../tools/tool.js";
+import {
+  extractLlmUsage,
+  llmErrorCategory,
+  type LlmCallRecord,
+  type LlmUsageCollector,
+  emptyLlmUsage,
+} from "./llm-usage.js";
 import type { HistoryMessage, Model, ModelContext, ModelResponse } from "./model.js";
 
 export const DEFAULT_WORKSPACE_SYSTEM_PROMPT = [
@@ -28,6 +35,9 @@ export interface OpenAICompatOptions {
   fetchImpl?: typeof fetch;
   /** Override the default workspace-agent system prompt (e.g. Investigation Agent). */
   systemPrompt?: string;
+  /** Observability only. Does not change request contents or model behavior. */
+  usageCollector?: LlmUsageCollector;
+  onLlmCall?: (record: LlmCallRecord) => void;
 }
 
 interface ChatMessage {
@@ -224,6 +234,7 @@ export async function parseChatCompletionStream(
   let toolName = "";
   let toolArgs = "";
   let errorMessage = "";
+  let usage: unknown;
 
   const reader = body.getReader();
   while (true) {
@@ -247,6 +258,7 @@ export async function parseChatCompletionStream(
 
       let payload: {
         error?: { message?: string };
+        usage?: unknown;
         choices?: Array<{
           delta?: {
             content?: string | null;
@@ -261,6 +273,10 @@ export async function parseChatCompletionStream(
         payload = JSON.parse(data);
       } catch {
         continue;
+      }
+
+      if (payload.usage) {
+        usage = payload.usage;
       }
 
       if (payload.error?.message) {
@@ -306,16 +322,19 @@ export async function parseChatCompletionStream(
           },
         },
       ],
+      usage,
     };
   }
 
   return {
     choices: [{ message: { content } }],
+    usage,
   };
 }
 
 export class OpenAICompatModel implements Model {
   private readonly fetchImpl: typeof fetch;
+  private callCount = 0;
 
   constructor(private readonly options: OpenAICompatOptions) {
     this.fetchImpl = options.fetchImpl ?? fetch;
@@ -327,56 +346,95 @@ export class OpenAICompatModel implements Model {
     _toolResults: ToolResult[],
     context: ModelContext = { attempt: 1 },
   ): Promise<ModelResponse> {
-    const tools = this.options.tools ?? [];
-    const body: Record<string, unknown> = {
-      model: this.options.model,
-      temperature: 0,
-      stream: true,
-      messages: buildChatMessages(
-        task,
-        history,
-        context,
-        this.options.systemPrompt,
-      ),
+    const callId = randomUUID();
+    const startedAt = Date.now();
+    const historyLength = history.length;
+    let httpStatus: number | undefined;
+    let usage = emptyLlmUsage();
+    let recorded = false;
+
+    const recordCall = (ok: boolean, errorCategory?: string) => {
+      if (recorded) {
+        return;
+      }
+      recorded = true;
+      const partial: Omit<LlmCallRecord, "callIndex"> = {
+        callId,
+        model: this.options.model,
+        usage,
+        durationMs: Date.now() - startedAt,
+        ok,
+        historyLength,
+        attempt: context.attempt,
+        ...(errorCategory ? { errorCategory } : {}),
+      };
+      const record = this.options.usageCollector
+        ? this.options.usageCollector.record(partial)
+        : { ...partial, callIndex: ++this.callCount };
+      this.options.onLlmCall?.(record);
     };
 
-    if (tools.length > 0) {
-      body.tools = toOpenAITools(tools);
-      body.tool_choice = "auto";
-    }
+    try {
+      const tools = this.options.tools ?? [];
+      const body: Record<string, unknown> = {
+        model: this.options.model,
+        temperature: 0,
+        stream: true,
+        // Observability only: ask the provider to include usage on the last SSE chunk.
+        stream_options: { include_usage: true },
+        messages: buildChatMessages(
+          task,
+          history,
+          context,
+          this.options.systemPrompt,
+        ),
+      };
 
-    // 百炼 Qwen3+ 默认可能开思考，工具调用会变慢或不走 function call
-    if (this.options.baseUrl.includes("dashscope")) {
-      body.enable_thinking = false;
-    }
-
-    const response = await this.fetchImpl(`${this.options.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${this.options.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`LLM HTTP ${response.status}: ${text.slice(0, 400)}`);
-    }
-
-    const contentType = response.headers.get("content-type") ?? "";
-    if (contentType.includes("json") && !contentType.includes("event-stream")) {
-      const text = await response.text();
-      let data: unknown;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`LLM 返回的不是 JSON: ${text.slice(0, 200)}`);
+      if (tools.length > 0) {
+        body.tools = toOpenAITools(tools);
+        body.tool_choice = "auto";
       }
-      return parseChatCompletion(data);
-    }
 
-    const assembled = await parseChatCompletionStream(response.body, context.onDelta);
-    return parseChatCompletion(assembled);
+      // 百炼 Qwen3+ 默认可能开思考，工具调用会变慢或不走 function call
+      if (this.options.baseUrl.includes("dashscope")) {
+        body.enable_thinking = false;
+      }
+
+      const response = await this.fetchImpl(`${this.options.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${this.options.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+      httpStatus = response.status;
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`LLM HTTP ${response.status}: ${text.slice(0, 400)}`);
+      }
+
+      const contentType = response.headers.get("content-type") ?? "";
+      let data: unknown;
+      if (contentType.includes("json") && !contentType.includes("event-stream")) {
+        const text = await response.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(`LLM 返回的不是 JSON: ${text.slice(0, 200)}`);
+        }
+      } else {
+        data = await parseChatCompletionStream(response.body, context.onDelta);
+      }
+
+      usage = extractLlmUsage(data);
+      const parsed = parseChatCompletion(data);
+      recordCall(true);
+      return parsed;
+    } catch (error) {
+      recordCall(false, llmErrorCategory(error, httpStatus));
+      throw error;
+    }
   }
 }

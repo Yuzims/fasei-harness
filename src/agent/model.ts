@@ -18,6 +18,8 @@ export interface HistoryMessage {
 
 export interface ModelContext {
   attempt: number;
+  /** AgentLoop step within the current attempt. Distinct from callIndex. */
+  agentStep?: number;
   lastFailure?: Failure;
   lastRecovery?: WorkspaceRecoveryPlan;
   investigationFailure?: FailureEvent;

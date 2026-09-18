@@ -4,8 +4,11 @@ import type { Tool } from "../tools/tool.js";
 import {
   extractLlmUsage,
   llmErrorCategory,
+  profileRequestMessages,
   type LlmCallRecord,
+  type LlmContextProfile,
   type LlmUsageCollector,
+  emptyLlmContextProfile,
   emptyLlmUsage,
 } from "./llm-usage.js";
 import {
@@ -392,6 +395,7 @@ export class OpenAICompatModel implements Model {
     const historyLength = history.length;
     let httpStatus: number | undefined;
     let usage = emptyLlmUsage();
+    let contextProfile: LlmContextProfile = emptyLlmContextProfile(historyLength);
     let recorded = false;
     let httpStarted = false;
     let signal: AbortSignal | undefined = context.signal ?? runtime?.signal;
@@ -409,6 +413,10 @@ export class OpenAICompatModel implements Model {
         ok,
         historyLength,
         attempt: context.attempt,
+        agentStep: context.agentStep,
+        serializedRequestChars: contextProfile.serializedRequestChars,
+        estimatedInputTokens: contextProfile.estimatedInputTokens,
+        messageCount: contextProfile.messageCount,
         ...(errorCategory ? { errorCategory } : {}),
       };
       const record = this.options.usageCollector
@@ -431,18 +439,20 @@ export class OpenAICompatModel implements Model {
       runtime?.assertCanStartCall();
 
       const tools = this.options.tools ?? [];
+      const messages = buildChatMessages(
+        task,
+        history,
+        context,
+        this.options.systemPrompt,
+      );
+      contextProfile = profileRequestMessages(messages, historyLength);
       const body: Record<string, unknown> = {
         model: this.options.model,
         temperature: 0,
         stream: true,
         // Observability only: ask the provider to include usage on the last SSE chunk.
         stream_options: { include_usage: true },
-        messages: buildChatMessages(
-          task,
-          history,
-          context,
-          this.options.systemPrompt,
-        ),
+        messages,
       };
 
       if (tools.length > 0) {

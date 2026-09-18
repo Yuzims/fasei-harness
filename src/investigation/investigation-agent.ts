@@ -13,6 +13,7 @@ import { AgentLoop } from "../agent/agent-loop.js";
 import { OpenAICompatModel } from "../agent/openai-compat-model.js";
 import { readLlmConfig } from "../agent/llm-config.js";
 import {
+  formatLlmProfilingSummary,
   formatLlmUsageSummary,
   llmCallTraceData,
   LlmUsageCollector,
@@ -176,12 +177,12 @@ function resolveActorAndModel(input: {
         onLlmCall: (record) => {
           input.session.trace.record(
             input.session.runId,
-            input.session.state.currentStep,
+            record.agentStep ?? input.session.state.currentStep,
             "model_call_completed",
             llmCallTraceData(record, {
               investigationRunId: input.session.runId,
-              attempt: input.session.currentAttempt ?? record.attempt,
-              agentStep: input.session.state.currentStep,
+              attempt: record.attempt ?? input.session.currentAttempt,
+              agentStep: record.agentStep,
             }),
           );
         },
@@ -403,6 +404,7 @@ async function runInvestigationAttempts(input: {
       verifiedComplete: false,
       llmUsage: llmUsageTraceFields(usage),
       llmUsageSummary: formatLlmUsageSummary(usage),
+      llmProfilingSummary: formatLlmProfilingSummary(usage),
       runtimeBudget: runtime.budget,
     });
     return report;
@@ -706,6 +708,7 @@ async function runInvestigationAttempts(input: {
     notice: resolved.notice,
     llmUsage: llmUsageTraceFields(report.llmUsage),
     llmUsageSummary: formatLlmUsageSummary(report.llmUsage),
+    llmProfilingSummary: formatLlmProfilingSummary(report.llmUsage),
     runtimeBudget: runtime.budget,
     runtimeFailure: session.runtimeFailure?.errorCode,
   });

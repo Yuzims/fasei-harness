@@ -71,4 +71,6 @@ test("Loop：model_call trace 带上 historyLength", async () => {
     .filter((event) => event.type === "model_call");
   assert.equal(modelCalls[0]?.data.historyLength, 1);
   assert.ok(Number(modelCalls[1]?.data.historyLength) > 1);
+  assert.equal(modelCalls[0]?.data.agentStep, 1);
+  assert.equal(modelCalls[1]?.data.agentStep, 2);
 });

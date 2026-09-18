@@ -227,6 +227,13 @@ test("OpenAICompatModel：historyLength 随后续 decide 增长", async () => {
   assert.equal(collector.getCalls()[0]?.historyLength, 1);
   assert.equal(collector.getCalls()[1]?.historyLength, 3);
   assert.ok((collector.getCalls()[1]?.historyLength ?? 0) > (collector.getCalls()[0]?.historyLength ?? 0));
+  assert.ok((collector.getCalls()[0]?.serializedRequestChars ?? 0) > 0);
+  assert.ok(
+    (collector.getCalls()[1]?.serializedRequestChars ?? 0) >
+      (collector.getCalls()[0]?.serializedRequestChars ?? 0),
+  );
+  assert.ok((collector.getCalls()[0]?.estimatedInputTokens ?? 0) > 0);
+  assert.notEqual(collector.getCalls()[0]?.estimatedInputTokens, collector.getCalls()[0]?.usage.inputTokens);
 });
 
 test("Investigation：三次真实 LLM call 汇总 token，且 llmCalls ≠ toolCalls", async () => {
@@ -382,4 +389,15 @@ test("Trace：model_call_completed 不含密钥、Authorization 或完整 prompt
   assert.equal("headers" in data, false);
   assert.equal("body" in data, false);
   assert.equal((data.usage as { inputTokens?: number }).inputTokens, 3019);
+  assert.equal(data.inputTokens, 3019);
+  assert.equal(typeof data.estimatedInputTokens, "number");
+  assert.ok((data.estimatedInputTokens as number) > 0);
+  assert.equal(typeof data.serializedRequestChars, "number");
+  const profiling = String(
+    trace.getEvents().find((event) => event.type === "investigation_completed")?.data.llmProfilingSummary ??
+      "",
+  );
+  assert.match(profiling, /LLM Profiling/);
+  assert.equal(profiling.includes(apiKey), false);
+  assert.equal(profiling.includes(INVESTIGATION_SYSTEM_PROMPT), false);
 });

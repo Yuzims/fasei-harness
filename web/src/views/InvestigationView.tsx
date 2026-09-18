@@ -4,6 +4,7 @@ import { AgentOutput } from "../components/AgentOutput";
 import { AttemptPanel } from "../components/AttemptPanel";
 import { ClaimPanel } from "../components/ClaimPanel";
 import { EvidencePanel } from "../components/EvidencePanel";
+import { LlmProfilingPanel } from "../components/LlmProfilingPanel";
 import { TraceTimeline } from "../components/TraceTimeline";
 import { VerificationChecks, VerificationSummary } from "../components/VerificationPanel";
 import {
@@ -293,6 +294,7 @@ export function InvestigationView() {
           <EvidencePanel session={session} />
           <ClaimPanel session={session} />
           <AttemptPanel session={session} />
+          <LlmProfilingPanel session={session} />
           <AgentOutput session={session} />
         </>
       ) : null}

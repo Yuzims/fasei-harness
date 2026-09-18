@@ -27,6 +27,7 @@ export class AgentLoop {
     for (let step = 1; step <= this.maxSteps; step++) {
       this.trace.record(runId, step, "model_call", {
         attempt: context.attempt,
+        agentStep: step,
         task: task.description,
         historyLength: history.length,
       });
@@ -35,7 +36,7 @@ export class AgentLoop {
         task,
         history,
         toolResults,
-        context,
+        { ...context, agentStep: step },
       );
 
       if (response.type === "final") {

@@ -20,7 +20,7 @@ import {
 import type { BenchmarkScenario, DatasetBenchmarkResult } from "../benchmark/index.js";
 import type { InvestigationAttempt } from "../domain/index.js";
 import { investigate, type InvestigationAgentReport } from "../investigation/index.js";
-import { formatLlmUsageSummary } from "../agent/llm-usage.js";
+import { formatLlmProfilingSummary } from "../agent/llm-usage.js";
 import type { GitHubDataProvider } from "../github/provider.js";
 import { LiveGitHubProvider } from "../github/live-provider.js";
 import { parseGitHubIssueInput, type ParsedGitHubIssue } from "../github/issue-input.js";
@@ -199,6 +199,7 @@ function issueFromReport(report: InvestigationAgentReport): InvestigationIssueDT
 }
 
 function toLlmUsageDTO(usage: InvestigationAgentReport["llmUsage"]): LlmUsageAggregateDTO {
+  const profilingSummary = formatLlmProfilingSummary(usage);
   return {
     model: usage.model,
     llmCalls: usage.llmCalls,
@@ -209,7 +210,8 @@ function toLlmUsageDTO(usage: InvestigationAgentReport["llmUsage"]): LlmUsageAgg
     overallCacheHitRate: usage.overallCacheHitRate,
     averageInputTokensPerCall: usage.averageInputTokensPerCall,
     averageOutputTokensPerCall: usage.averageOutputTokensPerCall,
-    summary: formatLlmUsageSummary(usage),
+    summary: profilingSummary,
+    profilingSummary,
     calls: usage.calls.map((call) => ({
       callId: call.callId,
       callIndex: call.callIndex,
@@ -218,6 +220,10 @@ function toLlmUsageDTO(usage: InvestigationAgentReport["llmUsage"]): LlmUsageAgg
       durationMs: call.durationMs,
       historyLength: call.historyLength,
       attempt: call.attempt,
+      agentStep: call.agentStep,
+      serializedRequestChars: call.serializedRequestChars,
+      estimatedInputTokens: call.estimatedInputTokens,
+      messageCount: call.messageCount,
       ok: call.ok,
       errorCategory: call.errorCategory,
     })),

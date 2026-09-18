@@ -321,6 +321,10 @@ export interface LlmCallDTO {
   durationMs: number;
   historyLength?: number;
   attempt?: number;
+  agentStep?: number;
+  serializedRequestChars?: number;
+  estimatedInputTokens?: number | null;
+  messageCount?: number;
   ok: boolean;
   errorCategory?: string;
 }
@@ -336,5 +340,6 @@ export interface LlmUsageAggregateDTO {
   averageInputTokensPerCall: number | null;
   averageOutputTokensPerCall: number | null;
   summary: string;
+  profilingSummary: string;
   calls: LlmCallDTO[];
 }

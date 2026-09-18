@@ -1,13 +1,27 @@
 /**
- * LLM token / cache observability.
- * Records provider-reported usage only. Does not estimate, price, or alter requests.
+ * LLM token / cache observability and local context-size profiling.
+ *
+ * Provider usage (inputTokens / cachedInputTokens / outputTokens / totalTokens)
+ * is recorded as returned. estimatedInputTokens is a local heuristic
+ * (serialized message characters / 4), not provider token usage.
+ * This module does not price requests or alter model behavior.
  */
+
+export const ESTIMATED_CHARS_PER_TOKEN = 4;
 
 export interface LlmUsage {
   inputTokens: number | null;
   cachedInputTokens: number | null;
   outputTokens: number | null;
   totalTokens: number | null;
+}
+
+/** Local context-size proxy. Not provider-reported token usage. */
+export interface LlmContextProfile {
+  estimatedInputTokens: number | null;
+  historyLength: number;
+  serializedRequestChars: number;
+  messageCount: number;
 }
 
 export interface LlmCallRecord {
@@ -20,6 +34,10 @@ export interface LlmCallRecord {
   errorCategory?: string;
   historyLength?: number;
   attempt?: number;
+  agentStep?: number;
+  serializedRequestChars?: number;
+  estimatedInputTokens?: number | null;
+  messageCount?: number;
 }
 
 export interface LlmUsageAggregate {
@@ -41,6 +59,46 @@ export function emptyLlmUsage(): LlmUsage {
     cachedInputTokens: null,
     outputTokens: null,
     totalTokens: null,
+  };
+}
+
+export function emptyLlmContextProfile(historyLength = 0): LlmContextProfile {
+  return {
+    estimatedInputTokens: null,
+    historyLength,
+    serializedRequestChars: 0,
+    messageCount: 0,
+  };
+}
+
+/**
+ * Local estimate only. Not provider inputTokens.
+ * estimatedInputTokens ≈ serializedRequestChars / 4.
+ */
+export function estimateInputTokensFromChars(serializedRequestChars: number): number | null {
+  if (!Number.isFinite(serializedRequestChars) || serializedRequestChars < 0) {
+    return null;
+  }
+  return Math.ceil(serializedRequestChars / ESTIMATED_CHARS_PER_TOKEN);
+}
+
+/** Counts and lengths only. Never returns message contents. */
+export function profileRequestMessages(
+  messages: unknown,
+  historyLength: number,
+): LlmContextProfile {
+  let serializedRequestChars = 0;
+  try {
+    serializedRequestChars = JSON.stringify(messages)?.length ?? 0;
+  } catch {
+    return emptyLlmContextProfile(historyLength);
+  }
+  const messageCount = Array.isArray(messages) ? messages.length : 0;
+  return {
+    estimatedInputTokens: estimateInputTokensFromChars(serializedRequestChars),
+    historyLength,
+    serializedRequestChars,
+    messageCount,
   };
 }
 
@@ -168,7 +226,10 @@ export class LlmUsageCollector {
 }
 
 function formatCount(value: number | null): string {
-  return value === null ? "unavailable" : value.toLocaleString("en-US");
+  if (value === null) {
+    return "unavailable";
+  }
+  return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
 
 function formatRate(value: number | null): string {
@@ -195,6 +256,57 @@ export function formatLlmUsageSummary(aggregate: LlmUsageAggregate): string {
   ].join("\n");
 }
 
+function formatOptional(value: number | null | undefined): string {
+  return value === null || value === undefined ? "unavailable" : formatCount(value);
+}
+
+function formatCallLine(record: LlmCallRecord): string[] {
+  return [
+    `Call #${record.callIndex}`,
+    `  attempt: ${formatOptional(record.attempt)}`,
+    `  step: ${formatOptional(record.agentStep)}`,
+    `  history: ${formatOptional(record.historyLength)}`,
+    `  input: ${formatOptional(record.usage.inputTokens)}`,
+    `  cached: ${formatOptional(record.usage.cachedInputTokens)}`,
+    `  output: ${formatOptional(record.usage.outputTokens)}`,
+    `  total: ${formatOptional(record.usage.totalTokens)}`,
+    `  duration: ${record.durationMs}ms`,
+    `  estimatedInputTokens: ${formatOptional(record.estimatedInputTokens)}`,
+    `  serializedRequestChars: ${formatOptional(record.serializedRequestChars)}`,
+  ];
+}
+
+export function formatLlmProfilingSummary(aggregate: LlmUsageAggregate): string {
+  const model = aggregate.model ?? "unavailable";
+  const lines = [
+    "LLM Profiling",
+    "",
+    `Model: ${model}`,
+    "",
+    `Calls: ${aggregate.llmCalls}`,
+    "",
+    `Input tokens: ${formatCount(aggregate.totalInputTokens)}`,
+    `Cached input tokens: ${formatCount(aggregate.totalCachedInputTokens)}`,
+    `Cache hit rate: ${formatRate(aggregate.overallCacheHitRate)}`,
+    "",
+    `Output tokens: ${formatCount(aggregate.totalOutputTokens)}`,
+    `Total tokens: ${formatCount(aggregate.totalTokens)}`,
+    "",
+    `Avg input / call: ${formatCount(aggregate.averageInputTokensPerCall)}`,
+    `Avg output / call: ${formatCount(aggregate.averageOutputTokensPerCall)}`,
+  ];
+  if (aggregate.calls.length > 0) {
+    lines.push("");
+    for (const [index, call] of aggregate.calls.entries()) {
+      if (index > 0) {
+        lines.push("");
+      }
+      lines.push(...formatCallLine(call));
+    }
+  }
+  return lines.join("\n");
+}
+
 export function llmCallTraceData(
   record: LlmCallRecord,
   context: {
@@ -206,10 +318,14 @@ export function llmCallTraceData(
   return {
     investigationRunId: context.investigationRunId,
     attempt: context.attempt ?? record.attempt,
-    agentStep: context.agentStep,
+    agentStep: context.agentStep ?? record.agentStep,
     callId: record.callId,
     callIndex: record.callIndex,
     model: record.model,
+    inputTokens: record.usage.inputTokens,
+    cachedInputTokens: record.usage.cachedInputTokens,
+    outputTokens: record.usage.outputTokens,
+    totalTokens: record.usage.totalTokens,
     usage: {
       inputTokens: record.usage.inputTokens,
       cachedInputTokens: record.usage.cachedInputTokens,
@@ -218,6 +334,9 @@ export function llmCallTraceData(
     },
     durationMs: record.durationMs,
     historyLength: record.historyLength,
+    serializedRequestChars: record.serializedRequestChars,
+    estimatedInputTokens: record.estimatedInputTokens,
+    messageCount: record.messageCount,
     ok: record.ok,
     ...(record.errorCategory ? { errorCategory: record.errorCategory } : {}),
   };

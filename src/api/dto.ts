@@ -169,6 +169,47 @@ export interface InvestigationCheckDTO {
   name: string;
   status: string;
   message: string;
+  evidenceIds?: string[];
+}
+
+export interface InvestigationEvidenceDTO {
+  id: string;
+  kind: string;
+  summary: string;
+  trust: string;
+  url?: string;
+  source?: string;
+  operation?: string;
+  resource?: string;
+  repository?: string;
+  retrievedAt?: string;
+}
+
+export interface InvestigationRelationDTO {
+  fromEvidenceId: string;
+  toEvidenceId: string;
+  type: string;
+}
+
+export interface InvestigationClaimDTO {
+  id: string;
+  text: string;
+  polarity: string;
+  critical: boolean;
+}
+
+export interface InvestigationClaimEvidenceDTO {
+  claimId: string;
+  evidenceId: string;
+  role: string;
+}
+
+export interface InvestigationStepDTO {
+  step: number;
+  tool: string;
+  success: boolean;
+  reason?: string;
+  evidenceIds: string[];
 }
 
 export interface InvestigationAttemptDTO {
@@ -176,11 +217,21 @@ export interface InvestigationAttemptDTO {
   attempt: number;
   status?: string;
   parentAttemptId?: string;
+  recoveryPlanId?: string;
+  failureEventId?: string;
+  startedAt?: string;
+  endedAt?: string;
   strategy?: string;
   verificationStatus?: string;
   checks: InvestigationCheckDTO[];
+  agentConclusion?: string;
   failureType?: string;
   failureReason?: string;
+  failureTool?: string;
+  failureErrorCode?: string;
+  failureRetryable?: boolean;
+  missingRequirementIds?: string[];
+  recoveryId?: string;
   recoveryAction?: string;
   recoveryReason?: string;
   recoveryNextStep?: string;
@@ -209,31 +260,11 @@ export interface InvestigationSessionDTO {
     unsupportedClaimIds: string[];
     checks: InvestigationCheckDTO[];
   };
-  evidence: Array<{
-    id: string;
-    kind: string;
-    summary: string;
-    trust: string;
-    url?: string;
-  }>;
-  claims: Array<{
-    id: string;
-    text: string;
-    polarity: string;
-    critical: boolean;
-  }>;
-  claimEvidence: Array<{
-    claimId: string;
-    evidenceId: string;
-    role: string;
-  }>;
-  steps: Array<{
-    step: number;
-    tool: string;
-    success: boolean;
-    reason?: string;
-    evidenceIds: string[];
-  }>;
+  evidence: InvestigationEvidenceDTO[];
+  relations: InvestigationRelationDTO[];
+  claims: InvestigationClaimDTO[];
+  claimEvidence: InvestigationClaimEvidenceDTO[];
+  steps: InvestigationStepDTO[];
   attempts: InvestigationAttemptDTO[];
   report: {
     conclusion: string;

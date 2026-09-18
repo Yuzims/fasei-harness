@@ -126,22 +126,37 @@ export function investigationCatalog(): InvestigationCatalogDTO {
   return { snapshots, fixtures, recovery };
 }
 
+function slimCheck(check: NonNullable<InvestigationAttempt["verification"]>["checks"][number]) {
+  return {
+    id: check.id,
+    name: check.name,
+    status: check.status,
+    message: check.message,
+    evidenceIds: check.evidenceIds,
+  };
+}
+
 function slimAttempt(attempt: InvestigationAttempt) {
   return {
     id: attempt.id,
     attempt: attempt.attempt,
     status: attempt.status,
     parentAttemptId: attempt.parentAttemptId,
+    recoveryPlanId: attempt.recoveryPlanId,
+    failureEventId: attempt.failureEventId,
+    startedAt: attempt.startedAt,
+    endedAt: attempt.endedAt,
     strategy: attempt.strategy?.type,
     verificationStatus: attempt.verification?.status,
-    checks: (attempt.verification?.checks ?? []).map((check) => ({
-      id: check.id,
-      name: check.name,
-      status: check.status,
-      message: check.message,
-    })),
+    checks: (attempt.verification?.checks ?? []).map(slimCheck),
+    agentConclusion: attempt.agentConclusion,
     failureType: attempt.failure?.type,
     failureReason: attempt.failure?.reason,
+    failureTool: attempt.failure?.tool,
+    failureErrorCode: attempt.failure?.errorCode,
+    failureRetryable: attempt.failure?.retryable,
+    missingRequirementIds: attempt.failure?.missingRequirementIds,
+    recoveryId: attempt.recovery?.id,
     recoveryAction: attempt.recovery?.action,
     recoveryReason: attempt.recovery?.reason,
     recoveryNextStep: attempt.recovery?.nextStep,
@@ -178,12 +193,7 @@ export function toInvestigationSessionDTO(
           prematureCompletion: report.verification.prematureCompletion,
           missingRequirementIds: report.verification.missingRequirementIds,
           unsupportedClaimIds: report.verification.unsupportedClaimIds,
-          checks: report.verification.checks.map((check) => ({
-            id: check.id,
-            name: check.name,
-            status: check.status,
-            message: check.message,
-          })),
+          checks: report.verification.checks.map(slimCheck),
         }
       : undefined,
     evidence: report.evidence.map((item) => ({
@@ -192,6 +202,16 @@ export function toInvestigationSessionDTO(
       summary: item.summary,
       trust: item.provenance.trust,
       url: item.provenance.url,
+      source: item.provenance.source,
+      operation: item.provenance.operation,
+      resource: item.provenance.resource,
+      repository: item.provenance.repository,
+      retrievedAt: item.provenance.retrievedAt,
+    })),
+    relations: report.run.relations.map((item) => ({
+      fromEvidenceId: item.fromEvidenceId,
+      toEvidenceId: item.toEvidenceId,
+      type: item.type,
     })),
     claims: report.claims.map((item) => ({
       id: item.id,

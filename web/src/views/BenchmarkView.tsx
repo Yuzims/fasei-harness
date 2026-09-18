@@ -1,81 +1,76 @@
 import { useEffect, useState } from "react";
-import { fetchBenchmark } from "../api/client";
-import type { ModeScoreDTO } from "@dto";
-
-const LABELS: Record<string, string> = {
-  baseline: "信 Agent",
-  generic_retry: "盲重试",
-  failure_aware: "对症恢复",
-};
-
-function pct(value: number) {
-  return `${Math.round(value * 100)}%`;
-}
+import { fetchRealV1Benchmark, type RealV1BenchmarkDTO } from "../api/client";
+import { formatMetric, humanizeKey, outcomeLabel, verificationTone } from "../lib/workbench";
 
 export function BenchmarkView() {
-  const [modes, setModes] = useState<ModeScoreDTO[]>([]);
+  const [result, setResult] = useState<RealV1BenchmarkDTO>();
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    fetchBenchmark()
-      .then((payload) => setModes(payload.modes))
+    fetchRealV1Benchmark()
+      .then(setResult)
       .catch((err: Error) => setError(err.message));
   }, []);
 
+  const metrics = result ? Object.entries(result.metrics) : [];
+
   return (
-    <div className="grid">
-      <section className="card">
-        <h2>同一批注入失败，三种策略对照</h2>
-        <p className="muted">成功率看 Verifier。成本用模型调用次数近似 Token。</p>
+    <div className="page">
+      <section className="panel">
+        <h2>Real-v1</h2>
+        {result ? (
+          <p className="muted">
+            {result.dataset} {result.datasetVersion} · {result.cases.length} Cases · Snapshot Dataset
+            · {result.timestamp}
+          </p>
+        ) : (
+          <p className="muted">Snapshot dataset metrics from the latest CLI evaluator result.</p>
+        )}
         {error ? <p className="error">{error}</p> : null}
-        <div className="grid cols-3" style={{ marginTop: 16 }}>
-          {modes.map((row) => (
-            <article key={row.mode} className="card">
-              <h3>{LABELS[row.mode] ?? row.mode}</h3>
-              <Metric label="成功率" value={row.successRate} />
-              <Metric label="误完成率" value={row.falseCompletionRate} fail />
-              <p className="muted">平均调用 {row.avgModelCalls.toFixed(2)}</p>
+      </section>
+
+      {metrics.length > 0 ? (
+        <section className="metric-grid">
+          {metrics.map(([key, value]) => (
+            <article key={key} className="metric">
+              <div className="kicker">{humanizeKey(key)}</div>
+              <div className="metric-value">{formatMetric(key, value)}</div>
             </article>
           ))}
-        </div>
-      </section>
-      <section className="card">
-        <h3>分任务</h3>
-        {modes[0]?.cases.map((item) => (
-          <div key={item.id} className="hit">
-            <strong>{item.title}</strong>
-            <span className="mono">
-              {modes
-                .map((row) => {
-                  const found = row.cases.find((entry) => entry.id === item.id);
-                  return `${LABELS[row.mode]}:${found?.verifierPass ? "PASS" : "FAIL"}`;
-                })
-                .join("  ")}
-            </span>
-          </div>
-        ))}
-      </section>
-    </div>
-  );
-}
+        </section>
+      ) : null}
 
-function Metric({
-  label,
-  value,
-  fail = false,
-}: {
-  label: string;
-  value: number;
-  fail?: boolean;
-}) {
-  return (
-    <div style={{ margin: "10px 0" }}>
-      <div className="kicker">
-        {label} {pct(value)}
-      </div>
-      <div className={`bar ${fail ? "fail" : "pass"}`}>
-        <span style={{ width: `${Math.max(4, value * 100)}%` }} />
-      </div>
+      {result?.cases.length ? (
+        <section className="panel">
+          <h2>Cases</h2>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Case</th>
+                <th>Expected</th>
+                <th>Observed</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.cases.map((item) => (
+                <tr key={item.caseId}>
+                  <td className="mono">{item.caseId}</td>
+                  <td className={`status-text ${verificationTone(item.expectedOutcome)}`}>
+                    {outcomeLabel(item.expectedOutcome)}
+                  </td>
+                  <td className={`status-text ${verificationTone(item.observedOutcome)}`}>
+                    {outcomeLabel(item.observedOutcome)}
+                  </td>
+                  <td className={item.evaluation.passed ? "status-text pass" : "status-text fail"}>
+                    {item.evaluation.passed ? "pass" : "fail"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
     </div>
   );
 }

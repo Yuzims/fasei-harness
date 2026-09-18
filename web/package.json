@@ -1,5 +1,5 @@
 {
-  "name": "agent-failure-console",
+  "name": "fasei-workbench",
   "private": true,
   "type": "module",
   "scripts": {

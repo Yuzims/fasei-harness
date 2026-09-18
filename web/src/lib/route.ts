@@ -1,39 +1,20 @@
-export type View = "investigate" | "agent" | "overview" | "run" | "benchmark" | "retrieval";
+export type View = "investigate" | "benchmarks";
 
 export interface Route {
   view: View;
-  scenarioId?: string;
 }
 
 export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#/, "").replace(/^\//, "");
-  const [view, scenarioId] = raw.split("/").filter(Boolean);
-  if (view === "run" || view === "inject") {
-    return { view: "run", scenarioId };
-  }
-  if (view === "lab" || view === "overview") {
-    return { view: "overview" };
-  }
-  if (view === "agent") {
-    return { view: "agent" };
-  }
-  if (view === "benchmark" || view === "retrieval") {
-    return { view };
+  const [view] = raw.split("/").filter(Boolean);
+  if (view === "benchmarks" || view === "benchmark") {
+    return { view: "benchmarks" };
   }
   return { view: "investigate" };
 }
 
 export function toHash(route: Route): string {
-  if (route.view === "investigate") {
-    return "#/";
-  }
-  if (route.view === "overview") {
-    return "#/lab";
-  }
-  if (route.view === "run") {
-    return route.scenarioId ? `#/run/${route.scenarioId}` : "#/run";
-  }
-  return `#/${route.view}`;
+  return route.view === "benchmarks" ? "#/benchmarks" : "#/";
 }
 
 export function navigate(route: Route) {

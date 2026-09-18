@@ -249,5 +249,14 @@ export function llmErrorCategory(error: unknown, httpStatus?: number): string {
   if (message.includes("没有 body")) {
     return "empty_stream";
   }
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    return "runtime_timeout";
+  }
+  if (message.includes("aborted") || message.includes("wall-clock exceeded")) {
+    return "runtime_timeout";
+  }
+  if (message.includes("call budget exceeded")) {
+    return "call_budget_exceeded";
+  }
   return "llm_error";
 }

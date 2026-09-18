@@ -758,6 +758,47 @@ Known limitations:
 - Real-v1 still often stops after one attempt when the primary classified failure is a non-retryable tool error or no remaining sources exist.
 - `recoverySuccessRate` is meaningful on the synthetic recovery suite. Real-v1 may stay near 0 without claiming that recovery is ineffective on live GitHub.
 
+## Phase 8.7.4 — LLM Runtime Safety & Budget Guard — DONE
+
+Live Investigation LLM usage now has an extra, executable runtime bound. This does **not** replace AgentLoop `maxSteps=12` or recovery `maxAttempts=3`.
+
+```text
+existing Agent bounds
+        +
+LLM runtime budget (default maxLlmCalls=8, maxWallClockMs=120_000)
+```
+
+Defaults are conservative because a Live run could otherwise issue up to `3 × 12 = 36` provider calls with no wall-clock cap, and a 300s client timeout does not cancel the DashScope request.
+
+```text
+Live Investigation
+      ↓
+LlmRuntimeGuard (AbortController + deadline timer)
+      ↓
+AgentLoop / InvestigationLoopModel
+      ↓
+OpenAICompatModel.decide()
+      ↓
+fetch(url, { signal })
+```
+
+Before each real LLM HTTP request:
+
+1. If `llmCallsSent >= maxLlmCalls` → do not send HTTP; `FailureEvent.type = runtime_budget_exceeded`, `errorCode = LLM_CALL_BUDGET_EXCEEDED`.
+2. If wall-clock deadline has passed → do not send HTTP; `errorCode = LLM_RUNTIME_TIMEOUT`.
+3. Otherwise authorize the call and pass `AbortSignal` into `fetch()`. When `maxWallClockMs` elapses, `AbortController.abort()` fires so an in-flight request terminates.
+
+Budget / timeout failures:
+
+- enter `FailureAnalyzer` first (not `tool_failure` / `retrieval_failure` / `premature_completion`)
+- `RecoveryPlanner` always returns `stop`
+- investigation loop also refuses to start another attempt even if a custom planner tries to continue
+- successful and failed LLM calls remain in `LlmUsageCollector`; unknown token fields stay `null`
+
+Snapshot / Benchmark / test-driver paths do not send LLM HTTP. Budget applies only when `OpenAICompatModel` is about to call the provider.
+
+Hono `c.req.raw.signal` is forwarded as a parent abort when present. Independent proof that every client disconnect cancels DashScope is a follow-up; this phase guarantees FASEI-owned deadline → AbortController → fetch.
+
 ## Not started
 
-Phase 7.4+ waits for a new task.
+Phase 8.7.5+ waits for a new task.

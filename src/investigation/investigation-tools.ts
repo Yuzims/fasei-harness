@@ -10,11 +10,13 @@ import {
   type ClaimPolarity,
   type EvidenceKind,
   type EvidenceRelationType,
+  type FailureEvent,
 } from "../domain/index.js";
 import type { GitHubDataProvider } from "../github/provider.js";
 import type { Tool } from "../tools/tool.js";
 import { createInvestigationGithubTools } from "../tools/github.js";
 import type { LlmUsageCollector } from "../agent/llm-usage.js";
+import type { LlmRuntimeGuard } from "../agent/llm-runtime.js";
 import { TraceCollector } from "../trace/trace-collector.js";
 import { UNTRUSTED_NOTICE } from "./policy.js";
 import { GitHubProviderError } from "../github/errors.js";
@@ -35,6 +37,8 @@ export interface InvestigationSession {
   runId: string;
   llmUsage: LlmUsageCollector;
   currentAttempt?: number;
+  llmRuntime?: LlmRuntimeGuard;
+  runtimeFailure?: FailureEvent;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

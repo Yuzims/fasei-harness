@@ -78,6 +78,10 @@ const POLICY: Record<FailureType, Omit<RecoveryPlan, "reason"> & { reason: strin
     reason: "仓库或 Issue 身份不对，丢掉当前证据图后重解析",
     resetEvidence: true,
   },
+  runtime_budget_exceeded: {
+    action: "stop",
+    reason: "LLM runtime budget exceeded; stop so recovery cannot start another LLM call",
+  },
   unknown: {
     action: "stop",
     reason: "无法分类，停止以免统一重试",

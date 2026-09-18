@@ -87,6 +87,7 @@ export type FailureType =
   | "insufficient_evidence"
   | "invalid_evidence"
   | "wrong_target"
+  | "runtime_budget_exceeded"
   | "unknown";
 
 export type RecoveryAction =

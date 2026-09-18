@@ -6,6 +6,7 @@ import type {
 } from "../domain/index.js";
 import type { AgentResult } from "../core/types.js";
 import { aggregateLlmUsage, type LlmUsageAggregate } from "../agent/llm-usage.js";
+import type { LlmRuntimeBudget } from "../agent/llm-runtime.js";
 import type { InvestigationRun } from "../domain/index.js";
 import type { InvestigationState, ToolHistoryEntry } from "./state.js";
 
@@ -42,6 +43,7 @@ export interface InvestigationAgentReport {
   /** Produced by IndependentCompletionVerifier, never by the Agent. */
   verification?: VerificationResult;
   llmUsage: LlmUsageAggregate;
+  runtimeBudget?: LlmRuntimeBudget;
 }
 
 export function stepsFromHistory(history: ToolHistoryEntry[]): InvestigationStep[] {
@@ -128,6 +130,7 @@ export function toAgentReport(input: {
   status?: InvestigationAgentStatus;
   verification?: VerificationResult;
   llmUsage?: LlmUsageAggregate;
+  runtimeBudget?: LlmRuntimeBudget;
 }): InvestigationAgentReport {
   const status = input.status ?? deriveInvestigationStatus(input.state);
   const report = buildInvestigationReport(input.state, status);
@@ -145,5 +148,6 @@ export function toAgentReport(input: {
     agentResult: input.agentResult,
     verification: input.verification,
     llmUsage: input.llmUsage ?? aggregateLlmUsage([]),
+    runtimeBudget: input.runtimeBudget,
   };
 }

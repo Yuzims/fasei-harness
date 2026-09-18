@@ -148,7 +148,11 @@ export function createApp(env: Env = process.env, options: AppOptions = {}) {
       return c.json({ error: { code: "INVALID_REQUEST", message: "JSON body is required." } }, 400);
     }
     try {
-      const session = await runInvestigation(body, { env, fetchImpl: options.fetchImpl });
+      const session = await runInvestigation(body, {
+        env,
+        fetchImpl: options.fetchImpl,
+        signal: c.req.raw.signal,
+      });
       return c.json(session);
     } catch (error) {
       const mapped = toInvestigationHttpError(error);

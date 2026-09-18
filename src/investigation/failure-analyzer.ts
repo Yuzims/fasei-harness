@@ -6,6 +6,7 @@
  */
 import { MAX_STEPS_REACHED } from "../agent/agent-loop.js";
 import { isRetryableToolCode, type FailureEvent } from "../domain/index.js";
+import { isRuntimeBudgetFailure } from "../agent/llm-runtime.js";
 import { agentClaimedResolved, type AnalysisContext } from "./analysis-context.js";
 import {
   investigationFingerprint,
@@ -34,6 +35,18 @@ function unresolvedToolFailures(history: ToolHistoryEntry[]): ToolHistoryEntry[]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function detectRuntimeBudget(ctx: AnalysisContext): FailureEvent | undefined {
+  const failure = ctx.runtimeFailure;
+  if (!failure || !isRuntimeBudgetFailure(failure)) {
+    return undefined;
+  }
+  return event({
+    ...failure,
+    retryable: false,
+    confidence: failure.confidence ?? 1,
+  });
 }
 
 function detectWrongTarget(ctx: AnalysisContext): FailureEvent | undefined {
@@ -269,6 +282,7 @@ function detectInsufficientEvidence(ctx: AnalysisContext): FailureEvent | undefi
 }
 
 const RULES: Array<(ctx: AnalysisContext) => FailureEvent | undefined> = [
+  detectRuntimeBudget,
   detectWrongTarget,
   detectInvalidEvidence,
   detectToolFailure,
@@ -280,7 +294,8 @@ const RULES: Array<(ctx: AnalysisContext) => FailureEvent | undefined> = [
 
 export class FailureAnalyzer {
   analyze(ctx: AnalysisContext): FailureEvent[] {
-    if (ctx.verification.status === "verified_complete") {
+    const runtime = detectRuntimeBudget(ctx);
+    if (ctx.verification.status === "verified_complete" && !runtime) {
       return [];
     }
     const events: FailureEvent[] = [];

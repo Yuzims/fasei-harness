@@ -3,6 +3,7 @@ import type { Workspace } from "../core/workspace.js";
 import type { FailureEvent, InvestigationStrategy, RecoveryPlan } from "../domain/types.js";
 import type { Failure } from "../legacy/failure/failure-types.js";
 import type { RecoveryPlan as WorkspaceRecoveryPlan } from "../legacy/recovery/recovery-planner.js";
+import type { LlmRuntimeGuard } from "./llm-runtime.js";
 
 export type ModelResponse =
   | { type: "tool_call"; call: ToolCall }
@@ -24,6 +25,9 @@ export interface ModelContext {
   investigationStrategy?: InvestigationStrategy;
   workspace?: Workspace;
   onDelta?: (text: string) => void;
+  /** Investigation-owned LLM abort signal; OpenAICompatModel must pass this to fetch(). */
+  signal?: AbortSignal;
+  llmRuntime?: LlmRuntimeGuard;
 }
 
 export interface Model {

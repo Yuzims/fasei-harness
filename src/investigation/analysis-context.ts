@@ -17,6 +17,8 @@ export interface AnalysisContext {
   previousFingerprints: string[];
   previousRecoveries: RecoveryPlan[];
   bounds: RecoveryBounds;
+  /** Structured LLM runtime budget / timeout failure, if the AgentLoop was aborted. */
+  runtimeFailure?: FailureEvent;
 }
 
 export function agentClaimedResolved(ctx: AnalysisContext): boolean {

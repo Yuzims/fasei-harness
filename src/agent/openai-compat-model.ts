@@ -8,6 +8,11 @@ import {
   type LlmUsageCollector,
   emptyLlmUsage,
 } from "./llm-usage.js";
+import {
+  isAbortError,
+  isLlmRuntimeError,
+  type LlmRuntimeGuard,
+} from "./llm-runtime.js";
 import type { HistoryMessage, Model, ModelContext, ModelResponse } from "./model.js";
 
 export const DEFAULT_WORKSPACE_SYSTEM_PROMPT = [
@@ -38,6 +43,8 @@ export interface OpenAICompatOptions {
   /** Observability only. Does not change request contents or model behavior. */
   usageCollector?: LlmUsageCollector;
   onLlmCall?: (record: LlmCallRecord) => void;
+  /** Live Investigation runtime budget / abort. Optional for standalone workspace models. */
+  runtime?: LlmRuntimeGuard;
 }
 
 interface ChatMessage {
@@ -222,6 +229,7 @@ export function parseChatCompletion(data: unknown): ModelResponse {
 export async function parseChatCompletionStream(
   body: ReadableStream<Uint8Array> | null,
   onDelta?: (text: string) => void,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   if (!body) {
     throw new Error("LLM 流式响应没有 body");
@@ -237,71 +245,91 @@ export async function parseChatCompletionStream(
   let usage: unknown;
 
   const reader = body.getReader();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
+  const onAbort = () => {
+    void reader.cancel(signal?.reason);
+  };
+  if (signal?.aborted) {
+    onAbort();
+    throw abortFromSignal(signal);
+  }
+  signal?.addEventListener("abort", onAbort, { once: true });
+
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        throw abortFromSignal(signal);
+      }
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) {
+          continue;
+        }
+        const data = trimmed.slice(5).trim();
+        if (!data || data === "[DONE]") {
+          continue;
+        }
+
+        let payload: {
+          error?: { message?: string };
+          usage?: unknown;
+          choices?: Array<{
+            delta?: {
+              content?: string | null;
+              tool_calls?: Array<{
+                id?: string;
+                function?: { name?: string; arguments?: string };
+              }>;
+            };
+          }>;
+        };
+        try {
+          payload = JSON.parse(data);
+        } catch {
+          continue;
+        }
+
+        if (payload.usage) {
+          usage = payload.usage;
+        }
+
+        if (payload.error?.message) {
+          errorMessage = payload.error.message;
+          continue;
+        }
+
+        const delta = payload.choices?.[0]?.delta;
+        if (delta?.content) {
+          content += delta.content;
+          onDelta?.(delta.content);
+        }
+        const toolDelta = delta?.tool_calls?.[0];
+        if (toolDelta) {
+          if (toolDelta.id) {
+            toolId = toolDelta.id;
+          }
+          if (toolDelta.function?.name) {
+            toolName += toolDelta.function.name;
+          }
+          if (toolDelta.function?.arguments) {
+            toolArgs += toolDelta.function.arguments;
+          }
+        }
+      }
     }
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() ?? "";
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+  }
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) {
-        continue;
-      }
-      const data = trimmed.slice(5).trim();
-      if (!data || data === "[DONE]") {
-        continue;
-      }
-
-      let payload: {
-        error?: { message?: string };
-        usage?: unknown;
-        choices?: Array<{
-          delta?: {
-            content?: string | null;
-            tool_calls?: Array<{
-              id?: string;
-              function?: { name?: string; arguments?: string };
-            }>;
-          };
-        }>;
-      };
-      try {
-        payload = JSON.parse(data);
-      } catch {
-        continue;
-      }
-
-      if (payload.usage) {
-        usage = payload.usage;
-      }
-
-      if (payload.error?.message) {
-        errorMessage = payload.error.message;
-        continue;
-      }
-
-      const delta = payload.choices?.[0]?.delta;
-      if (delta?.content) {
-        content += delta.content;
-        onDelta?.(delta.content);
-      }
-      const toolDelta = delta?.tool_calls?.[0];
-      if (toolDelta) {
-        if (toolDelta.id) {
-          toolId = toolDelta.id;
-        }
-        if (toolDelta.function?.name) {
-          toolName += toolDelta.function.name;
-        }
-        if (toolDelta.function?.arguments) {
-          toolArgs += toolDelta.function.arguments;
-        }
-      }
-    }
+  if (signal?.aborted) {
+    throw abortFromSignal(signal);
   }
 
   if (errorMessage) {
@@ -332,6 +360,18 @@ export async function parseChatCompletionStream(
   };
 }
 
+function abortFromSignal(signal: AbortSignal): Error {
+  if (isLlmRuntimeError(signal.reason)) {
+    return signal.reason;
+  }
+  if (signal.reason instanceof Error) {
+    return signal.reason;
+  }
+  const error = new Error("LLM request aborted");
+  error.name = "AbortError";
+  return error;
+}
+
 export class OpenAICompatModel implements Model {
   private readonly fetchImpl: typeof fetch;
   private callCount = 0;
@@ -346,12 +386,15 @@ export class OpenAICompatModel implements Model {
     _toolResults: ToolResult[],
     context: ModelContext = { attempt: 1 },
   ): Promise<ModelResponse> {
+    const runtime = this.options.runtime ?? context.llmRuntime;
     const callId = randomUUID();
     const startedAt = Date.now();
     const historyLength = history.length;
     let httpStatus: number | undefined;
     let usage = emptyLlmUsage();
     let recorded = false;
+    let httpStarted = false;
+    let signal: AbortSignal | undefined = context.signal ?? runtime?.signal;
 
     const recordCall = (ok: boolean, errorCategory?: string) => {
       if (recorded) {
@@ -374,7 +417,19 @@ export class OpenAICompatModel implements Model {
       this.options.onLlmCall?.(record);
     };
 
+    const asRuntimeError = (error: unknown) => {
+      if (isLlmRuntimeError(error)) {
+        return error;
+      }
+      if (runtime && (signal?.aborted || isAbortError(error))) {
+        return isLlmRuntimeError(signal?.reason) ? signal.reason : runtime.timeoutError();
+      }
+      return undefined;
+    };
+
     try {
+      runtime?.assertCanStartCall();
+
       const tools = this.options.tools ?? [];
       const body: Record<string, unknown> = {
         model: this.options.model,
@@ -400,6 +455,10 @@ export class OpenAICompatModel implements Model {
         body.enable_thinking = false;
       }
 
+      if (runtime) {
+        signal = runtime.authorizeCall();
+      }
+      httpStarted = true;
       const response = await this.fetchImpl(`${this.options.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -407,6 +466,7 @@ export class OpenAICompatModel implements Model {
           authorization: `Bearer ${this.options.apiKey}`,
         },
         body: JSON.stringify(body),
+        signal,
       });
       httpStatus = response.status;
 
@@ -425,7 +485,7 @@ export class OpenAICompatModel implements Model {
           throw new Error(`LLM 返回的不是 JSON: ${text.slice(0, 200)}`);
         }
       } else {
-        data = await parseChatCompletionStream(response.body, context.onDelta);
+        data = await parseChatCompletionStream(response.body, context.onDelta, signal);
       }
 
       usage = extractLlmUsage(data);
@@ -433,6 +493,17 @@ export class OpenAICompatModel implements Model {
       recordCall(true);
       return parsed;
     } catch (error) {
+      const runtimeError = asRuntimeError(error);
+      if (runtimeError && !httpStarted) {
+        throw runtimeError;
+      }
+      if (runtimeError) {
+        recordCall(
+          false,
+          runtimeError.code === "LLM_CALL_BUDGET_EXCEEDED" ? "call_budget_exceeded" : "runtime_timeout",
+        );
+        throw runtimeError;
+      }
       recordCall(false, llmErrorCategory(error, httpStatus));
       throw error;
     }

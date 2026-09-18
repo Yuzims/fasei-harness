@@ -35,6 +35,7 @@ export interface RunInvestigationOptions {
   env?: Record<string, string | undefined>;
   fetchImpl?: typeof fetch;
   liveProvider?: GitHubDataProvider;
+  signal?: AbortSignal;
 }
 
 export type InvestigationRoute =
@@ -301,6 +302,7 @@ export function toInvestigationSessionDTO(
       openQuestions: report.report.openQuestions,
     },
     llmUsage: toLlmUsageDTO(report.llmUsage),
+    runtimeBudget: report.runtimeBudget,
   };
 }
 
@@ -411,6 +413,7 @@ async function runLiveIssue(
     provider,
     env: options.env,
     fetchImpl: options.fetchImpl,
+    signal: options.signal,
   });
   return toInvestigationSessionDTO(report, { mode: "live" });
 }

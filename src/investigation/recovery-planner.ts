@@ -11,6 +11,7 @@ import {
   type FailureType,
   type RecoveryPlan,
 } from "../domain/index.js";
+import { isRuntimeBudgetFailure } from "../agent/llm-runtime.js";
 import type { AnalysisContext } from "./analysis-context.js";
 import { remainingEvidenceSources, type RetrievalStrategy } from "./state.js";
 
@@ -185,6 +186,16 @@ function planWrongTarget(failure: FailureEvent): RecoveryPlan {
   };
 }
 
+function planRuntimeBudget(failure: FailureEvent): RecoveryPlan {
+  return {
+    action: "stop",
+    reason:
+      failure.reason ||
+      "LLM runtime budget exceeded; recovery must not start another LLM call.",
+    nextStep: "Stop.",
+  };
+}
+
 function planUnknown(): RecoveryPlan {
   return {
     action: "stop",
@@ -204,12 +215,16 @@ const STRATEGIES: Record<
   insufficient_evidence: planInsufficientEvidence,
   invalid_evidence: planInvalidEvidence,
   wrong_target: (failure) => planWrongTarget(failure),
+  runtime_budget_exceeded: (failure) => planRuntimeBudget(failure),
   unknown: () => planUnknown(),
 };
 
 export class RecoveryPlanner {
   plan(failure: FailureEvent, ctx: AnalysisContext): RecoveryPlan {
     const recoveryCtx: RecoveryContext = { ...ctx, failure };
+    if (isRuntimeBudgetFailure(failure)) {
+      return planRuntimeBudget(failure);
+    }
     if (ctx.attempt >= ctx.bounds.maxInvestigationAttempts) {
       const specialized = STRATEGIES[failure.type](failure, recoveryCtx);
       if (specialized.action !== "stop" && failure.type !== "wrong_target") {

@@ -17,6 +17,12 @@ import {
   llmCallTraceData,
   LlmUsageCollector,
 } from "../agent/llm-usage.js";
+import {
+  isLlmRuntimeError,
+  isRuntimeBudgetFailure,
+  LlmRuntimeGuard,
+  type LlmRuntimeBudget,
+} from "../agent/llm-runtime.js";
 import type { HistoryMessage } from "../agent/model.js";
 import type { AgentResult, Task, ToolResult } from "../core/types.js";
 import type { GitHubDataProvider } from "../github/provider.js";
@@ -69,6 +75,16 @@ export interface InvestigateOptions {
   executeBackoff?: boolean;
   /** Build a model that can see investigation state (tests / recovery scenarios). */
   modelFactory?: (session: InvestigationSession) => Model;
+  /**
+   * Extra LLM runtime cap on top of maxSteps / maxAttempts.
+   * Defaults: maxLlmCalls=8, maxWallClockMs=120_000.
+   */
+  llmRuntimeBudget?: Partial<LlmRuntimeBudget>;
+  /**
+   * Optional parent abort (e.g. HTTP client disconnect).
+   * Deadline abort is owned by FASEI even when this is omitted.
+   */
+  signal?: AbortSignal;
 }
 
 class InvestigationLoopModel implements Model {
@@ -156,6 +172,7 @@ function resolveActorAndModel(input: {
         fetchImpl: input.options.fetchImpl,
         systemPrompt: INVESTIGATION_SYSTEM_PROMPT,
         usageCollector: input.session.llmUsage,
+        runtime: input.session.llmRuntime,
         onLlmCall: (record) => {
           input.session.trace.record(
             input.session.runId,
@@ -188,9 +205,22 @@ function llmUsageTraceFields(usage: ReturnType<LlmUsageCollector["aggregate"]>):
   };
 }
 
+function stopRuntimeBudgetRecovery(failure: FailureEvent, attempt: number): RecoveryPlan {
+  return {
+    action: "stop",
+    reason:
+      failure.reason ||
+      "LLM runtime budget exceeded; recovery must not start another LLM call.",
+    nextStep: "Stop.",
+    id: `attempt-${attempt}:recovery:stop`,
+    failureEventId: failure.id,
+  };
+}
+
 function unconfiguredReport(
   state: InvestigationState,
   llmUsage = new LlmUsageCollector().aggregate(),
+  runtimeBudget?: LlmRuntimeBudget,
 ): InvestigationAgentReport {
   state.run.status = "not_verified";
   state.run.endedAt = new Date().toISOString();
@@ -200,6 +230,7 @@ function unconfiguredReport(
     actor: "unconfigured",
     status: "unconfigured",
     llmUsage,
+    runtimeBudget,
   });
   report.report.conclusion =
     "Investigation Agent is unconfigured: no OpenAI-compatible API key. Not running WorkspaceAgentModel / keyword classifier. SnapshotInvestigationDriver is a test fixture only (pass useTestDriver: true).";
@@ -262,7 +293,17 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   const run = createInvestigationRun({ task });
   const state = new InvestigationState(task, run);
   const llmUsage = new LlmUsageCollector();
-  const session: InvestigationSession = { state, trace, runId: run.id, llmUsage };
+  const runtime = new LlmRuntimeGuard({
+    budget: options.llmRuntimeBudget,
+    signal: options.signal,
+  });
+  const session: InvestigationSession = {
+    state,
+    trace,
+    runId: run.id,
+    llmUsage,
+    llmRuntime: runtime,
+  };
   const tools = createInvestigationToolList(options.provider, session);
   const registry = new ToolRegistry();
   for (const tool of tools) {
@@ -283,7 +324,63 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     target: task.target,
     question: task.question,
     description: task.description,
+    runtimeBudget: runtime.budget,
   });
+
+  try {
+    return await runInvestigationAttempts({
+      options,
+      task,
+      trace,
+      run,
+      state,
+      session,
+      tools,
+      registry,
+      bounds,
+      analyzer,
+      planner,
+      verifier,
+      runtime,
+      llmUsage,
+    });
+  } finally {
+    runtime.dispose();
+  }
+}
+
+async function runInvestigationAttempts(input: {
+  options: InvestigateOptions;
+  task: InvestigationTask;
+  trace: TraceCollector;
+  run: ReturnType<typeof createInvestigationRun>;
+  state: InvestigationState;
+  session: InvestigationSession;
+  tools: ReturnType<typeof createInvestigationToolList>;
+  registry: ToolRegistry;
+  bounds: RecoveryBounds;
+  analyzer: FailureAnalyzer;
+  planner: RecoveryPlanner;
+  verifier: IndependentCompletionVerifier;
+  runtime: LlmRuntimeGuard;
+  llmUsage: LlmUsageCollector;
+}): Promise<InvestigationAgentReport> {
+  const {
+    options,
+    task,
+    trace,
+    run,
+    state,
+    session,
+    tools,
+    registry,
+    bounds,
+    analyzer,
+    planner,
+    verifier,
+    runtime,
+    llmUsage,
+  } = input;
 
   const resolved = resolveActorAndModel({
     options,
@@ -297,7 +394,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   });
 
   if (!resolved.model) {
-    const report = unconfiguredReport(state, llmUsage.aggregate());
+    const report = unconfiguredReport(state, llmUsage.aggregate(), runtime.budget);
     const usage = report.llmUsage;
     trace.record(run.id, 0, "investigation_completed", {
       status: report.status,
@@ -306,6 +403,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       verifiedComplete: false,
       llmUsage: llmUsageTraceFields(usage),
       llmUsageSummary: formatLlmUsageSummary(usage),
+      runtimeBudget: runtime.budget,
     });
     return report;
   }
@@ -355,12 +453,26 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       sequence: attempt,
     });
 
-    lastAgentResult = await loop.run(coreTask, run.id, {
-      attempt,
-      investigationFailure: lastFailure,
-      investigationRecovery: lastRecovery,
-      investigationStrategy: strategy,
-    });
+    try {
+      lastAgentResult = await loop.run(coreTask, run.id, {
+        attempt,
+        investigationFailure: lastFailure,
+        investigationRecovery: lastRecovery,
+        investigationStrategy: strategy,
+        llmRuntime: runtime,
+        signal: runtime.signal,
+      });
+    } catch (error) {
+      if (!isLlmRuntimeError(error)) {
+        throw error;
+      }
+      session.runtimeFailure = error.toFailureEvent();
+      lastAgentResult = {
+        status: "failed",
+        output: error.message,
+        steps: Math.max(1, state.currentStep),
+      };
+    }
 
     const claimedComplete = state.run.claims.some(
       (claim) => claim.critical && claim.polarity === "resolved",
@@ -382,9 +494,10 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       agentResult: lastAgentResult,
       verification: lastVerification,
       llmUsage: llmUsage.aggregate(),
+      runtimeBudget: runtime.budget,
     });
 
-    if (lastVerification.status === "verified_complete") {
+    if (lastVerification.status === "verified_complete" && !session.runtimeFailure) {
       const next = appendAttempt(run, {
         id: attemptId,
         startedAt,
@@ -414,6 +527,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       previousFingerprints: [...state.fingerprints],
       previousRecoveries: recoveries,
       bounds,
+      runtimeFailure: session.runtimeFailure,
     };
     const fingerprint = investigationFingerprint(state);
 
@@ -423,6 +537,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       attempt,
       verificationStatus: lastVerification.status,
       missingRequirementIds: lastVerification.missingRequirementIds,
+      runtimeFailure: session.runtimeFailure?.errorCode,
     });
 
     const failures = analyzer.analyze(ctx);
@@ -441,7 +556,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       missingRequirementIds: failure?.missingRequirementIds,
     });
 
-    const recovery = withRecoveryId(
+    let recovery = withRecoveryId(
       failure
         ? planner.plan(failure, ctx)
         : {
@@ -452,6 +567,9 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       failure,
       attempt,
     );
+    if (failure && isRuntimeBudgetFailure(failure) && recovery.action !== "stop") {
+      recovery = withRecoveryId(stopRuntimeBudgetRecovery(failure, attempt), failure, attempt);
+    }
 
     trace.record(run.id, state.currentStep, "recovery_planned", {
       investigationRunId: run.id,
@@ -471,7 +589,8 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     const bounded =
       attempt >= bounds.maxInvestigationAttempts ||
       state.recoveryCount >= bounds.maxRecoveryAttempts;
-    const willStop = !failure || recovery.action === "stop" || bounded;
+    const budgetStop = Boolean(failure && isRuntimeBudgetFailure(failure));
+    const willStop = !failure || recovery.action === "stop" || bounded || budgetStop;
     const exhausted =
       willStop &&
       recoveries.length > 0 &&
@@ -506,7 +625,11 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     previousAttemptId = attemptId;
 
     if (willStop || !failure) {
-      run.status = exhausted ? "recovery_exhausted" : lastVerification.status;
+      run.status = exhausted
+        ? "recovery_exhausted"
+        : budgetStop
+          ? "stopped"
+          : lastVerification.status;
       break;
     }
 
@@ -550,7 +673,9 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   if (!lastVerification) {
     throw new Error("Investigation produced no verification result");
   }
-  if (lastVerification.status === "verified_complete") {
+  if (session.runtimeFailure) {
+    run.status = "stopped";
+  } else if (lastVerification.status === "verified_complete") {
     run.status = lastVerification.status;
   } else if (!run.status || run.status === "in_progress") {
     run.status = lastVerification.status;
@@ -562,6 +687,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     agentResult: lastAgentResult,
     verification: lastVerification,
     llmUsage: llmUsage.aggregate(),
+    runtimeBudget: runtime.budget,
   });
 
   trace.record(run.id, state.currentStep, "investigation_completed", {
@@ -580,6 +706,8 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     notice: resolved.notice,
     llmUsage: llmUsageTraceFields(report.llmUsage),
     llmUsageSummary: formatLlmUsageSummary(report.llmUsage),
+    runtimeBudget: runtime.budget,
+    runtimeFailure: session.runtimeFailure?.errorCode,
   });
 
   return report;

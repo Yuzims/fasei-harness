@@ -300,6 +300,10 @@ export interface InvestigationSessionDTO {
     openQuestions: string[];
   };
   llmUsage?: LlmUsageAggregateDTO;
+  runtimeBudget?: {
+    maxLlmCalls: number;
+    maxWallClockMs: number;
+  };
 }
 
 export interface LlmUsageDTO {

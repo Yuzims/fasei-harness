@@ -253,6 +253,7 @@ test("Domain：Failure Type 映射到不同 Recovery，没有统一 retry", () =
     "insufficient_evidence",
     "invalid_evidence",
     "wrong_target",
+    "runtime_budget_exceeded",
     "unknown",
   ];
   const actions = types.map((type) => recoveryActionFor(type));
@@ -265,6 +266,7 @@ test("Domain：Failure Type 映射到不同 Recovery，没有统一 retry", () =
   assert.equal(planRecovery("wrong_target").action, "recheck_target");
   assert.equal(planRecovery("wrong_target").resetEvidence, true);
   assert.equal(planRecovery("loop_failure").action, "stop");
+  assert.equal(planRecovery("runtime_budget_exceeded").action, "stop");
   assert.equal(planRecovery("unknown").action, "stop");
   assert.notEqual(
     planRecovery("tool_failure").action,

@@ -2,7 +2,7 @@
  * Investigation benchmark contract.
  * Evaluation types only. Production investigation / verifier must not import this module.
  */
-import type { FailureType, InvestigationTarget, VerificationStatus } from "../domain/index.js";
+import type { FailureType, InvestigationTarget, RecoveryAction, VerificationStatus } from "../domain/index.js";
 import type { GithubFixtureId } from "../github/snapshot-store.js";
 
 export const FASEI_BENCHMARK_NAME = "fasei-investigation-benchmark";
@@ -93,4 +93,49 @@ export interface BenchmarkReport {
   failedScenarios: number;
   metrics: BenchmarkMetrics;
   results: ScenarioResult[];
+}
+
+/** Failure classification recorded from Harness attempts. Evidence UUIDs are omitted. */
+export interface RecordedFailureEvent {
+  type: FailureType;
+  reason: string;
+  tool?: string;
+  errorCode?: string;
+  retryable?: boolean;
+  missingRequirementIds?: string[];
+}
+
+export interface RecordedRecoveryEvent {
+  action: RecoveryAction;
+  reason: string;
+  nextStep?: string;
+  retrievalStrategy?: string;
+}
+
+export interface DatasetCaseEvaluation {
+  passed: boolean;
+  verificationPassed: boolean;
+  failureModesPassed: boolean;
+  recoveryPassed: boolean;
+}
+
+export interface DatasetCaseResult {
+  caseId: string;
+  observedOutcome: VerificationStatus;
+  expectedOutcome: VerificationStatus;
+  evaluation: DatasetCaseEvaluation;
+  attempts: number;
+  toolCalls: number;
+  failureEvents: RecordedFailureEvent[];
+  recoveryEvents: RecordedRecoveryEvent[];
+  evidenceCount: number;
+  claimCount: number;
+}
+
+export interface DatasetBenchmarkResult {
+  dataset: string;
+  datasetVersion: string;
+  timestamp: string;
+  cases: DatasetCaseResult[];
+  metrics: BenchmarkMetrics;
 }

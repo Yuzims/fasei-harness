@@ -13,8 +13,10 @@ export type { BenchmarkGroundTruth, GroundTruthRecord } from "./ground-truth.js"
 export {
   GROUND_TRUTH_FILE_NAME,
   REAL_DATASET_ID,
+  REAL_DATASET_RESULT_RELATIVE_PATH,
   SYNTHETIC_DATASET_ID,
   realDatasetGroundTruthPath,
+  realDatasetLatestResultPath,
   realDatasetManifestPath,
   realDatasetRootDir,
   syntheticDatasetManifestPath,

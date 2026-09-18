@@ -485,6 +485,73 @@ Agent input is the recorded `InvestigationSnapshot`. Ground truth is `ground-tru
 
 C07 stores `expectedFailureModes: [wrong_target]` in `ground-truth.json` only. That field is not copied into the agent snapshot, dataset case, converted scenario, or observed failures. The rationale acknowledges that merged PR #7256 explicitly says `Closes #4490`, and explains why independent semantic/effect verification still does not accept that closure linkage.
 
+## Phase 7.2C — Real Dataset Benchmark Execution — DONE
+
+`real-v1` now runs through the existing Dataset → Scenario → Harness → Evaluator path.
+
+```text
+real-v1 snapshot
+        ↓
+SnapshotGitHubProvider
+        ↓
+investigate() + SnapshotInvestigationDriver
+        ↓
+Independent Completion Verifier
+        ↓
+FailureAnalyzer / RecoveryPlanner (existing)
+        ↓
+Observed Outcome
+        ↓
+Evaluator (ground-truth.json only)
+        ↓
+Phase 7.0 BenchmarkMetrics + JSON result
+```
+
+CLI: `npm run benchmark:real`. It reuses `executeScenario` / `scoreScenario` / `computeBenchmarkMetrics`. It does not add a second evaluation architecture, a live GitHub client, or an LLM provider.
+
+Ground truth stays evaluator-only. `convertCaseToScenario()` still omits `expectedOutcome`. The agent task sees case metadata, description, target, and snapshot observations. It does not read `ground-truth.json`.
+
+Execution is snapshot-only. The runner constructs `SnapshotGitHubProvider` and blocks `api.github.com` / `github.com` `fetch` during the real dataset run.
+
+Result: `benchmark-results/real-v1/latest.json`. Timestamp is recorded. Canonical comparison ignores timestamp; two consecutive `npm run benchmark:real` runs matched on case count, observed outcomes, evaluation, failure classification, attempts / toolCalls, evidence/claim counts, and aggregate metrics.
+
+Actual run (`datasetVersion` v1):
+
+| Case | Observed | Expected | Evaluator |
+|---|---|---|---|
+| C01 | `verified_complete` | `verified_complete` | pass |
+| C02 | `verified_complete` | `verified_complete` | pass |
+| C03 | `verified_complete` | `verified_complete` | pass |
+| C04 | `verified_complete` | `verified_complete` | pass |
+| C05 | `insufficient_evidence` | `not_verified` | fail |
+| C06 | `insufficient_evidence` | `not_verified` | fail |
+| C07 | `insufficient_evidence` | `not_verified` | fail |
+| C08 | `insufficient_evidence` | `verified_complete` | fail |
+| C09 | `insufficient_evidence` | `verified_complete` | fail |
+| C10 | `insufficient_evidence` | `not_verified` | fail |
+
+Metrics from that run (Phase 7.0 definitions; `taskSuccessRate` is verifier `verified_complete`, not evaluator pass rate):
+
+```text
+taskSuccessRate: 0.4
+falseCompletionRate: 0
+insufficientEvidenceRate: 0.6
+evidenceCoverage: 0.5999999999999999
+unsupportedClaimRate: 0
+recoveryRate: 0
+averageAttempts: 1
+averageToolCalls: 6.9
+```
+
+Evaluator: 4 passed / 6 failed. Numbers come from Harness execution, not hand-edited scores. There is no caseId scoring branch.
+
+Known limitations:
+
+- This is a recorded-snapshot regression/evaluation run with `SnapshotInvestigationDriver`. It is not a live-LLM GitHub benchmark and does not claim scientific validation of Harness performance.
+- Closed-without-resolution-PR cases (C05/C10) are independently classified `insufficient_evidence`; ground truth labels them `not_verified`. The evaluator compares those statuses as-is.
+- C06/C07 comments mention pull numbers that are not in the recorded snapshot (`PR 123`, `PR 3868`). The existing driver then hits `not_found` and stops with `tool_failure` before a semantic verdict. C07 therefore does not currently observe `wrong_target`.
+- C08/C09 snapshots did not yield a resolution-candidate PR on the current investigation path, so the harness observed `insufficient_evidence` against ground-truth `verified_complete`.
+
 ## Not started
 
-Phase 7.2C+ (baseline comparison, semantic judge, UI redesign) waits for a new task.
+Phase 7.3+ waits for a new task.

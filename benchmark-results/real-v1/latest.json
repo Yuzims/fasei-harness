@@ -1,0 +1,275 @@
+{
+  "dataset": "real-v1",
+  "datasetVersion": "v1",
+  "timestamp": "2026-09-18T03:17:31.844Z",
+  "cases": [
+    {
+      "caseId": "C01",
+      "observedOutcome": "verified_complete",
+      "expectedOutcome": "verified_complete",
+      "evaluation": {
+        "passed": true,
+        "verificationPassed": true,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 7,
+      "failureEvents": [],
+      "recoveryEvents": [],
+      "evidenceCount": 9,
+      "claimCount": 7
+    },
+    {
+      "caseId": "C02",
+      "observedOutcome": "verified_complete",
+      "expectedOutcome": "verified_complete",
+      "evaluation": {
+        "passed": true,
+        "verificationPassed": true,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 6,
+      "failureEvents": [],
+      "recoveryEvents": [],
+      "evidenceCount": 12,
+      "claimCount": 9
+    },
+    {
+      "caseId": "C03",
+      "observedOutcome": "verified_complete",
+      "expectedOutcome": "verified_complete",
+      "evaluation": {
+        "passed": true,
+        "verificationPassed": true,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 10,
+      "failureEvents": [],
+      "recoveryEvents": [],
+      "evidenceCount": 171,
+      "claimCount": 72
+    },
+    {
+      "caseId": "C04",
+      "observedOutcome": "verified_complete",
+      "expectedOutcome": "verified_complete",
+      "evaluation": {
+        "passed": true,
+        "verificationPassed": true,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 6,
+      "failureEvents": [],
+      "recoveryEvents": [],
+      "evidenceCount": 9,
+      "claimCount": 8
+    },
+    {
+      "caseId": "C05",
+      "observedOutcome": "insufficient_evidence",
+      "expectedOutcome": "not_verified",
+      "evaluation": {
+        "passed": false,
+        "verificationPassed": false,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 4,
+      "failureEvents": [
+        {
+          "type": "insufficient_evidence",
+          "reason": "Required evidence is missing; the harness cannot prove completion.",
+          "missingRequirementIds": [
+            "req-pr",
+            "req-commit"
+          ]
+        }
+      ],
+      "recoveryEvents": [
+        {
+          "action": "stop",
+          "reason": "Required evidence is missing and no further useful evidence source remains.",
+          "nextStep": "Stop and keep insufficient_evidence."
+        }
+      ],
+      "evidenceCount": 3,
+      "claimCount": 2
+    },
+    {
+      "caseId": "C06",
+      "observedOutcome": "insufficient_evidence",
+      "expectedOutcome": "not_verified",
+      "evaluation": {
+        "passed": false,
+        "verificationPassed": false,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 12,
+      "failureEvents": [
+        {
+          "type": "tool_failure",
+          "reason": "PR 123 not in snapshot real-v1-C06",
+          "tool": "github_get_pull_request",
+          "errorCode": "not_found",
+          "retryable": false
+        }
+      ],
+      "recoveryEvents": [
+        {
+          "action": "stop",
+          "reason": "Tool error not_found is not recoverable; no blind retry.",
+          "nextStep": "Stop. Recheck credentials or the target identity instead of repeating the same tool."
+        }
+      ],
+      "evidenceCount": 3,
+      "claimCount": 0
+    },
+    {
+      "caseId": "C07",
+      "observedOutcome": "insufficient_evidence",
+      "expectedOutcome": "not_verified",
+      "evaluation": {
+        "passed": false,
+        "verificationPassed": false,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 12,
+      "failureEvents": [
+        {
+          "type": "tool_failure",
+          "reason": "PR 3868 not in snapshot real-v1-C07",
+          "tool": "github_get_pull_request",
+          "errorCode": "not_found",
+          "retryable": false
+        }
+      ],
+      "recoveryEvents": [
+        {
+          "action": "stop",
+          "reason": "Tool error not_found is not recoverable; no blind retry.",
+          "nextStep": "Stop. Recheck credentials or the target identity instead of repeating the same tool."
+        }
+      ],
+      "evidenceCount": 3,
+      "claimCount": 0
+    },
+    {
+      "caseId": "C08",
+      "observedOutcome": "insufficient_evidence",
+      "expectedOutcome": "verified_complete",
+      "evaluation": {
+        "passed": false,
+        "verificationPassed": false,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 4,
+      "failureEvents": [
+        {
+          "type": "insufficient_evidence",
+          "reason": "Required evidence is missing; the harness cannot prove completion.",
+          "missingRequirementIds": [
+            "req-pr",
+            "req-commit"
+          ]
+        }
+      ],
+      "recoveryEvents": [
+        {
+          "action": "stop",
+          "reason": "Required evidence is missing and no further useful evidence source remains.",
+          "nextStep": "Stop and keep insufficient_evidence."
+        }
+      ],
+      "evidenceCount": 3,
+      "claimCount": 2
+    },
+    {
+      "caseId": "C09",
+      "observedOutcome": "insufficient_evidence",
+      "expectedOutcome": "verified_complete",
+      "evaluation": {
+        "passed": false,
+        "verificationPassed": false,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 4,
+      "failureEvents": [
+        {
+          "type": "insufficient_evidence",
+          "reason": "Required evidence is missing; the harness cannot prove completion.",
+          "missingRequirementIds": [
+            "req-pr",
+            "req-commit"
+          ]
+        }
+      ],
+      "recoveryEvents": [
+        {
+          "action": "stop",
+          "reason": "Required evidence is missing and no further useful evidence source remains.",
+          "nextStep": "Stop and keep insufficient_evidence."
+        }
+      ],
+      "evidenceCount": 3,
+      "claimCount": 2
+    },
+    {
+      "caseId": "C10",
+      "observedOutcome": "insufficient_evidence",
+      "expectedOutcome": "not_verified",
+      "evaluation": {
+        "passed": false,
+        "verificationPassed": false,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 4,
+      "failureEvents": [
+        {
+          "type": "insufficient_evidence",
+          "reason": "Required evidence is missing; the harness cannot prove completion.",
+          "missingRequirementIds": [
+            "req-pr",
+            "req-commit"
+          ]
+        }
+      ],
+      "recoveryEvents": [
+        {
+          "action": "stop",
+          "reason": "Required evidence is missing and no further useful evidence source remains.",
+          "nextStep": "Stop and keep insufficient_evidence."
+        }
+      ],
+      "evidenceCount": 3,
+      "claimCount": 2
+    }
+  ],
+  "metrics": {
+    "taskSuccessRate": 0.4,
+    "falseCompletionRate": 0,
+    "insufficientEvidenceRate": 0.6,
+    "evidenceCoverage": 0.5999999999999999,
+    "unsupportedClaimRate": 0,
+    "recoveryRate": 0,
+    "averageAttempts": 1,
+    "averageToolCalls": 6.9
+  }
+}

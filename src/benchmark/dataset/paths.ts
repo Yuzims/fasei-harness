@@ -28,3 +28,9 @@ export function realDatasetRootDir(): string {
 export function realDatasetGroundTruthPath(): string {
   return join(realDatasetRootDir(), GROUND_TRUTH_FILE_NAME);
 }
+
+export const REAL_DATASET_RESULT_RELATIVE_PATH = "benchmark-results/real-v1/latest.json";
+
+export function realDatasetLatestResultPath(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "../../../", REAL_DATASET_RESULT_RELATIVE_PATH);
+}

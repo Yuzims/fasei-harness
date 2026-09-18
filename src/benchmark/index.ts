@@ -8,9 +8,14 @@ export type {
   BenchmarkReport,
   BenchmarkScenario,
   BenchmarkScenarioKind,
+  DatasetBenchmarkResult,
+  DatasetCaseEvaluation,
+  DatasetCaseResult,
   ExpectedOutcome,
   ExpectedRecovery,
   ObservedOutcome,
+  RecordedFailureEvent,
+  RecordedRecoveryEvent,
   ScenarioResult,
 } from "./types.js";
 export {
@@ -33,20 +38,32 @@ export {
 } from "./evaluate.js";
 export { prepareScenarioEnvironment } from "./injection.js";
 export {
+  assertRealScenarioHasNoGroundTruth,
+  canonicalizeDatasetResult,
+  datasetCaseResultFromExecution,
+  executeDatasetCase,
   executeScenario,
+  formatDatasetBenchmarkSummary,
   loadScenarioSnapshot,
   observeScenario,
   resolveScenarioSnapshotPath,
   runBenchmarkCase,
+  runDatasetBenchmark,
   runFaseiBenchmark,
+  runRealDatasetBenchmark,
   runScenario,
   scoreScenario,
   serializeBenchmarkReport,
+  serializeDatasetBenchmarkResult,
+  withGithubNetworkBlocked,
+  writeDatasetBenchmarkResult,
 } from "./runner.js";
+export type { DatasetCaseExecution, RunDatasetBenchmarkOptions } from "./runner.js";
 export {
   DATASET_SCHEMA_VERSION,
   GROUND_TRUTH_FILE_NAME,
   REAL_DATASET_ID,
+  REAL_DATASET_RESULT_RELATIVE_PATH,
   SYNTHETIC_DATASET_ID,
   BenchmarkDatasetError,
   assertGroundTruthCoversDataset,
@@ -61,6 +78,7 @@ export {
   loadGroundTruthCase,
   loadSnapshot,
   realDatasetGroundTruthPath,
+  realDatasetLatestResultPath,
   realDatasetManifestPath,
   realDatasetRootDir,
   syntheticDatasetManifestPath,

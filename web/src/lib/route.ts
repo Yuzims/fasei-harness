@@ -1,4 +1,4 @@
-export type View = "agent" | "overview" | "run" | "benchmark" | "retrieval";
+export type View = "investigate" | "agent" | "overview" | "run" | "benchmark" | "retrieval";
 
 export interface Route {
   view: View;
@@ -14,14 +14,17 @@ export function parseHash(hash: string): Route {
   if (view === "lab" || view === "overview") {
     return { view: "overview" };
   }
+  if (view === "agent") {
+    return { view: "agent" };
+  }
   if (view === "benchmark" || view === "retrieval") {
     return { view };
   }
-  return { view: "agent" };
+  return { view: "investigate" };
 }
 
 export function toHash(route: Route): string {
-  if (route.view === "agent") {
+  if (route.view === "investigate") {
     return "#/";
   }
   if (route.view === "overview") {

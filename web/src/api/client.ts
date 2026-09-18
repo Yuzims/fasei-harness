@@ -5,6 +5,9 @@ import type {
   AgentStatusDTO,
   AgentStreamEvent,
   BenchmarkMode,
+  InvestigationCatalogDTO,
+  InvestigationRequest,
+  InvestigationSessionDTO,
   ModeScoreDTO,
   RunDTO,
   ScenarioInfo,
@@ -130,4 +133,44 @@ export function runScenario(scenarioId: string, mode: BenchmarkMode) {
     method: "POST",
     body: JSON.stringify({ scenarioId, mode }),
   });
+}
+
+export function fetchInvestigationCatalog() {
+  return request<InvestigationCatalogDTO>("/api/investigations/catalog");
+}
+
+export function runInvestigation(body: InvestigationRequest) {
+  return request<InvestigationSessionDTO>("/api/investigations", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchRealV1Benchmark() {
+  return request<{
+    dataset: string;
+    datasetVersion: string;
+    timestamp: string;
+    cases: Array<{
+      caseId: string;
+      observedOutcome: string;
+      expectedOutcome: string;
+      evaluation: { passed: boolean };
+      attempts: number;
+      toolCalls: number;
+      evidenceCount: number;
+      claimCount: number;
+    }>;
+    metrics: {
+      taskSuccessRate: number;
+      falseCompletionRate: number;
+      insufficientEvidenceRate: number;
+      evidenceCoverage: number;
+      recoveryRate: number;
+      recoverySuccessRate: number;
+      averageAttempts: number;
+      averageToolCalls: number;
+      verifierFalsePositiveRate: number;
+    };
+  }>("/api/fasei-benchmark/real-v1");
 }

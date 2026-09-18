@@ -6,6 +6,11 @@ import { allCases, listScenarios } from "../eval/cases.js";
 import { executeCase, runBenchmark } from "../eval/benchmark.js";
 import { runRetrievalAblation } from "../retrieval/ablation.js";
 import { agentExamples, agentStatus, runAgentSession } from "./agent-service.js";
+import {
+  investigationCatalog,
+  loadRealV1BenchmarkResult,
+  runInvestigation,
+} from "./investigation-service.js";
 import { toAblationDTO, toRunDTO } from "./serialize.js";
 
 const MODES: BenchmarkMode[] = ["baseline", "generic_retry", "failure_aware"];
@@ -128,6 +133,43 @@ export function createApp(env: Env = process.env) {
 
   app.get("/api/retrieval", (c) => {
     return c.json({ rows: toAblationDTO(runRetrievalAblation()) });
+  });
+
+  app.get("/api/investigations/catalog", (c) => c.json(investigationCatalog()));
+
+  app.post("/api/investigations", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return c.json({ error: "JSON body 必填" }, 400);
+    }
+    try {
+      const session = await runInvestigation(body);
+      return c.json(session);
+    } catch (error) {
+      const status =
+        error && typeof error === "object" && "status" in error && typeof error.status === "number"
+          ? error.status
+          : 400;
+      return c.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        status === 404 ? 404 : 400,
+      );
+    }
+  });
+
+  app.get("/api/fasei-benchmark/real-v1", (c) => {
+    try {
+      return c.json(loadRealV1BenchmarkResult());
+    } catch (error) {
+      const status =
+        error && typeof error === "object" && "status" in error && typeof error.status === "number"
+          ? error.status
+          : 400;
+      return c.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        status === 404 ? 404 : 400,
+      );
+    }
   });
 
   return app;

@@ -135,3 +135,111 @@ export interface AgentSessionDTO {
     hits: RetrievalHitDTO[];
   };
 }
+
+export type InvestigationCatalogGroup = "real-v1" | "fixture" | "recovery";
+
+export interface InvestigationCatalogItemDTO {
+  id: string;
+  group: InvestigationCatalogGroup;
+  owner: string;
+  repository: string;
+  issueNumber: number;
+  label: string;
+  description: string;
+  sourceUrl?: string;
+}
+
+export interface InvestigationCatalogDTO {
+  snapshots: InvestigationCatalogItemDTO[];
+  fixtures: InvestigationCatalogItemDTO[];
+  recovery: InvestigationCatalogItemDTO[];
+}
+
+export interface InvestigationRequest {
+  issue?: string;
+  owner?: string;
+  repository?: string;
+  issueNumber?: number | string;
+  caseId?: string;
+  scenarioId?: string;
+}
+
+export interface InvestigationCheckDTO {
+  id: string;
+  name: string;
+  status: string;
+  message: string;
+}
+
+export interface InvestigationAttemptDTO {
+  id: string;
+  attempt: number;
+  status?: string;
+  parentAttemptId?: string;
+  strategy?: string;
+  verificationStatus?: string;
+  checks: InvestigationCheckDTO[];
+  failureType?: string;
+  failureReason?: string;
+  recoveryAction?: string;
+  recoveryReason?: string;
+  recoveryNextStep?: string;
+  evidenceIds: string[];
+  claimIds: string[];
+}
+
+export interface InvestigationSessionDTO {
+  dataSource: "snapshot";
+  catalogId?: string;
+  group?: InvestigationCatalogGroup;
+  actor: "llm" | "test_driver" | "unconfigured";
+  status: string;
+  runStatus: string;
+  task: {
+    owner: string;
+    repository: string;
+    issueNumber: number;
+    description: string;
+  };
+  verification?: {
+    status: string;
+    evidenceCoverage: number;
+    prematureCompletion: boolean;
+    missingRequirementIds: string[];
+    unsupportedClaimIds: string[];
+    checks: InvestigationCheckDTO[];
+  };
+  evidence: Array<{
+    id: string;
+    kind: string;
+    summary: string;
+    trust: string;
+    url?: string;
+  }>;
+  claims: Array<{
+    id: string;
+    text: string;
+    polarity: string;
+    critical: boolean;
+  }>;
+  claimEvidence: Array<{
+    claimId: string;
+    evidenceId: string;
+    role: string;
+  }>;
+  steps: Array<{
+    step: number;
+    tool: string;
+    success: boolean;
+    reason?: string;
+    evidenceIds: string[];
+  }>;
+  attempts: InvestigationAttemptDTO[];
+  report: {
+    conclusion: string;
+    polarity: string;
+    resolutionMethod?: string;
+    uncertainty: string;
+    openQuestions: string[];
+  };
+}

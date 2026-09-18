@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { AgentView } from "./views/AgentView";
 import { BenchmarkView } from "./views/BenchmarkView";
+import { InvestigationView } from "./views/InvestigationView";
 import { OverviewView } from "./views/OverviewView";
 import { RetrievalView } from "./views/RetrievalView";
 import { RunView } from "./views/RunView";
 import { navigate, parseHash, type Route, type View } from "./lib/route";
 
 const NAV: Array<{ view: View; label: string }> = [
+  { view: "investigate", label: "Investigation" },
   { view: "agent", label: "工作台" },
   { view: "overview", label: "评测" },
   { view: "run", label: "注入失败" },
@@ -27,17 +29,16 @@ export function App() {
     <div className="shell">
       <header className="topbar">
         <div className="brand">
-          <small>Workspace Agent</small>
-          <h1>有界 Workspace Agent</h1>
+          <small>FASEI Harness</small>
+          <h1>Failure-Aware Investigation</h1>
           <p className="muted">
-            可运行的 Agent，不是 IDE 插件，也不是通用搜索引擎。工具集封闭：写文件 / 本地评测检索 /
-            GitHub / 计算器。失败感知是内置层。
+            调查 GitHub Issue。Agent 收集证据，Independent Verifier 判定完成。失败按类型恢复，而不是统一 Retry。
           </p>
         </div>
         <div className="layers">
-          <span>React 工作台</span>
-          <span>Node API</span>
-          <span>Agent + Harness</span>
+          <span>React UI</span>
+          <span>Hono API</span>
+          <span>Investigation Runtime</span>
         </div>
       </header>
 
@@ -53,6 +54,7 @@ export function App() {
         ))}
       </nav>
 
+      {route.view === "investigate" ? <InvestigationView /> : null}
       {route.view === "agent" ? <AgentView /> : null}
       {route.view === "overview" ? <OverviewView /> : null}
       {route.view === "run" ? <RunView scenarioId={route.scenarioId} /> : null}

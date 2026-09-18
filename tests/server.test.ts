@@ -104,3 +104,70 @@ test("API：未知场景返回 404", async () => {
   });
   assert.equal(res.status, 404);
 });
+
+test("API：Investigation catalog 列出 Real-v1 C01 和 recovery scenarios", async () => {
+  const res = await app.request("/api/investigations/catalog");
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.snapshots[0].id, "C01");
+  assert.equal(body.snapshots[0].issueNumber, 258694);
+  assert.ok(body.recovery.some((item: { id: string }) => item.id === "tool-failure"));
+});
+
+test("API：microsoft/vscode#258694 走 Real-v1 snapshot 得到 verified_complete", async () => {
+  const res = await app.request("/api/investigations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ issue: "microsoft/vscode#258694" }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.dataSource, "snapshot");
+  assert.equal(body.catalogId, "C01");
+  assert.equal(body.actor, "test_driver");
+  assert.equal(body.task.owner, "microsoft");
+  assert.equal(body.task.repository, "vscode");
+  assert.equal(body.task.issueNumber, 258694);
+  assert.equal(body.verification.status, "verified_complete");
+  assert.ok(body.evidence.length > 0);
+  assert.ok(body.claims.length > 0);
+  assert.ok(body.attempts.length >= 1);
+  assert.ok(body.verification.checks.some((check: { id: string }) => check.id === "issue-identity"));
+});
+
+test("API：tool-failure recovery scenario 产生 Attempt 1 failure 和 Attempt 2 re-verification", async () => {
+  const res = await app.request("/api/investigations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ scenarioId: "tool-failure" }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.group, "recovery");
+  assert.equal(body.attempts.length, 2);
+  assert.equal(body.attempts[0].failureType, "tool_failure");
+  assert.equal(body.attempts[0].recoveryAction, "retry_with_backoff");
+  assert.equal(body.attempts[1].parentAttemptId, body.attempts[0].id);
+  assert.equal(body.verification.status, "verified_complete");
+});
+
+test("API：未知 Issue 不编造 live/mock 结果", async () => {
+  const res = await app.request("/api/investigations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ issue: "unknown/repo#1" }),
+  });
+  assert.equal(res.status, 404);
+  const body = await res.json();
+  assert.match(body.error, /recorded snapshot/);
+});
+
+test("API：Real-v1 latest.json 可读取", async () => {
+  const res = await app.request("/api/fasei-benchmark/real-v1");
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.dataset, "real-v1");
+  assert.equal(body.cases[0].caseId, "C01");
+  assert.equal(body.cases[0].observedOutcome, "verified_complete");
+});
+

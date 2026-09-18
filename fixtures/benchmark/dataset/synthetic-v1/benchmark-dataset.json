@@ -1,0 +1,65 @@
+{
+  "datasetVersion": "v1",
+  "schemaVersion": "1",
+  "kind": "synthetic",
+  "name": "fasei-synthetic-v1",
+  "description": "Synthetic/fixture dataset for validating the Benchmark Dataset Pipeline. Not a real-world GitHub benchmark. Real Dataset Cases will be provided later by maintainers.",
+  "cases": [
+    {
+      "caseId": "synthetic-resolved",
+      "source": {
+        "type": "github",
+        "repository": "acme/box",
+        "issueNumber": 42
+      },
+      "snapshotPath": "snapshots/resolved.json",
+      "scenarioId": "resolved",
+      "kind": "normal",
+      "description": "Closed issue with a merged resolution PR and linked code evidence.",
+      "expectedOutcome": {
+        "verificationStatus": "verified_complete"
+      },
+      "tags": ["synthetic", "fixture", "resolved"],
+      "difficulty": "easy",
+      "notes": "Copied from fixtures/github/resolved.json for pipeline validation."
+    },
+    {
+      "caseId": "synthetic-closed-unmerged",
+      "source": {
+        "type": "github",
+        "repository": "acme/box",
+        "issueNumber": 99
+      },
+      "snapshotPath": "snapshots/closed-unmerged.json",
+      "scenarioId": "closed-unmerged",
+      "kind": "normal",
+      "description": "Closed issue linked to a PR that is not merged. Closed is not resolved.",
+      "expectedOutcome": {
+        "verificationStatus": "not_verified"
+      },
+      "tags": ["synthetic", "fixture", "closed-unmerged"],
+      "difficulty": "easy",
+      "notes": "Copied from fixtures/github/closed-unmerged.json for pipeline validation."
+    },
+    {
+      "caseId": "synthetic-insufficient-evidence",
+      "source": {
+        "type": "github",
+        "repository": "acme/box",
+        "issueNumber": 7
+      },
+      "snapshotPath": "snapshots/insufficient-evidence.json",
+      "scenarioId": "insufficient-evidence",
+      "kind": "failure",
+      "failureMode": "insufficient_evidence",
+      "description": "Closed issue with no linked PR, commit, or other resolution evidence.",
+      "expectedOutcome": {
+        "verificationStatus": "insufficient_evidence",
+        "failureModes": ["insufficient_evidence"]
+      },
+      "tags": ["synthetic", "fixture", "insufficient-evidence"],
+      "difficulty": "easy",
+      "notes": "Copied from fixtures/github/insufficient-evidence.json for pipeline validation. failureMode is scenario intent; expectedOutcome.failureModes is the observed production failure."
+    }
+  ]
+}

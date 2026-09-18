@@ -6,8 +6,10 @@
  */
 import { createInvestigationTask, type FailureType, type VerificationStatus } from "../domain/index.js";
 import { SnapshotGitHubProvider } from "../github/snapshot-provider.js";
-import { githubFixturePath } from "../github/snapshot-store.js";
+import { githubFixturePath, loadSnapshot } from "../github/snapshot-store.js";
+import type { InvestigationSnapshot } from "../github/types.js";
 import { investigate, type InvestigationAgentReport } from "../investigation/index.js";
+import { convertCaseToScenario, loadCase, type BenchmarkDataset } from "./dataset/index.js";
 import { evaluateScenarioContract, expectedFailureModes } from "./evaluate.js";
 import { prepareScenarioEnvironment } from "./injection.js";
 import { buildBenchmarkReport, isFalseCompletion } from "./metrics.js";
@@ -97,8 +99,22 @@ export function scoreScenario(scenario: BenchmarkScenario, report: Investigation
   };
 }
 
+export function resolveScenarioSnapshotPath(scenario: BenchmarkScenario): string {
+  if (scenario.snapshotPath?.trim()) {
+    return scenario.snapshotPath;
+  }
+  if (scenario.fixture) {
+    return githubFixturePath(scenario.fixture);
+  }
+  throw new Error(`scenario ${scenario.id} is missing snapshotPath and fixture`);
+}
+
+export function loadScenarioSnapshot(scenario: BenchmarkScenario): InvestigationSnapshot {
+  return loadSnapshot(resolveScenarioSnapshotPath(scenario));
+}
+
 export async function executeScenario(scenario: BenchmarkScenario): Promise<InvestigationAgentReport> {
-  const inner = new SnapshotGitHubProvider(githubFixturePath(scenario.fixture));
+  const inner = new SnapshotGitHubProvider(loadScenarioSnapshot(scenario));
   const env = prepareScenarioEnvironment(scenario, inner);
   return investigate({
     task: createInvestigationTask({
@@ -115,6 +131,12 @@ export async function executeScenario(scenario: BenchmarkScenario): Promise<Inve
 export async function runScenario(scenario: BenchmarkScenario): Promise<ScenarioResult> {
   const report = await executeScenario(scenario);
   return scoreScenario(scenario, report);
+}
+
+export async function runBenchmarkCase(dataset: BenchmarkDataset, caseId: string): Promise<ScenarioResult> {
+  const datasetCase = loadCase(dataset, caseId);
+  const scenario = convertCaseToScenario(dataset, datasetCase);
+  return runScenario(scenario);
 }
 
 export async function runFaseiBenchmark(

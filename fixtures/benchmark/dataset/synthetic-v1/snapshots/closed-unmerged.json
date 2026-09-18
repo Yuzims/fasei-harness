@@ -1,0 +1,157 @@
+{
+  "snapshotId": "closed-unmerged",
+  "schemaVersion": 1,
+  "createdAt": "2026-09-17T00:00:00.000Z",
+  "source": "github",
+  "owner": "acme",
+  "repository": "box",
+  "issueNumber": 99,
+  "retrievedAt": "2026-09-17T00:00:00.000Z",
+  "trust": "external_untrusted",
+  "repositoryData": {
+    "id": "repo:acme/box",
+    "repository": "acme/box",
+    "owner": "acme",
+    "name": "box",
+    "description": "Sample service",
+    "defaultBranch": "main",
+    "source": "github",
+    "url": "https://github.com/acme/box",
+    "retrievedAt": "2026-09-17T00:00:00.000Z",
+    "trust": "external_untrusted"
+  },
+  "issue": {
+    "id": "issue:acme/box#99",
+    "repository": "acme/box",
+    "number": 99,
+    "title": "Timeout on checkout",
+    "body": "Checkout hangs after 30s.",
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-08-20T09:00:00.000Z",
+    "source": "github",
+    "url": "https://github.com/acme/box/issues/99",
+    "retrievedAt": "2026-09-17T00:00:00.000Z",
+    "trust": "external_untrusted"
+  },
+  "comments": [
+    {
+      "id": "comment:acme/box#99:1",
+      "repository": "acme/box",
+      "issueNumber": 99,
+      "body": "Opened #12, not merged yet. Closing the issue anyway.",
+      "author": "reporter",
+      "createdAt": "2026-08-20T08:30:00.000Z",
+      "source": "github",
+      "url": "https://github.com/acme/box/issues/99#comment-1",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "timeline": [
+    {
+      "id": "timeline:acme/box:connected-12",
+      "repository": "acme/box",
+      "event": "connected",
+      "createdAt": "2026-08-19T18:00:00.000Z",
+      "actor": "contributor",
+      "body": "",
+      "pullRequestNumber": 12,
+      "source": "github",
+      "url": "https://github.com/acme/box/issues/99",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:acme/box:closed-99",
+      "repository": "acme/box",
+      "event": "closed",
+      "createdAt": "2026-08-20T09:00:00.000Z",
+      "actor": "reporter",
+      "body": "",
+      "source": "github",
+      "url": "https://github.com/acme/box/issues/99",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "pullRequests": {
+    "12": {
+      "id": "pr:acme/box#12",
+      "repository": "acme/box",
+      "number": 12,
+      "title": "WIP checkout timeout",
+      "body": "Towards #99",
+      "state": "open",
+      "merged": false,
+      "mergeCommitSha": null,
+      "headSha": "fff000aaa111",
+      "source": "github",
+      "url": "https://github.com/acme/box/pull/12",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    }
+  },
+  "reviews": {
+    "12": [
+      {
+        "id": "review:acme/box#12:1",
+        "repository": "acme/box",
+        "pullNumber": 12,
+        "state": "CHANGES_REQUESTED",
+        "body": "Needs tests.",
+        "author": "reviewer",
+        "source": "github",
+        "url": "https://github.com/acme/box/pull/12",
+        "retrievedAt": "2026-09-17T00:00:00.000Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "files": {
+    "12": [
+      {
+        "id": "file:acme/box#12:src/checkout.ts",
+        "repository": "acme/box",
+        "pullNumber": 12,
+        "filename": "src/checkout.ts",
+        "status": "modified",
+        "additions": 3,
+        "deletions": 1,
+        "source": "github",
+        "url": "https://github.com/acme/box/pull/12",
+        "retrievedAt": "2026-09-17T00:00:00.000Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commits": {
+    "pr:12": [
+      {
+        "id": "commit:acme/box@fff000aaa111",
+        "repository": "acme/box",
+        "sha": "fff000aaa111",
+        "message": "WIP checkout timeout",
+        "author": "contributor",
+        "source": "github",
+        "url": "https://github.com/acme/box/commit/fff000aaa111",
+        "retrievedAt": "2026-09-17T00:00:00.000Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "repo": []
+  },
+  "commitIndex": {
+    "fff000aaa111": {
+      "id": "commit:acme/box@fff000aaa111",
+      "repository": "acme/box",
+      "sha": "fff000aaa111",
+      "message": "WIP checkout timeout",
+      "author": "contributor",
+      "source": "github",
+      "url": "https://github.com/acme/box/commit/fff000aaa111",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    }
+  }
+}

@@ -29,7 +29,10 @@ export interface BenchmarkScenario {
   kind: BenchmarkScenarioKind;
   /** Intended experiment mode when kind is failure. Metadata only. */
   failureMode?: BenchmarkFailureMode;
-  fixture: GithubFixtureId;
+  /** Phase 7.0/7.1 recorded GitHub fixture id. Dataset cases use snapshotPath instead. */
+  fixture?: GithubFixtureId;
+  /** Absolute path to a recorded InvestigationSnapshot. Benchmark runtime uses this, not the live GitHub API. */
+  snapshotPath?: string;
   target: InvestigationTarget;
   expectedOutcome: ExpectedOutcome;
 }

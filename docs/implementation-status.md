@@ -319,6 +319,150 @@ Future:
 
 This suite is not representative of real-world GitHub workloads.
 
+## Phase 7.2A — Benchmark Dataset Pipeline — DONE
+
+Stable, reproducible dataset input for the existing Benchmark. This phase does not add Agent capability, and it does not redesign Verification / Failure Analysis / Recovery.
+
+```text
+Real GitHub Issue
+      ↓
+Snapshot
+      ↓
+Normalized GitHub Data
+      ↓
+Benchmark Scenario
+      ↓
+Harness Run
+      ↓
+Independent Verification
+      ↓
+Benchmark Metrics
+```
+
+Current development Dataset is **synthetic / fixture**. It is not a real-world GitHub benchmark. Real Dataset Cases have not been imported.
+
+### Dataset architecture
+
+```text
+BenchmarkDataset
+BenchmarkDatasetCase
+BenchmarkDatasetMetadata
+        ↓
+Dataset Loader / Validation
+        ↓
+Scenario Adapter
+        ↓
+Benchmark Runner (existing Harness + Verifier)
+```
+
+Location: `src/benchmark/dataset/`. Dataset is an evaluator/experiment input layer. It calls production `GitHubDataProvider` snapshot APIs and the existing Benchmark Runner. It does not copy Independent Completion Verifier, Failure Analyzer, or Recovery Planner.
+
+Dependency direction is unchanged:
+
+```text
+domain → github/data → investigation → verification → failure/recovery → benchmark → dataset
+```
+
+Domain does not import benchmark or dataset. Benchmark runtime does not call `api.github.com`.
+
+### Dataset manifest
+
+`fixtures/benchmark/dataset/synthetic-v1/benchmark-dataset.json`
+
+```text
+datasetVersion  (content version, currently "v1")
+schemaVersion   (manifest schema, currently "1")
+kind            ("synthetic" | "real")
+cases[]
+```
+
+`datasetVersion` and `schemaVersion` are separate: changing cases does not imply a schema change.
+
+Each case:
+
+```text
+caseId
+source.type / source.repository / source.issueNumber
+snapshotPath
+scenarioId
+kind / optional failureMode
+expectedOutcome
+```
+
+Reserved optional fields (stored, not a second evaluation contract): `tags`, `difficulty`, `sourceMetadata`, `expectedFailureModes`, `notes`.
+
+Evaluation still uses `expectedOutcome`. `scenario.failureMode` is experiment intent. `expectedOutcome.failureModes` is the observed production failure the evaluator checks. There is no fallback from `failureMode` or reserved `expectedFailureModes`.
+
+### Snapshot strategy
+
+Do not redesign Phase 2. Recorded snapshots are normalized `InvestigationSnapshot` files. Loader validates them with existing `loadSnapshot` / `validateSnapshot`. Runtime uses `SnapshotGitHubProvider` only.
+
+```text
+GitHub API
+    ↓
+GitHubDataProvider
+    ↓
+Normalized GitHub Data
+    ↓
+Recorded Snapshot
+    ↓
+SnapshotGitHubProvider
+```
+
+Dataset snapshots live under `fixtures/benchmark/dataset/` and are distinct from `fixtures/github/`. Files are git-versioned, contain no tokens, and do not require live GitHub state.
+
+### Loader / validation
+
+`loadDataset()` / `validateDataset()` / `loadCase()` / `loadSnapshot()` fail fast:
+
+- unique `caseId`
+- snapshot file exists and is a valid InvestigationSnapshot
+- scenario fields present (`scenarioId`, `kind`, `expectedOutcome`)
+- `expectedOutcome.verificationStatus` / `failureModes` / `recovery` are legal
+- repository / issue identity complete (`github` + `owner/name` + positive issue number)
+- snapshot identity matches case identity (owner / repository / issue number)
+- supported `schemaVersion`
+
+Errors throw `BenchmarkDatasetError`. Invalid cases are not skipped.
+
+### Dataset → Scenario → Harness
+
+```text
+Dataset Loader
+      ↓
+Dataset Case
+      ↓
+convertCaseToScenario()
+      ↓
+BenchmarkScenario (snapshotPath, not live GitHub)
+      ↓
+runBenchmarkCase() → existing executeScenario / investigate / verifier
+```
+
+`BenchmarkScenario.snapshotPath` is the dataset-resolved recorded snapshot. Existing Phase 7.0/7.1 scenarios still use `fixture`. Metrics semantics from Phase 7.0 are unchanged.
+
+### Reproducibility
+
+Same `datasetVersion` + `caseId` reloads the same snapshot input. Deterministic fixture-mode Harness runs are stable for verifier outcome / pass. This phase requires Dataset Input Determinism, not full Agent-model determinism.
+
+### Tests
+
+`tests/benchmark-dataset.test.ts`:
+
+1. Valid dataset loads
+2. Missing snapshot fails
+3. Duplicate `caseId` fails
+4. Snapshot / case identity mismatch fails
+5. Illegal `expectedOutcome` fails
+6. Dataset version / schema version readable
+7. Case converts to Benchmark Scenario
+8. Runner executes a full case from snapshot
+9. Same case reloads the same snapshot; fixture-mode rerun is stable
+
+### Current limitation
+
+No real-world GitHub Dataset Cases are included. Synthetic copies of `resolved` / `closed-unmerged` / `insufficient-evidence` exist only to validate the pipeline. Future real cases (on the order of 10 maintainer-provided issues) can be added to a later dataset version without changing production Harness semantics.
+
 ## Not started
 
-Phase 7.2+ (larger real-world GitHub snapshot benchmark, baseline comparison, semantic judge, UI redesign) waits for a new task.
+Phase 7.2B+ (real GitHub snapshot cases, baseline comparison, semantic judge, UI redesign) waits for a new task.

@@ -1,0 +1,169 @@
+{
+  "snapshotId": "resolved",
+  "schemaVersion": 1,
+  "createdAt": "2026-09-17T00:00:00.000Z",
+  "source": "github",
+  "owner": "acme",
+  "repository": "box",
+  "issueNumber": 42,
+  "retrievedAt": "2026-09-17T00:00:00.000Z",
+  "trust": "external_untrusted",
+  "repositoryData": {
+    "id": "repo:acme/box",
+    "repository": "acme/box",
+    "owner": "acme",
+    "name": "box",
+    "description": "Sample service",
+    "defaultBranch": "main",
+    "source": "github",
+    "url": "https://github.com/acme/box",
+    "retrievedAt": "2026-09-17T00:00:00.000Z",
+    "trust": "external_untrusted"
+  },
+  "issue": {
+    "id": "issue:acme/box#42",
+    "repository": "acme/box",
+    "number": 42,
+    "title": "Null pointer when saving empty cart",
+    "body": "Saving an empty cart throws. Please fix.",
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-08-01T12:00:00.000Z",
+    "source": "github",
+    "url": "https://github.com/acme/box/issues/42",
+    "retrievedAt": "2026-09-17T00:00:00.000Z",
+    "trust": "external_untrusted"
+  },
+  "comments": [
+    {
+      "id": "comment:acme/box#42:1",
+      "repository": "acme/box",
+      "issueNumber": 42,
+      "body": "Fixed in #7.",
+      "author": "maintainer",
+      "createdAt": "2026-08-01T11:00:00.000Z",
+      "source": "github",
+      "url": "https://github.com/acme/box/issues/42#comment-1",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "timeline": [
+    {
+      "id": "timeline:acme/box:connected-7",
+      "repository": "acme/box",
+      "event": "connected",
+      "createdAt": "2026-08-01T10:00:00.000Z",
+      "actor": "maintainer",
+      "body": "",
+      "pullRequestNumber": 7,
+      "source": "github",
+      "url": "https://github.com/acme/box/issues/42",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    },
+    {
+      "id": "timeline:acme/box:closed",
+      "repository": "acme/box",
+      "event": "closed",
+      "createdAt": "2026-08-01T12:00:00.000Z",
+      "actor": "maintainer",
+      "body": "",
+      "source": "github",
+      "url": "https://github.com/acme/box/issues/42",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    }
+  ],
+  "pullRequests": {
+    "7": {
+      "id": "pr:acme/box#7",
+      "repository": "acme/box",
+      "number": 7,
+      "title": "Fix empty cart save",
+      "body": "Fixes #42",
+      "state": "closed",
+      "merged": true,
+      "mergeCommitSha": "abc123def456",
+      "headSha": "abc123def456",
+      "source": "github",
+      "url": "https://github.com/acme/box/pull/7",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    }
+  },
+  "reviews": {
+    "7": [
+      {
+        "id": "review:acme/box#7:1",
+        "repository": "acme/box",
+        "pullNumber": 7,
+        "state": "APPROVED",
+        "body": "Looks good.",
+        "author": "reviewer",
+        "source": "github",
+        "url": "https://github.com/acme/box/pull/7",
+        "retrievedAt": "2026-09-17T00:00:00.000Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "files": {
+    "7": [
+      {
+        "id": "file:acme/box#7:src/cart.ts",
+        "repository": "acme/box",
+        "pullNumber": 7,
+        "filename": "src/cart.ts",
+        "status": "modified",
+        "additions": 8,
+        "deletions": 2,
+        "source": "github",
+        "url": "https://github.com/acme/box/pull/7",
+        "retrievedAt": "2026-09-17T00:00:00.000Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commits": {
+    "pr:7": [
+      {
+        "id": "commit:acme/box@abc123def456",
+        "repository": "acme/box",
+        "sha": "abc123def456",
+        "message": "Fix empty cart save\n\nFixes #42",
+        "author": "maintainer",
+        "source": "github",
+        "url": "https://github.com/acme/box/commit/abc123def456",
+        "retrievedAt": "2026-09-17T00:00:00.000Z",
+        "trust": "external_untrusted"
+      }
+    ],
+    "repo": [
+      {
+        "id": "commit:acme/box@abc123def456",
+        "repository": "acme/box",
+        "sha": "abc123def456",
+        "message": "Fix empty cart save\n\nFixes #42",
+        "author": "maintainer",
+        "source": "github",
+        "url": "https://github.com/acme/box/commit/abc123def456",
+        "retrievedAt": "2026-09-17T00:00:00.000Z",
+        "trust": "external_untrusted"
+      }
+    ]
+  },
+  "commitIndex": {
+    "abc123def456": {
+      "id": "commit:acme/box@abc123def456",
+      "repository": "acme/box",
+      "sha": "abc123def456",
+      "message": "Fix empty cart save\n\nFixes #42",
+      "author": "maintainer",
+      "source": "github",
+      "url": "https://github.com/acme/box/commit/abc123def456",
+      "retrievedAt": "2026-09-17T00:00:00.000Z",
+      "trust": "external_untrusted"
+    }
+  }
+}

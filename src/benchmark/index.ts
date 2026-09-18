@@ -33,9 +33,34 @@ export {
 export { prepareScenarioEnvironment } from "./injection.js";
 export {
   executeScenario,
+  loadScenarioSnapshot,
   observeScenario,
+  resolveScenarioSnapshotPath,
+  runBenchmarkCase,
   runFaseiBenchmark,
   runScenario,
   scoreScenario,
   serializeBenchmarkReport,
 } from "./runner.js";
+export {
+  DATASET_SCHEMA_VERSION,
+  SYNTHETIC_DATASET_ID,
+  BenchmarkDatasetError,
+  convertCaseToScenario,
+  loadCase,
+  loadCaseSnapshot,
+  loadDataset,
+  loadSnapshot,
+  syntheticDatasetManifestPath,
+  syntheticDatasetRootDir,
+  validateDataset,
+} from "./dataset/index.js";
+export type {
+  BenchmarkDataset,
+  BenchmarkDatasetCase,
+  BenchmarkDatasetErrorCode,
+  BenchmarkDatasetKind,
+  BenchmarkDatasetMetadata,
+  BenchmarkDatasetSource,
+  LoadedDatasetCase,
+} from "./dataset/index.js";

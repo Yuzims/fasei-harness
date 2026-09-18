@@ -32,6 +32,12 @@ export {
   isVerifierFalsePositive,
 } from "./metrics.js";
 export {
+  contextEfficiencyFromMetrics,
+  contextEfficiencyFromReport,
+  contextEfficiencyFromScenario,
+} from "./context-efficiency.js";
+export type { ContextEfficiencyMetrics } from "./context-efficiency.js";
+export {
   compareFailureModes,
   compareRecovery,
   evaluateExpectedContract,

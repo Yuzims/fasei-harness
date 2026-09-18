@@ -40,5 +40,9 @@ export {
 } from "./test-driver.js";
 export { createInvestigationToolList, ingestObservation } from "./investigation-tools.js";
 export type { InvestigationSession } from "./investigation-tools.js";
+export {
+  compactInvestigationToolOutput,
+  compactRecordClaimOutput,
+} from "./tool-result-context.js";
 export { IndependentCompletionVerifier, verifyInvestigationCompletion } from "../verification/independent-completion-verifier.js";
 export type { IndependentVerifyInput } from "../verification/independent-completion-verifier.js";

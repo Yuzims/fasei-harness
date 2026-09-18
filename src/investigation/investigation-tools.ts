@@ -27,6 +27,10 @@ import {
   resourceKey,
   resourceKeyForTool,
 } from "./state.js";
+import {
+  compactInvestigationToolOutput,
+  compactRecordClaimOutput,
+} from "./tool-result-context.js";
 
 const POLARITIES: ClaimPolarity[] = ["resolved", "unresolved", "partial", "unknown"];
 const ROLES: ClaimEvidenceRole[] = ["supports", "contradicts", "contextual"];
@@ -507,14 +511,13 @@ function wrapGithubTool(tool: Tool, session: InvestigationSession): Tool {
           cached: true,
           reason: session.state.lastDecisionReason,
         });
-        return {
-          observation: cachedPayload(session, key),
+        return compactInvestigationToolOutput({
+          tool: tool.name,
+          args,
+          output: cachedPayload(session, key),
           evidenceIds: existing ? [existing.id] : [],
           cached: true,
-          trust: "external_untrusted",
-          notice: UNTRUSTED_NOTICE,
-          investigation: session.state.hint(),
-        };
+        });
       }
       if (key) {
         session.state.refetchResources.delete(key);
@@ -529,13 +532,12 @@ function wrapGithubTool(tool: Tool, session: InvestigationSession): Tool {
           evidenceIds,
           reason: session.state.lastDecisionReason,
         });
-        return {
-          observation: output,
+        return compactInvestigationToolOutput({
+          tool: tool.name,
+          args,
+          output,
           evidenceIds,
-          trust: "external_untrusted",
-          notice: UNTRUSTED_NOTICE,
-          investigation: session.state.hint(),
-        };
+        });
       } catch (error) {
         const providerError = error instanceof GitHubProviderError ? error : undefined;
         if (key && providerError && providerError.retryable === false) {
@@ -672,11 +674,7 @@ export function createRecordClaimTool(session: InvestigationSession): Tool {
         evidenceIds: [],
         reason: session.state.lastDecisionReason,
       });
-      return {
-        claimIds: created,
-        notice: "Claims are hypotheses. They are not VERIFIED_COMPLETE.",
-        investigation: session.state.hint(),
-      };
+      return compactRecordClaimOutput(created);
     },
   };
 }

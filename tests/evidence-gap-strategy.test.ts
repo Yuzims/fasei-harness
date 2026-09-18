@@ -607,6 +607,9 @@ test("Test 13 — no candidate action when the gap is closed", () => {
     false,
   );
   assert.equal(toolNames(legal).includes("github_get_issue"), false);
+  const planned = planInvestigationStrategy(state);
+  assert.equal(planned.closure, "GAP_CLOSED");
+  assert.equal(planned.legalActions.length, 0);
 });
 
 test("Test 13b — empty legal GitHub set does not execute a hallucinated tool", async () => {
@@ -834,16 +837,22 @@ test("Test A2 — no legal action cannot become verified_complete by Strategy", 
   assert.notEqual(result.status, "verified_complete");
 });
 
-test("Test A3 — strategy_exhausted does not own the verifier verdict", async () => {
+test("Test A3 — gap_closed does not own the verifier verdict", async () => {
+  const trace = new TraceCollector();
   const result = await investigate({
     task: { owner: "acme", repository: "box", issueNumber: 42 },
     provider: new SnapshotGitHubProvider(githubFixturePath("resolved")),
     model: exhaustLegalModel({ decides: 0 }),
+    trace,
     maxAttempts: 1,
     maxSteps: 12,
   });
-  assert.equal(result.agentResult?.decision, "strategy_exhausted");
+  assert.equal(result.agentResult?.decision, "gap_closed");
+  assert.notEqual(result.agentResult?.decision, "final");
+  assert.notEqual(result.agentResult?.decision, "strategy_exhausted");
   assert.notEqual(result.agentResult?.status, "completed");
+  const blocked = trace.getEvents().find((event) => event.type === "investigation_blocked");
+  assert.equal(blocked?.data.code, "GAP_CLOSED");
   const independent = new IndependentCompletionVerifier().verify({
     task: result.task,
     run: result.run,

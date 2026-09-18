@@ -50,6 +50,11 @@ import {
   planInvestigationStrategy,
   type CandidateInvestigationAction,
 } from "./candidate-actions.js";
+import {
+  GAP_CLOSED_REASON,
+  GAP_OPEN_UNRESOLVABLE_REASON,
+  type InvestigationClosureStatus,
+} from "./investigation-closure.js";
 import { formatStateForModel, investigationFingerprint, InvestigationState } from "./state.js";
 import { SnapshotInvestigationDriver, TEST_DRIVER_NOTICE } from "./test-driver.js";
 
@@ -144,19 +149,21 @@ class InvestigationLoopModel implements Model {
           ]
         : history;
 
-    if (this.constrainLegalActions && planned && planned.legalActions.length === 0) {
+    if (this.constrainLegalActions && planned && planned.closure !== "GAP_OPEN_ACTIONABLE") {
+      const blocked = blockForClosure(planned.closure, planned.closureReason);
       const legalTools: string[] = [];
       this.session.trace.record(this.session.runId, this.session.state.currentStep, "agent_step", {
         tool: undefined,
-        reason: NO_LEGAL_INVESTIGATION_ACTION,
+        reason: blocked.reason,
         evidenceGapMissing: planned.gap.missingRequirements.map((item) => item.requirementId),
         legalTools,
-        code: "NO_LEGAL_INVESTIGATION_ACTION",
+        code: blocked.code,
+        investigationClosure: planned.closure,
       });
       return {
         type: "investigation_blocked",
-        code: "NO_LEGAL_INVESTIGATION_ACTION",
-        reason: NO_LEGAL_INVESTIGATION_ACTION,
+        code: blocked.code,
+        reason: blocked.reason,
         legalTools,
       };
     }
@@ -201,9 +208,25 @@ class InvestigationLoopModel implements Model {
         investigatedResources: [...this.session.state.investigatedResources],
         legalTools: planned?.legalActions.map((item) => item.tool),
         evidenceGapMissing: planned?.gap.missingRequirements.map((item) => item.requirementId),
+        investigationClosure: planned?.closure,
       });
     }
     return response;
+  }
+}
+
+function blockForClosure(
+  status: InvestigationClosureStatus,
+  reason: string,
+): { code: "NO_LEGAL_INVESTIGATION_ACTION" | "GAP_CLOSED" | "GAP_OPEN_UNRESOLVABLE"; reason: string } {
+  switch (status) {
+    case "GAP_CLOSED":
+      return { code: "GAP_CLOSED", reason: reason || GAP_CLOSED_REASON };
+    case "GAP_OPEN_UNRESOLVABLE":
+      return { code: "GAP_OPEN_UNRESOLVABLE", reason: reason || GAP_OPEN_UNRESOLVABLE_REASON };
+    case "NO_LEGAL_ACTION":
+    case "GAP_OPEN_ACTIONABLE":
+      return { code: "NO_LEGAL_INVESTIGATION_ACTION", reason: reason || NO_LEGAL_INVESTIGATION_ACTION };
   }
 }
 
@@ -254,6 +277,8 @@ function strategyView(
       })),
     },
     legalInvestigationActions: legalActionViews(planned.legalActions),
+    investigationClosure: planned.closure,
+    investigationClosureReason: planned.closureReason,
   };
 }
 

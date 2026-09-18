@@ -12,10 +12,18 @@ import {
   type EvidenceGapItem,
 } from "./evidence-gap.js";
 import {
+  decideInvestigationClosure,
+  hasTerminalNegativeEvidence,
+  NO_LEGAL_INVESTIGATION_ACTION,
+  type InvestigationClosureStatus,
+} from "./investigation-closure.js";
+import {
   resourceKeyForTool,
   toolSignature,
   type InvestigationState,
 } from "./state.js";
+
+export { NO_LEGAL_INVESTIGATION_ACTION };
 
 export interface CandidateInvestigationAction {
   tool: string;
@@ -34,9 +42,6 @@ export interface ProposeCandidateActionsOptions {
 
 export const ILLEGAL_INVESTIGATION_ACTION =
   "Tool is not in the current legal investigation actions.";
-
-export const NO_LEGAL_INVESTIGATION_ACTION =
-  "Harness stopped: no remaining legal investigation actions. Not verified.";
 
 function expectedEvidenceKind(tool: string): EvidenceKind | undefined {
   switch (tool) {
@@ -232,6 +237,9 @@ function collectDiscoveryActions(
   gap: EvidenceGap,
   list: CandidateInvestigationAction[],
 ): void {
+  if (hasTerminalNegativeEvidence(gap)) {
+    return;
+  }
   if (!isMissing(gap, "resolution_candidate")) {
     return;
   }
@@ -277,16 +285,14 @@ function collectPullActions(
   gap: EvidenceGap,
   list: CandidateInvestigationAction[],
 ): void {
-  const candidateMissing = isMissing(gap, "resolution_candidate");
-  const mergedMissing = isMissing(gap, "resolution_merged") && !isRejected(gap, "resolution_merged");
-  if (!candidateMissing && !mergedMissing) {
+  if (hasTerminalNegativeEvidence(gap)) {
+    return;
+  }
+  if (isSatisfied(gap, "resolution_merged")) {
     return;
   }
   const target = targetArgs(state);
-  const ids = idsFor(
-    gap,
-    mergedMissing ? ["resolution_candidate", "resolution_merged"] : ["resolution_candidate"],
-  );
+  const ids = idsFor(gap, ["resolution_candidate", "resolution_merged"]);
   for (const pullNumber of state.candidatePrs) {
     addIfAvailable(
       state,
@@ -306,8 +312,14 @@ function collectCodeActions(
   gap: EvidenceGap,
   list: CandidateInvestigationAction[],
 ): void {
+  if (hasTerminalNegativeEvidence(gap)) {
+    return;
+  }
   const codeMissing = isMissing(gap, "resolution_code_evidence");
   const effectMissing = isMissing(gap, "resolution_effect");
+  if (!codeMissing && !effectMissing) {
+    return;
+  }
   const target = targetArgs(state);
   const ids = idsFor(
     gap,
@@ -317,8 +329,7 @@ function collectCodeActions(
         ? ["resolution_effect"]
         : ["resolution_code_evidence"],
   );
-  const pulls = state.mergedPrs.size > 0 ? [...state.mergedPrs] : [...state.candidatePrs];
-  const expansion = !codeMissing && !effectMissing;
+  const pulls = [...state.mergedPrs];
   for (const pullNumber of pulls) {
     addIfAvailable(
       state,
@@ -327,10 +338,7 @@ function collectCodeActions(
         tool: "github_get_pull_request_files",
         arguments: { owner: target.owner, repo: target.repo, pullNumber },
         targetRequirementIds: ids,
-        objective: expansion
-          ? `Expand resolution evidence with unused files on PR #${pullNumber}.`
-          : `Inspect files on PR #${pullNumber} for resolution code evidence.`,
-        exploratory: expansion,
+        objective: `Inspect files on PR #${pullNumber} for resolution code evidence.`,
       }),
     );
     addIfAvailable(
@@ -340,10 +348,7 @@ function collectCodeActions(
         tool: "github_list_commits",
         arguments: { owner: target.owner, repo: target.repo, pullNumber },
         targetRequirementIds: ids,
-        objective: expansion
-          ? `Expand resolution evidence with unused commits on PR #${pullNumber}.`
-          : `Inspect commits on PR #${pullNumber} for resolution code evidence.`,
-        exploratory: expansion,
+        objective: `Inspect commits on PR #${pullNumber} for resolution code evidence.`,
       }),
     );
   }
@@ -368,6 +373,9 @@ function collectClaimAction(
   list: CandidateInvestigationAction[],
   remainingLlmCalls: number | undefined,
 ): void {
+  if (hasTerminalNegativeEvidence(gap) && state.investigationStrategy?.type !== "recheck_target") {
+    return;
+  }
   const claimGap = itemFor(gap, "claim_support");
   if (claimGap?.outcome === "rejected") {
     return;
@@ -559,11 +567,17 @@ export function planInvestigationStrategy(
   gap: EvidenceGap;
   legalActions: CandidateInvestigationAction[];
   remainingLlmCalls?: number;
+  closure: InvestigationClosureStatus;
+  closureReason: string;
 } {
   const gap = options.gap ?? computeEvidenceGap(state.task, state.run);
+  const proposed = proposeCandidateActions(state, { ...options, gap });
+  const decided = decideInvestigationClosure({ gap, legalActions: proposed, state });
   return {
     gap,
-    legalActions: proposeCandidateActions(state, { ...options, gap }),
+    legalActions: decided.legalActions,
     remainingLlmCalls: options.remainingLlmCalls,
+    closure: decided.status,
+    closureReason: decided.reason,
   };
 }

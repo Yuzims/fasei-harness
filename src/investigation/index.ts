@@ -21,6 +21,14 @@ export {
 } from "./evidence-gap.js";
 export type { EvidenceGap, EvidenceGapItem } from "./evidence-gap.js";
 export {
+  decideInvestigationClosure,
+  hasTerminalNegativeEvidence,
+  requiredGapsSatisfied,
+  GAP_CLOSED_REASON,
+  GAP_OPEN_UNRESOLVABLE_REASON,
+} from "./investigation-closure.js";
+export type { InvestigationClosureStatus, InvestigationClosureDecision } from "./investigation-closure.js";
+export {
   proposeCandidateActions,
   planInvestigationStrategy,
   matchLegalAction,

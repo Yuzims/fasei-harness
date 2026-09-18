@@ -281,6 +281,7 @@ test("Test 7 — maxLlmCalls = 8 still blocks the 9th HTTP call", async () => {
     env: LIVE_ENV,
     maxAttempts: 1,
     maxSteps: 12,
+    investigationActionConstraint: "unconstrained",
     llmRuntimeBudget: { maxLlmCalls: 8, maxWallClockMs: 120_000 },
     fetchImpl: async () => {
       httpCalls += 1;

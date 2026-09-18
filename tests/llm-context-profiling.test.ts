@@ -281,6 +281,7 @@ test("Test 5 — attempt 1 step 5 is not confused with attempt 2 step 1", async 
     maxAttempts: 2,
     maxRecoveryAttempts: 1,
     maxSteps: 12,
+    investigationActionConstraint: "unconstrained",
     planner: new ContinuePlanner(),
     fetchImpl: async () => {
       llmCalls += 1;
@@ -458,6 +459,7 @@ test("Test 9 — Phase 8.7.4 safety still holds", async () => {
     env: LIVE_ENV,
     maxAttempts: 1,
     maxSteps: 12,
+    investigationActionConstraint: "unconstrained",
     llmRuntimeBudget: { maxLlmCalls: 8, maxWallClockMs: 120_000 },
     fetchImpl: async (_input, init) => {
       httpCalls += 1;

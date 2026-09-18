@@ -10,9 +10,16 @@ export const ILLEGAL_INVESTIGATION_ACTION =
   "Tool is not in the current legal investigation actions.";
 
 function decisionFromBlock(code: InvestigationBlockCode): AgentLoopDecision {
-  return code === "NO_LEGAL_INVESTIGATION_ACTION"
-    ? "strategy_exhausted"
-    : "illegal_investigation_action";
+  switch (code) {
+    case "NO_LEGAL_INVESTIGATION_ACTION":
+      return "strategy_exhausted";
+    case "GAP_CLOSED":
+      return "gap_closed";
+    case "GAP_OPEN_UNRESOLVABLE":
+      return "gap_unresolvable";
+    case "illegal_investigation_action":
+      return "illegal_investigation_action";
+  }
 }
 
 export class AgentLoop {

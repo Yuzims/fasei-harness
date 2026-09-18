@@ -229,6 +229,7 @@ test("Optimization 1 — analog resolved context shrinks while verification stay
     provider: new SnapshotGitHubProvider(githubFixturePath("resolved")),
     maxAttempts: 1,
     maxRecoveryAttempts: 0,
+    investigationActionConstraint: "unconstrained",
     modelFactory: (session) => analogModel(session, calls),
   });
 

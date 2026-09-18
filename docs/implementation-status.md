@@ -840,6 +840,17 @@ raw metrics + differences (not ranking)
 
 Baseline is an approximation of pre-8.8 observation-based tool selection (`nextInvestigationAction`), not a strict live-LLM replay. Token figures are local estimates (message/tool-result chars), not provider tokens. Evaluation does not write results back into Real-v1 snapshots.
 
+## Phase 8.8.2.3 — Strategy Stop & Closure Semantics — DONE
+
+Evidence-Gap Strategy now distinguishes stop reasons instead of treating “legal actions remain” as “keep investigating”:
+
+- `GAP_CLOSED` — current evidence is already enough to stop (required chain satisfied, or terminal negative evidence such as `not_planned`)
+- `GAP_OPEN_ACTIONABLE` — a required gap remains and at least one mapped action can still advance it
+- `GAP_OPEN_UNRESOLVABLE` — a required gap remains (typically semantic `resolution_effect`) and current GitHub actions cannot close it
+- `NO_LEGAL_ACTION` — a required gap remains and no mapped action is left
+
+Candidate PR discovery no longer freezes after the first unmerged PR. `resolution_effect` semantic alignment is not solved in this phase. Verifier / Recovery / Dataset / Ground Truth are unchanged.
+
 ## Not started
 
 Phase 8.8.3+ waits for a new task.

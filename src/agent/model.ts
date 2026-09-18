@@ -7,6 +7,8 @@ import type { LlmRuntimeGuard } from "./llm-runtime.js";
 
 export type InvestigationBlockCode =
   | "NO_LEGAL_INVESTIGATION_ACTION"
+  | "GAP_CLOSED"
+  | "GAP_OPEN_UNRESOLVABLE"
   | "illegal_investigation_action";
 
 export type ModelResponse =

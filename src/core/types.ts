@@ -20,6 +20,8 @@ export interface Task {
 export type AgentLoopDecision =
   | "final"
   | "strategy_exhausted"
+  | "gap_closed"
+  | "gap_unresolvable"
   | "illegal_investigation_action";
 
 export interface AgentResult {

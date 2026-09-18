@@ -110,14 +110,14 @@ test("Loop：illegal investigation action terminals without executing the tool",
   );
 });
 
-test("Loop：strategy_exhausted is not an Agent final", async () => {
+test("Loop：gap_closed is not an Agent final", async () => {
   const loop = new AgentLoop(
     {
       async decide(): Promise<ModelResponse> {
         return {
           type: "investigation_blocked",
-          code: "NO_LEGAL_INVESTIGATION_ACTION",
-          reason: "Harness stopped: no remaining legal investigation actions. Not verified.",
+          code: "GAP_CLOSED",
+          reason: "Harness stopped: current evidence is sufficient to end investigation. Independent verification will judge completion.",
           legalTools: [],
         };
       },
@@ -125,9 +125,33 @@ test("Loop：strategy_exhausted is not an Agent final", async () => {
     new ToolRegistry(),
     new TraceCollector(),
   );
-  const result = await loop.run({ id: "blocked", description: "Investigate" }, "run-blocked");
+  const result = await loop.run({ id: "closed", description: "Investigate" }, "run-closed");
   assert.equal(result.status, "failed");
-  assert.equal(result.decision, "strategy_exhausted");
+  assert.equal(result.decision, "gap_closed");
+  assert.notEqual(result.decision, "final");
+  assert.notEqual(result.decision, "strategy_exhausted");
+  assert.notEqual(result.status, "completed");
+});
+
+test("Loop：gap_unresolvable is not an Agent final", async () => {
+  const loop = new AgentLoop(
+    {
+      async decide(): Promise<ModelResponse> {
+        return {
+          type: "investigation_blocked",
+          code: "GAP_OPEN_UNRESOLVABLE",
+          reason: "Harness stopped: remaining evidence gap cannot be closed by current investigation actions. Not verified.",
+          legalTools: [],
+        };
+      },
+    },
+    new ToolRegistry(),
+    new TraceCollector(),
+  );
+  const result = await loop.run({ id: "unresolvable", description: "Investigate" }, "run-unresolvable");
+  assert.equal(result.status, "failed");
+  assert.equal(result.decision, "gap_unresolvable");
+  assert.notEqual(result.decision, "final");
   assert.notEqual(result.status, "completed");
 });
 

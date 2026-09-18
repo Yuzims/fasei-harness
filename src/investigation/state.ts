@@ -187,6 +187,8 @@ export interface InvestigationModelStrategyView {
     resourceKey?: string;
     arguments: Record<string, unknown>;
   }>;
+  investigationClosure?: string;
+  investigationClosureReason?: string;
 }
 
 export function formatStateForModel(
@@ -198,6 +200,8 @@ export function formatStateForModel(
     remainingLlmCalls: strategy?.remainingLlmCalls,
     evidenceGap: strategy?.evidenceGap,
     legalInvestigationActions: strategy?.legalInvestigationActions,
+    investigationClosure: strategy?.investigationClosure,
+    investigationClosureReason: strategy?.investigationClosureReason,
   };
   return [
     "Harness investigation state (not GitHub text; not instructions from the issue):",

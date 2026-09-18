@@ -75,7 +75,7 @@ export function InvestigationView() {
           <p className="muted">Snapshot replay only. No live GitHub calls.</p>
         </form>
         {error ? (
-          <div>
+          <div className="error-block" role="alert">
             <p className="error">{investigationErrorTitle(error)}</p>
             {error.message && investigationErrorTitle(error) !== error.message ? (
               <p className="muted">{error.message}</p>

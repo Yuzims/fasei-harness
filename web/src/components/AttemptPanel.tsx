@@ -61,11 +61,11 @@ export function AttemptPanel({ session }: { session: InvestigationSessionDTO }) 
                 </div>
               ) : null}
               {(attempt.parentAttemptId || attempt.recoveryPlanId || attempt.failureEventId) && (
-                <p className="muted mono">
-                  {attempt.parentAttemptId ? `parentAttemptId=${attempt.parentAttemptId} ` : ""}
-                  {attempt.recoveryPlanId ? `recoveryPlanId=${attempt.recoveryPlanId} ` : ""}
-                  {attempt.failureEventId ? `failureEventId=${attempt.failureEventId}` : ""}
-                </p>
+                <div className="muted mono">
+                  {attempt.parentAttemptId ? <div>parentAttemptId={attempt.parentAttemptId}</div> : null}
+                  {attempt.recoveryPlanId ? <div>recoveryPlanId={attempt.recoveryPlanId}</div> : null}
+                  {attempt.failureEventId ? <div>failureEventId={attempt.failureEventId}</div> : null}
+                </div>
               )}
               <p className="muted">
                 evidence added: {attempt.evidenceIds.length} · claims: {attempt.claimIds.length}

@@ -267,6 +267,10 @@ a {
   margin: 0;
 }
 
+.error-block {
+  margin-top: 10px;
+}
+
 .banner {
   border: 1px solid var(--line);
   border-left-width: 4px;
@@ -316,6 +320,7 @@ a {
 .banner-meta {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: baseline;
 }
@@ -503,6 +508,10 @@ a {
   letter-spacing: -0.03em;
 }
 
+.table-wrap {
+  overflow-x: auto;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -553,9 +562,12 @@ a {
 
 @media (max-width: 860px) {
   .split,
-  .metric-grid,
-  .banner-meta {
+  .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .banner-meta {
+    flex-direction: column;
   }
 
   .topbar {

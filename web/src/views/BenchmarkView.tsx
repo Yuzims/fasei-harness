@@ -23,10 +23,13 @@ export function BenchmarkView() {
             {result.dataset} {result.datasetVersion} · {result.cases.length} Cases · Snapshot Dataset
             · {result.timestamp}
           </p>
+        ) : error ? (
+          <p className="error" role="alert">
+            {error}
+          </p>
         ) : (
-          <p className="muted">Snapshot dataset metrics from the latest CLI evaluator result.</p>
+          <p className="empty">Loading latest Real-v1 CLI result…</p>
         )}
-        {error ? <p className="error">{error}</p> : null}
       </section>
 
       {metrics.length > 0 ? (
@@ -43,32 +46,34 @@ export function BenchmarkView() {
       {result?.cases.length ? (
         <section className="panel">
           <h2>Cases</h2>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Case</th>
-                <th>Expected</th>
-                <th>Observed</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.cases.map((item) => (
-                <tr key={item.caseId}>
-                  <td className="mono">{item.caseId}</td>
-                  <td className={`status-text ${verificationTone(item.expectedOutcome)}`}>
-                    {outcomeLabel(item.expectedOutcome)}
-                  </td>
-                  <td className={`status-text ${verificationTone(item.observedOutcome)}`}>
-                    {outcomeLabel(item.observedOutcome)}
-                  </td>
-                  <td className={item.evaluation.passed ? "status-text pass" : "status-text fail"}>
-                    {item.evaluation.passed ? "pass" : "fail"}
-                  </td>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Case</th>
+                  <th>Expected</th>
+                  <th>Observed</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {result.cases.map((item) => (
+                  <tr key={item.caseId}>
+                    <td className="mono">{item.caseId}</td>
+                    <td className={`status-text ${verificationTone(item.expectedOutcome)}`}>
+                      {outcomeLabel(item.expectedOutcome)}
+                    </td>
+                    <td className={`status-text ${verificationTone(item.observedOutcome)}`}>
+                      {outcomeLabel(item.observedOutcome)}
+                    </td>
+                    <td className={item.evaluation.passed ? "status-text pass" : "status-text fail"}>
+                      {item.evaluation.passed ? "pass" : "fail"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
     </div>

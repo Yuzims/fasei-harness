@@ -11,6 +11,9 @@ import {
   exampleHeading,
   featuredExamples,
   investigationErrorTitle,
+  investigationMode,
+  investigationModeDetail,
+  investigationModeLabel,
   issueRef,
   verificationLabel,
   verificationSubtitle,
@@ -63,15 +66,23 @@ function ExampleCard({
 
 export function InvestigationView() {
   const [catalog, setCatalog] = useState<InvestigationCatalogDTO>();
-  const [issue, setIssue] = useState("microsoft/vscode#258694");
+  const [issue, setIssue] = useState("");
   const [session, setSession] = useState<InvestigationSessionDTO>();
   const [phase, setPhase] = useState<RunPhase>("idle");
-  const [error, setError] = useState<{ status?: number; message: string }>();
+  const [error, setError] = useState<{ status?: number; message: string; code?: string }>();
+  const [requestedMode, setRequestedMode] = useState<"live" | "snapshot">("live");
+  const mode = session ? investigationMode(session) : requestedMode;
 
   useEffect(() => {
     fetchInvestigationCatalog()
       .then(setCatalog)
-      .catch((err: Error) => setError({ message: err.message, status: err instanceof ApiError ? err.status : undefined }));
+      .catch((err: Error) =>
+        setError({
+          message: err.message,
+          status: err instanceof ApiError ? err.status : undefined,
+          code: err instanceof ApiError ? err.code : undefined,
+        }),
+      );
   }, []);
 
   async function start(body: InvestigationRequest) {
@@ -81,21 +92,23 @@ export function InvestigationView() {
     setPhase("running");
     setError(undefined);
     setSession(undefined);
+    setRequestedMode(body.mode === "snapshot" || body.caseId || body.scenarioId ? "snapshot" : "live");
     try {
       const result = await runInvestigation(body);
       setSession(result);
       setPhase("completed");
     } catch (err) {
       const status = err instanceof ApiError ? err.status : undefined;
+      const code = err instanceof ApiError ? err.code : undefined;
       const message = err instanceof Error ? err.message : String(err);
-      setError({ status, message });
+      setError({ status, code, message });
       setPhase("failed");
     }
   }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    void start({ issue });
+    void start({ issue, mode: "live" });
   }
 
   function onSelectExample(item: InvestigationCatalogItemDTO) {
@@ -105,29 +118,35 @@ export function InvestigationView() {
 
   const featured = catalog ? featuredExamples(catalog.snapshots) : [];
   const showOnboarding = !session && phase !== "running";
+  const issueTitle = session?.issue.title || session?.issue.summary;
 
   return (
     <div className="page">
       <section className="panel">
-        <h2>Investigate a GitHub Issue</h2>
+        <div className="hero-head">
+          <h2>Investigate a GitHub Issue</h2>
+          <span className={`mode-badge ${mode}`} title={investigationModeDetail(mode)}>
+            <span className="mode-dot" />
+            {investigationModeLabel(mode)}
+          </span>
+        </div>
         <p className="hero-copy">
           Verify whether an Agent actually resolved a GitHub Issue using independent evidence.
         </p>
+        <p className="muted snapshot-note">{investigationModeDetail(mode)}</p>
         <form className="issue-form" onSubmit={onSubmit}>
           <div className="issue-row">
             <input
               value={issue}
               onChange={(event) => setIssue(event.target.value)}
-              placeholder="owner/repository#123"
+              placeholder="https://github.com/owner/repo/issues/123"
               aria-label="GitHub issue"
             />
             <button className="primary" type="submit" disabled={phase === "running" || !issue.trim()}>
               {phase === "running" ? "Investigating..." : "Investigate"}
             </button>
           </div>
-          <p className="muted snapshot-note">
-            Demo investigations use recorded GitHub snapshots for deterministic, reproducible results.
-          </p>
+          <p className="muted snapshot-note">Or enter owner/repo#123</p>
         </form>
         {error ? (
           <div className="error-block" role="alert">
@@ -142,7 +161,10 @@ export function InvestigationView() {
       {catalog ? (
         <section className="panel">
           <h2>Try an example</h2>
-          <p className="muted">Start with a recorded GitHub Issue. Completion is decided by independent verification.</p>
+          <p className="muted">
+            Snapshot examples use recorded GitHub data for deterministic evaluation. Completion is decided by
+            independent verification.
+          </p>
           <div className="example-grid">
             {featured.map((item) => (
               <ExampleCard
@@ -240,15 +262,27 @@ export function InvestigationView() {
       ) : null}
 
       {phase === "running" ? (
-        <section className="panel">
-          <p className="empty">Investigating…</p>
+        <section className="panel" aria-live="polite">
+          <p className="empty-lead">Investigating GitHub Issue…</p>
+          <p className="muted">Fetching evidence and verifying resolution…</p>
         </section>
       ) : null}
 
       {session ? (
         <>
+          <section className="panel" data-testid="issue-panel">
+            <h2>Issue</h2>
+            <p className="mono">
+              {session.issue.owner}/{session.issue.repository}#{session.issue.number}
+            </p>
+            {issueTitle ? <p>{issueTitle}</p> : null}
+            {session.issue.state ? <p className="muted">State: {session.issue.state}</p> : null}
+            {session.issue.url ? (
+              <p className="muted mono">{session.issue.url}</p>
+            ) : null}
+          </section>
           <p className="muted mono">
-            {issueRef(session.task)} · {session.dataSource}
+            {issueRef(session.task)} · {session.mode}
             {session.catalogId ? ` · ${session.catalogId}` : ""} · actor={session.actor}
           </p>
           <VerificationSummary session={session} />

@@ -9,6 +9,8 @@ import {
   filterEvidence,
   formatMetric,
   investigationErrorTitle,
+  investigationMode,
+  investigationModeDetail,
   isNotFoundError,
   recoveredFrom,
   repositoryDisplayName,
@@ -30,10 +32,15 @@ test("UI：verification status 使用明确文案，不把 insufficient 显示�
   assert.notEqual(verificationTone("not_verified"), verificationTone("insufficient_evidence"));
 });
 
-test("UI：HTTP 404 显示 Investigation not found", () => {
+test("UI：HTTP 404 显示 Investigation not found；live 404 显示 Issue not found", () => {
   assert.equal(isNotFoundError({ status: 404, message: "missing snapshot" }), true);
   assert.equal(investigationErrorTitle({ status: 404, message: "missing snapshot" }), "Investigation not found");
-  assert.equal(investigationErrorTitle({ status: 400, message: "bad request" }), "Investigation failed");
+  assert.equal(investigationErrorTitle({ code: "GITHUB_NOT_FOUND", status: 404 }), "Issue not found");
+  assert.equal(investigationErrorTitle({ status: 400, message: "bad request" }), "Could not investigate this issue.");
+  assert.equal(
+    investigationErrorTitle({ code: "GITHUB_RATE_LIMITED", status: 429 }),
+    "GitHub API rate limit reached.",
+  );
 });
 
 test("UI：Evidence 过滤只使用实际 kind，不编造数据", () => {
@@ -55,11 +62,14 @@ test("UI：metrics 动态格式化，不硬编码成功率", () => {
 
 function session(overrides: Partial<InvestigationSessionDTO> = {}): InvestigationSessionDTO {
   return {
+    mode: "snapshot",
     dataSource: "snapshot",
     actor: "test_driver",
     status: "investigated",
     runStatus: "verified_complete",
     task: { owner: "acme", repository: "box", issueNumber: 42, description: "investigate" },
+    issue: { owner: "acme", repository: "box", number: 42, title: "Null pointer", state: "closed" },
+    agentOutput: "Looks resolved.",
     verification: {
       status: "verified_complete",
       evidenceCoverage: 1,
@@ -149,7 +159,7 @@ test("UI：example labels 来自 repository / issue，不从 identifier 推导 v
       label: "microsoft/vscode#258694",
       description: "Investigate whether microsoft/vscode#258694 is independently resolved.",
     }),
-    { caseId: "C01" },
+    { caseId: "C01", mode: "snapshot" },
   );
   assert.deepEqual(
     catalogRunRequest({
@@ -161,8 +171,15 @@ test("UI：example labels 来自 repository / issue，不从 identifier 推导 v
       label: "acme/box#42",
       description: "First GitHub getIssue call times out.",
     }),
-    { scenarioId: "tool-failure" },
+    { scenarioId: "tool-failure", mode: "snapshot" },
   );
   assert.equal(verificationSubtitle("verified_complete"), "Independent verification passed");
   assert.equal(verificationLabel("insufficient_evidence"), "INSUFFICIENT EVIDENCE");
+  assert.equal(investigationMode({ mode: "live" }), "live");
+  assert.equal(investigationMode({ dataSource: "snapshot" }), "snapshot");
+  assert.equal(investigationModeDetail("live"), "GitHub data fetched from the public API");
+  assert.equal(
+    investigationModeDetail("snapshot"),
+    "Recorded GitHub data for deterministic evaluation",
+  );
 });

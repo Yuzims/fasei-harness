@@ -114,25 +114,40 @@ test("API：Investigation catalog 列出 Real-v1 C01 和 recovery scenarios", as
   assert.ok(body.recovery.some((item: { id: string }) => item.id === "tool-failure"));
 });
 
-test("API：microsoft/vscode#258694 走 Real-v1 snapshot 得到 verified_complete", async () => {
+test("API：C01 caseId 走 Real-v1 snapshot 得到 verified_complete", async () => {
   const res = await app.request("/api/investigations", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ issue: "microsoft/vscode#258694" }),
+    body: JSON.stringify({ caseId: "C01" }),
   });
   assert.equal(res.status, 200);
   const body = await res.json();
+  assert.equal(body.mode, "snapshot");
   assert.equal(body.dataSource, "snapshot");
   assert.equal(body.catalogId, "C01");
   assert.equal(body.actor, "test_driver");
   assert.equal(body.task.owner, "microsoft");
   assert.equal(body.task.repository, "vscode");
   assert.equal(body.task.issueNumber, 258694);
+  assert.equal(body.issue.number, 258694);
   assert.equal(body.verification.status, "verified_complete");
   assert.ok(body.evidence.length > 0);
   assert.ok(body.claims.length > 0);
   assert.ok(body.attempts.length >= 1);
   assert.ok(body.verification.checks.some((check: { id: string }) => check.id === "issue-identity"));
+});
+
+test("API：microsoft/vscode#258694 在 snapshot 模式下仍走 catalog，不误走 live", async () => {
+  const res = await app.request("/api/investigations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ issue: "microsoft/vscode#258694", mode: "snapshot" }),
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.mode, "snapshot");
+  assert.equal(body.catalogId, "C01");
+  assert.equal(body.verification.status, "verified_complete");
 });
 
 test("API：tool-failure recovery scenario 产生 Attempt 1 failure 和 Attempt 2 re-verification", async () => {
@@ -151,15 +166,60 @@ test("API：tool-failure recovery scenario 产生 Attempt 1 failure 和 Attempt 
   assert.equal(body.verification.status, "verified_complete");
 });
 
-test("API：未知 Issue 不编造 live/mock 结果", async () => {
-  const res = await app.request("/api/investigations", {
+test("API：未知 Issue 走 live GitHub 并返回 Issue not found，不编造 snapshot", async () => {
+  const live = createApp({}, {
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ message: "Not Found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      }),
+  });
+  const res = await live.request("/api/investigations", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ issue: "unknown/repo#1" }),
+    body: JSON.stringify({ issue: "foo/bar#999999999", mode: "live" }),
   });
   assert.equal(res.status, 404);
   const body = await res.json();
-  assert.match(body.error, /recorded snapshot/);
+  assert.equal(body.error.code, "GITHUB_NOT_FOUND");
+  assert.equal(body.error.message, "Issue not found");
+  assert.equal(body.verification, undefined);
+});
+
+test("API：非法 Issue 输入返回 INVALID_GITHUB_ISSUE_INPUT", async () => {
+  const res = await app.request("/api/investigations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ issue: "https://github.com/microsoft/vscode/pull/123" }),
+  });
+  assert.equal(res.status, 400);
+  const body = await res.json();
+  assert.equal(body.error.code, "INVALID_GITHUB_ISSUE_INPUT");
+});
+
+test("API：live 429 映射为 GitHub rate limit，不无限重试", async () => {
+  let calls = 0;
+  const live = createApp({}, {
+    fetchImpl: async () => {
+      calls += 1;
+      return new Response("API rate limit exceeded", {
+        status: 429,
+        headers: { "retry-after": "60" },
+      });
+    },
+  });
+  const res = await live.request("/api/investigations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ issue: "acme/demo#1", mode: "live" }),
+  });
+  assert.equal(res.status, 429);
+  const body = await res.json();
+  assert.equal(body.error.code, "GITHUB_RATE_LIMITED");
+  assert.equal(body.error.message, "GitHub API rate limit reached.");
+  assert.equal(body.error.retryAfterSeconds, 60);
+  assert.ok(calls <= 3);
+  assert.equal(JSON.stringify(body).toLowerCase().includes("authorization"), false);
 });
 
 test("API：Real-v1 latest.json 可读取", async () => {

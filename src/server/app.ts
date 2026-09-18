@@ -6,6 +6,7 @@ import { allCases, listScenarios } from "../eval/cases.js";
 import { executeCase, runBenchmark } from "../eval/benchmark.js";
 import { runRetrievalAblation } from "../retrieval/ablation.js";
 import { agentExamples, agentStatus, runAgentSession } from "./agent-service.js";
+import { toInvestigationHttpError } from "./investigation-errors.js";
 import {
   investigationCatalog,
   loadRealV1BenchmarkResult,
@@ -21,7 +22,11 @@ function isMode(value: unknown): value is BenchmarkMode {
 
 type Env = Record<string, string | undefined>;
 
-export function createApp(env: Env = process.env) {
+export interface AppOptions {
+  fetchImpl?: typeof fetch;
+}
+
+export function createApp(env: Env = process.env, options: AppOptions = {}) {
   const app = new Hono();
 
   app.use(
@@ -140,20 +145,14 @@ export function createApp(env: Env = process.env) {
   app.post("/api/investigations", async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return c.json({ error: "JSON body 必填" }, 400);
+      return c.json({ error: { code: "INVALID_REQUEST", message: "JSON body is required." } }, 400);
     }
     try {
-      const session = await runInvestigation(body);
+      const session = await runInvestigation(body, { env, fetchImpl: options.fetchImpl });
       return c.json(session);
     } catch (error) {
-      const status =
-        error && typeof error === "object" && "status" in error && typeof error.status === "number"
-          ? error.status
-          : 400;
-      return c.json(
-        { error: error instanceof Error ? error.message : String(error) },
-        status === 404 ? 404 : 400,
-      );
+      const mapped = toInvestigationHttpError(error);
+      return c.json(mapped.body, mapped.status as 400 | 401 | 403 | 404 | 429 | 502 | 504);
     }
   });
 

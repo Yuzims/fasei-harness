@@ -120,6 +120,18 @@ a {
   font-weight: 500;
 }
 
+.hero-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.hero-head h2 {
+  margin: 0;
+}
+
 .topbar-right {
   margin-left: auto;
 }
@@ -134,13 +146,25 @@ a {
   padding: 4px 8px;
   border-radius: var(--radius);
   background: var(--surface-2);
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.mode-badge.live {
+  color: var(--verified);
+  border-color: #b7e0c8;
+  background: var(--verified-bg);
+}
+
+.mode-badge.snapshot {
+  color: var(--accent);
 }
 
 .mode-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accent);
+  background: currentColor;
 }
 
 .panel {
@@ -352,7 +376,8 @@ a {
   border-top: 1px solid var(--line);
 }
 
-.empty-state .empty-lead {
+.empty-state .empty-lead,
+.empty-lead {
   margin: 0 0 6px;
   color: var(--text);
   font-weight: 500;

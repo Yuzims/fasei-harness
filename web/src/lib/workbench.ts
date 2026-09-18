@@ -56,9 +56,24 @@ export function featuredExamples<T>(items: T[], count = FEATURED_EXAMPLE_COUNT):
 
 export function catalogRunRequest(item: InvestigationCatalogItemDTO): InvestigationRequest {
   if (item.group === "real-v1") {
-    return { caseId: item.id };
+    return { caseId: item.id, mode: "snapshot" };
   }
-  return { scenarioId: item.id };
+  return { scenarioId: item.id, mode: "snapshot" };
+}
+
+export function investigationMode(session?: { mode?: string; dataSource?: string }): "live" | "snapshot" {
+  const value = session?.mode ?? session?.dataSource;
+  return value === "snapshot" ? "snapshot" : "live";
+}
+
+export function investigationModeLabel(mode: "live" | "snapshot"): string {
+  return mode === "live" ? "LIVE" : "SNAPSHOT";
+}
+
+export function investigationModeDetail(mode: "live" | "snapshot"): string {
+  return mode === "live"
+    ? "GitHub data fetched from the public API"
+    : "Recorded GitHub data for deterministic evaluation";
 }
 
 export function verificationLabel(status?: string): string {
@@ -162,15 +177,30 @@ export function evidenceIdentifier(item: InvestigationEvidenceDTO): string {
   return item.resource || item.url || item.id;
 }
 
-export function isNotFoundError(error: { status?: number; message?: string }): boolean {
+export function isNotFoundError(error: { status?: number; message?: string; code?: string }): boolean {
+  if (error.code === "GITHUB_NOT_FOUND" || error.code === "SNAPSHOT_NOT_FOUND") {
+    return true;
+  }
   if (error.status === 404) {
     return true;
   }
   return /recorded snapshot|未知|not found/i.test(error.message ?? "");
 }
 
-export function investigationErrorTitle(error: { status?: number; message?: string }): string {
-  return isNotFoundError(error) ? "Investigation not found" : "Investigation failed";
+export function investigationErrorTitle(error: { status?: number; message?: string; code?: string }): string {
+  if (error.code === "GITHUB_RATE_LIMITED" || error.code === "rate_limited") {
+    return "GitHub API rate limit reached.";
+  }
+  if (error.code === "GITHUB_NOT_FOUND") {
+    return "Issue not found";
+  }
+  if (error.code === "INVALID_GITHUB_ISSUE_INPUT") {
+    return "Could not investigate this issue.";
+  }
+  if (isNotFoundError(error)) {
+    return error.code === "GITHUB_NOT_FOUND" ? "Issue not found" : "Investigation not found";
+  }
+  return "Could not investigate this issue.";
 }
 
 export function satisfiedCount(session: InvestigationSessionDTO): { passed: number; total: number } {

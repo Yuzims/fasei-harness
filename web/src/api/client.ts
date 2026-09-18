@@ -8,6 +8,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
+    public retryAfterSeconds?: number,
   ) {
     super(message);
   }
@@ -48,7 +50,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
   if (!response.ok) {
-    throw new ApiError(response.status, data?.error ?? response.statusText);
+    const payload = data?.error;
+    const message =
+      typeof payload === "string"
+        ? payload
+        : payload && typeof payload === "object" && typeof payload.message === "string"
+          ? payload.message
+          : response.statusText;
+    const code =
+      payload && typeof payload === "object" && typeof payload.code === "string" ? payload.code : undefined;
+    const retryAfterSeconds =
+      payload && typeof payload === "object" && typeof payload.retryAfterSeconds === "number"
+        ? payload.retryAfterSeconds
+        : undefined;
+    throw new ApiError(response.status, message, code, retryAfterSeconds);
   }
   return data as T;
 }

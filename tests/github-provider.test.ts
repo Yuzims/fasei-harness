@@ -235,7 +235,7 @@ test("Live：401 / 404 / 429 / 5xx / network 归一到 GitHubProviderError", asy
   const limited = new LiveGitHubProvider({
     fetchImpl: async () => {
       limitedCalls += 1;
-      return new Response("rate limit", { status: 429 });
+      return new Response("rate limit", { status: 429, headers: { "retry-after": "30" } });
     },
     maxRetries: 1,
     backoffMs: 1,
@@ -243,7 +243,10 @@ test("Live：401 / 404 / 429 / 5xx / network 归一到 GitHubProviderError", asy
   await assert.rejects(
     () => limited.getRepository({ owner: "acme", repo: "box" }),
     (error: unknown) =>
-      error instanceof GitHubProviderError && error.code === "rate_limited" && error.retryable,
+      error instanceof GitHubProviderError &&
+      error.code === "rate_limited" &&
+      error.retryable &&
+      error.retryAfterSeconds === 30,
   );
   assert.equal(limitedCalls, 2);
 
@@ -272,6 +275,24 @@ test("Live：401 / 404 / 429 / 5xx / network 归一到 GitHubProviderError", asy
   await assert.rejects(
     () => network.getRepository({ owner: "acme", repo: "box" }),
     (error: unknown) => error instanceof GitHubProviderError && error.code === "network_error",
+  );
+});
+
+test("Live：403 remaining=0 归为 rate_limited", async () => {
+  const limited = new LiveGitHubProvider({
+    fetchImpl: async () =>
+      new Response("forbidden", {
+        status: 403,
+        headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "2000000000" },
+      }),
+    maxRetries: 0,
+  });
+  await assert.rejects(
+    () => limited.getIssue({ owner: "acme", repo: "box", issueNumber: 1 }),
+    (error: unknown) =>
+      error instanceof GitHubProviderError &&
+      error.code === "rate_limited" &&
+      error.retryAt !== undefined,
   );
 });
 

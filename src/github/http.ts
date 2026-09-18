@@ -57,7 +57,7 @@ export class GithubHttpClient {
         break;
       }
       seen.add(next);
-      const { status, text, link } = await this.request(operation, next, "application/vnd.github+json");
+      const { status, text, headers } = await this.request(operation, next, "application/vnd.github+json");
       const parsed = parseJsonBody(operation, status, text);
       if (!Array.isArray(parsed)) {
         throw new GitHubProviderError({
@@ -69,7 +69,7 @@ export class GithubHttpClient {
         });
       }
       items.push(...parsed);
-      next = nextLinkPath(link);
+      next = nextLinkPath(headers.get("link"));
     }
     return items;
   }
@@ -83,7 +83,7 @@ export class GithubHttpClient {
     operation: string,
     path: string,
     accept: string,
-  ): Promise<{ status: number; text: string; link: string | null }> {
+  ): Promise<{ status: number; text: string; headers: Headers }> {
     let lastError: GitHubProviderError | undefined;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
@@ -92,17 +92,20 @@ export class GithubHttpClient {
       }
 
       try {
-        const { status, text, link } = await this.send(path, accept);
+        const { status, text, headers } = await this.send(path, accept);
         if (status < 400) {
-          return { status, text, link };
+          return { status, text, headers };
         }
 
-        const code = codeFromStatus(status, text);
+        const code = codeFromStatus(status, text, headers);
+        const retry = parseRetryHint(headers);
         lastError = new GitHubProviderError({
           code,
           operation,
           status,
           message: messageFor(code, operation, status, text),
+          retryAfterSeconds: retry.retryAfterSeconds,
+          retryAt: retry.retryAt,
         });
         if (!lastError.retryable || attempt === this.maxRetries) {
           throw lastError;
@@ -129,7 +132,7 @@ export class GithubHttpClient {
   private async send(
     path: string,
     accept: string,
-  ): Promise<{ status: number; text: string; link: string | null }> {
+  ): Promise<{ status: number; text: string; headers: Headers }> {
     const headers: Record<string, string> = {
       accept,
       "user-agent": UA,
@@ -152,7 +155,7 @@ export class GithubHttpClient {
       return {
         status: response.status,
         text: await response.text(),
-        link: response.headers.get("link"),
+        headers: response.headers,
       };
     } catch (error) {
       if (isAbort(error)) {
@@ -176,12 +179,33 @@ function messageFor(
   text: string,
 ): string {
   if (code === "rate_limited") {
-    return "GitHub API 限流。在 .env 写入 GITHUB_TOKEN 后重试。";
+    return "GitHub API rate limit reached.";
   }
   if (code === "unauthorized") {
-    return "GitHub API 未授权。检查 GITHUB_TOKEN。";
+    return "GitHub API authorization failed.";
   }
-  return `${operation} HTTP ${status}: ${text.slice(0, 240)}`;
+  if (code === "not_found") {
+    return "Issue not found";
+  }
+  return `${operation} HTTP ${status}: ${sanitizeErrorText(text).slice(0, 240)}`;
+}
+
+function sanitizeErrorText(text: string): string {
+  return text.replace(/bearer\s+[a-z0-9._\-]+|ghp_[a-z0-9]+|github_pat_[a-z0-9_]+/gi, "[redacted]");
+}
+
+function parseRetryHint(headers: Headers): { retryAfterSeconds?: number; retryAt?: string } {
+  const retryAfter = headers.get("retry-after")?.trim();
+  if (retryAfter && /^\d+$/.test(retryAfter)) {
+    return { retryAfterSeconds: Number(retryAfter) };
+  }
+  const reset = headers.get("x-ratelimit-reset")?.trim();
+  if (reset && /^\d+$/.test(reset)) {
+    const retryAt = new Date(Number(reset) * 1000).toISOString();
+    const retryAfterSeconds = Math.max(0, Number(reset) - Math.floor(Date.now() / 1000));
+    return { retryAfterSeconds, retryAt };
+  }
+  return {};
 }
 
 function toNetworkError(operation: string, error: unknown): GitHubProviderError {

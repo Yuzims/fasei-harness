@@ -35,15 +35,6 @@ export function App() {
             </button>
           ))}
         </nav>
-        <div className="topbar-right">
-          <span
-            className="mode-badge"
-            title="Demo investigations use recorded GitHub snapshots for deterministic, reproducible results."
-          >
-            <span className="mode-dot" />
-            Snapshot Mode
-          </span>
-        </div>
       </header>
       {route.view === "benchmarks" ? <BenchmarkView /> : <InvestigationView />}
     </div>

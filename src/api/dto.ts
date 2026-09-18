@@ -155,13 +155,36 @@ export interface InvestigationCatalogDTO {
   recovery: InvestigationCatalogItemDTO[];
 }
 
+export type InvestigationMode = "live" | "snapshot";
+
 export interface InvestigationRequest {
   issue?: string;
+  input?: string;
   owner?: string;
   repository?: string;
   issueNumber?: number | string;
   caseId?: string;
   scenarioId?: string;
+  mode?: InvestigationMode;
+  source?: InvestigationMode;
+}
+
+export interface InvestigationApiErrorDTO {
+  code: string;
+  message: string;
+  githubCode?: string;
+  retryAfterSeconds?: number;
+  retryAt?: string;
+}
+
+export interface InvestigationIssueDTO {
+  owner: string;
+  repository: string;
+  number: number;
+  title?: string;
+  state?: string;
+  url?: string;
+  summary?: string;
 }
 
 export interface InvestigationCheckDTO {
@@ -240,7 +263,8 @@ export interface InvestigationAttemptDTO {
 }
 
 export interface InvestigationSessionDTO {
-  dataSource: "snapshot";
+  mode: InvestigationMode;
+  dataSource: InvestigationMode;
   catalogId?: string;
   group?: InvestigationCatalogGroup;
   actor: "llm" | "test_driver" | "unconfigured";
@@ -252,6 +276,8 @@ export interface InvestigationSessionDTO {
     issueNumber: number;
     description: string;
   };
+  issue: InvestigationIssueDTO;
+  agentOutput: string;
   verification?: {
     status: string;
     evidenceCoverage: number;

@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import type {
   InvestigationCatalogDTO,
   InvestigationCatalogItemDTO,
+  InvestigationIssueDTO,
+  InvestigationMode,
   InvestigationRequest,
   InvestigationSessionDTO,
 } from "../api/dto.js";
@@ -15,25 +17,33 @@ import {
   realDatasetManifestPath,
 } from "../benchmark/index.js";
 import type { BenchmarkScenario, DatasetBenchmarkResult } from "../benchmark/index.js";
-import type { InvestigationAgentReport } from "../investigation/index.js";
 import type { InvestigationAttempt } from "../domain/index.js";
+import { investigate, type InvestigationAgentReport } from "../investigation/index.js";
+import type { GitHubDataProvider } from "../github/provider.js";
+import { LiveGitHubProvider } from "../github/live-provider.js";
+import { parseGitHubIssueInput, type ParsedGitHubIssue } from "../github/issue-input.js";
+import { InvestigationHttpError } from "./investigation-errors.js";
 
 function splitRepository(repository: string): { owner: string; repository: string } {
   const [owner, name] = repository.split("/");
   return { owner, repository: name };
 }
 
-function parseIssueRef(raw: string): { owner: string; repository: string; issueNumber: number } | undefined {
-  const text = raw.trim();
-  const url = text.match(/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/(\d+)/i);
-  if (url) {
-    return { owner: url[1], repository: url[2], issueNumber: Number(url[3]) };
-  }
-  const short = text.match(/^([^/\s]+)\/([^#\s]+)#(\d+)$/);
-  if (short) {
-    return { owner: short[1], repository: short[2], issueNumber: Number(short[3]) };
-  }
-  return undefined;
+export interface RunInvestigationOptions {
+  env?: Record<string, string | undefined>;
+  fetchImpl?: typeof fetch;
+  liveProvider?: GitHubDataProvider;
+}
+
+export type InvestigationRoute =
+  | { mode: "snapshot"; via: "scenario"; scenarioId: string }
+  | { mode: "snapshot"; via: "case"; caseId: string }
+  | { mode: "snapshot"; via: "issue"; target: ParsedGitHubIssue }
+  | { mode: "live"; target: ParsedGitHubIssue };
+
+function requestedMode(input: InvestigationRequest): InvestigationMode | undefined {
+  const value = input.mode ?? input.source;
+  return value === "live" || value === "snapshot" ? value : undefined;
 }
 
 function sameTarget(
@@ -165,16 +175,37 @@ function slimAttempt(attempt: InvestigationAttempt) {
   };
 }
 
+function issueFromReport(report: InvestigationAgentReport): InvestigationIssueDTO {
+  const target = report.task.target;
+  const evidence = report.evidence.find((item) => item.kind === "issue");
+  const payload =
+    evidence?.payload && typeof evidence.payload === "object"
+      ? (evidence.payload as Record<string, unknown>)
+      : undefined;
+  const title = typeof payload?.title === "string" ? payload.title : undefined;
+  const state = typeof payload?.state === "string" ? payload.state : undefined;
+  return {
+    owner: target.owner,
+    repository: target.repository,
+    number: target.issueNumber,
+    title,
+    state,
+    url: evidence?.provenance.url ?? target.url,
+    summary: evidence?.summary,
+  };
+}
+
 export function toInvestigationSessionDTO(
   report: InvestigationAgentReport,
   meta: {
-    dataSource: InvestigationSessionDTO["dataSource"];
+    mode: InvestigationMode;
     catalogId?: string;
     group?: InvestigationCatalogItemDTO["group"];
   },
 ): InvestigationSessionDTO {
   return {
-    dataSource: meta.dataSource,
+    mode: meta.mode,
+    dataSource: meta.mode,
     catalogId: meta.catalogId,
     group: meta.group,
     actor: report.actor,
@@ -186,6 +217,8 @@ export function toInvestigationSessionDTO(
       issueNumber: report.task.target.issueNumber,
       description: report.task.description,
     },
+    issue: issueFromReport(report),
+    agentOutput: report.report.conclusion,
     verification: report.verification
       ? {
           status: report.verification.status,
@@ -242,16 +275,10 @@ export function toInvestigationSessionDTO(
   };
 }
 
-function resolveTarget(input: InvestigationRequest): {
-  owner?: string;
-  repository?: string;
-  issueNumber?: number;
-} {
-  if (typeof input.issue === "string") {
-    const parsed = parseIssueRef(input.issue);
-    if (parsed) {
-      return parsed;
-    }
+function parseRequestTarget(input: InvestigationRequest): ParsedGitHubIssue | undefined {
+  const raw = typeof input.issue === "string" ? input.issue : typeof input.input === "string" ? input.input : "";
+  if (raw.trim()) {
+    return parseGitHubIssueInput(raw);
   }
   const owner = typeof input.owner === "string" ? input.owner.trim() : "";
   const repository = typeof input.repository === "string" ? input.repository.trim() : "";
@@ -261,55 +288,40 @@ function resolveTarget(input: InvestigationRequest): {
       : typeof input.issueNumber === "string" && /^\d+$/.test(input.issueNumber)
         ? Number(input.issueNumber)
         : undefined;
-  return {
-    owner: owner || undefined,
-    repository: repository || undefined,
-    issueNumber,
-  };
+  if (owner && repository && issueNumber) {
+    return parseGitHubIssueInput(`${owner}/${repository}#${issueNumber}`);
+  }
+  return undefined;
 }
 
-export async function runInvestigation(input: InvestigationRequest): Promise<InvestigationSessionDTO> {
+export function resolveInvestigationRoute(input: InvestigationRequest): InvestigationRoute {
   const scenarioId = typeof input.scenarioId === "string" ? input.scenarioId.trim() : "";
   if (scenarioId) {
-    const scenario = findScenario(scenarioId);
-    if (!scenario) {
-      throw Object.assign(new Error(`未知 scenario：${scenarioId}`), { status: 404 });
-    }
-    const report = await executeScenario(scenario);
-    return toInvestigationSessionDTO(report, {
-      dataSource: "snapshot",
-      catalogId: scenario.id,
-      group: recoveryScenarios().some((item) => item.id === scenario.id) ? "recovery" : "fixture",
-    });
+    return { mode: "snapshot", via: "scenario", scenarioId };
   }
-
   const caseId = typeof input.caseId === "string" ? input.caseId.trim() : "";
-  const dataset = realDataset();
   if (caseId) {
-    const found = dataset.cases.find((item) => item.caseId === caseId);
-    if (!found) {
-      throw Object.assign(new Error(`未知 Real-v1 case：${caseId}`), { status: 404 });
-    }
-    const scenario = convertCaseToScenario(dataset, found);
-    const report = await executeScenario(scenario);
-    return toInvestigationSessionDTO(report, {
-      dataSource: "snapshot",
-      catalogId: found.caseId,
-      group: "real-v1",
+    return { mode: "snapshot", via: "case", caseId };
+  }
+  const mode = requestedMode(input) ?? "live";
+  const target = parseRequestTarget(input);
+  if (!target) {
+    throw new InvestigationHttpError(400, {
+      code: "INVALID_GITHUB_ISSUE_INPUT",
+      message: "Enter a GitHub Issue URL or owner/repo#number.",
     });
   }
-
-  const target = resolveTarget(input);
-  if (!target.owner || !target.repository || !target.issueNumber) {
-    throw Object.assign(
-      new Error("需要 GitHub Issue（owner/repository#number）、caseId 或 scenarioId"),
-      { status: 400 },
-    );
+  if (mode === "snapshot") {
+    return { mode: "snapshot", via: "issue", target };
   }
+  return { mode: "live", target };
+}
 
+async function runSnapshotIssue(target: ParsedGitHubIssue): Promise<InvestigationSessionDTO> {
+  const dataset = realDataset();
   const matchedCase = dataset.cases.find((item) => {
     const { owner, repository } = splitRepository(item.source.repository);
-    return sameTarget(target.owner!, target.repository!, target.issueNumber!, {
+    return sameTarget(target.owner, target.repository, target.issueNumber, {
       owner,
       repository,
       issueNumber: item.source.issueNumber,
@@ -319,14 +331,13 @@ export async function runInvestigation(input: InvestigationRequest): Promise<Inv
     const scenario = convertCaseToScenario(dataset, matchedCase);
     const report = await executeScenario(scenario);
     return toInvestigationSessionDTO(report, {
-      dataSource: "snapshot",
+      mode: "snapshot",
       catalogId: matchedCase.caseId,
       group: "real-v1",
     });
   }
-
   const matchedFixture = regressionScenarios().find((item) =>
-    sameTarget(target.owner!, target.repository!, target.issueNumber!, {
+    sameTarget(target.owner, target.repository, target.issueNumber, {
       owner: item.target.owner,
       repository: item.target.repository,
       issueNumber: item.target.issueNumber,
@@ -335,18 +346,82 @@ export async function runInvestigation(input: InvestigationRequest): Promise<Inv
   if (matchedFixture) {
     const report = await executeScenario(matchedFixture);
     return toInvestigationSessionDTO(report, {
-      dataSource: "snapshot",
+      mode: "snapshot",
       catalogId: matchedFixture.id,
       group: "fixture",
     });
   }
+  throw new InvestigationHttpError(404, {
+    code: "SNAPSHOT_NOT_FOUND",
+    message: `No recorded snapshot for ${target.owner}/${target.repository}#${target.issueNumber}.`,
+  });
+}
 
-  throw Object.assign(
-    new Error(
-      `没有 ${target.owner}/${target.repository}#${target.issueNumber} 的 recorded snapshot。当前 API 只跑 Snapshot replay（Real-v1 / fixtures / recovery scenarios），不调用 live GitHub。`,
-    ),
-    { status: 404 },
-  );
+async function runLiveIssue(
+  target: ParsedGitHubIssue,
+  options: RunInvestigationOptions,
+): Promise<InvestigationSessionDTO> {
+  const provider =
+    options.liveProvider ??
+    new LiveGitHubProvider({
+      env: options.env ?? process.env,
+      fetchImpl: options.fetchImpl,
+    });
+  await provider.getIssue({
+    owner: target.owner,
+    repo: target.repository,
+    issueNumber: target.issueNumber,
+  });
+  const report = await investigate({
+    task: {
+      owner: target.owner,
+      repository: target.repository,
+      issueNumber: target.issueNumber,
+      description: `Investigate whether ${target.owner}/${target.repository}#${target.issueNumber} is independently resolved.`,
+    },
+    provider,
+    useTestDriver: true,
+    env: options.env,
+    fetchImpl: options.fetchImpl,
+  });
+  return toInvestigationSessionDTO(report, { mode: "live" });
+}
+
+export async function runInvestigation(
+  input: InvestigationRequest,
+  options: RunInvestigationOptions = {},
+): Promise<InvestigationSessionDTO> {
+  const route = resolveInvestigationRoute(input);
+  if (route.mode === "snapshot" && route.via === "scenario") {
+    const scenario = findScenario(route.scenarioId);
+    if (!scenario) {
+      throw Object.assign(new Error(`Unknown scenario: ${route.scenarioId}`), { status: 404 });
+    }
+    const report = await executeScenario(scenario);
+    return toInvestigationSessionDTO(report, {
+      mode: "snapshot",
+      catalogId: scenario.id,
+      group: recoveryScenarios().some((item) => item.id === scenario.id) ? "recovery" : "fixture",
+    });
+  }
+  if (route.mode === "snapshot" && route.via === "case") {
+    const dataset = realDataset();
+    const found = dataset.cases.find((item) => item.caseId === route.caseId);
+    if (!found) {
+      throw Object.assign(new Error(`Unknown Real-v1 case: ${route.caseId}`), { status: 404 });
+    }
+    const scenario = convertCaseToScenario(dataset, found);
+    const report = await executeScenario(scenario);
+    return toInvestigationSessionDTO(report, {
+      mode: "snapshot",
+      catalogId: found.caseId,
+      group: "real-v1",
+    });
+  }
+  if (route.mode === "snapshot") {
+    return runSnapshotIssue(route.target);
+  }
+  return runLiveIssue(route.target, options);
 }
 
 export function loadRealV1BenchmarkResult(): DatasetBenchmarkResult {

@@ -103,7 +103,7 @@ export class GithubHttpClient {
           code,
           operation,
           status,
-          message: messageFor(code, operation, status, text),
+          message: messageFor(code, operation, status, text, this.token()),
           retryAfterSeconds: retry.retryAfterSeconds,
           retryAt: retry.retryAt,
         });
@@ -118,7 +118,7 @@ export class GithubHttpClient {
           }
           continue;
         }
-        throw toNetworkError(operation, error);
+        throw toNetworkError(operation, error, this.token());
       }
     }
 
@@ -177,6 +177,7 @@ function messageFor(
   operation: string,
   status: number,
   text: string,
+  token?: string,
 ): string {
   if (code === "rate_limited") {
     return "GitHub API rate limit reached.";
@@ -187,11 +188,15 @@ function messageFor(
   if (code === "not_found") {
     return "Issue not found";
   }
-  return `${operation} HTTP ${status}: ${sanitizeErrorText(text).slice(0, 240)}`;
+  return `${operation} HTTP ${status}: ${sanitizeErrorText(text, token).slice(0, 240)}`;
 }
 
-function sanitizeErrorText(text: string): string {
-  return text.replace(/bearer\s+[a-z0-9._\-]+|ghp_[a-z0-9]+|github_pat_[a-z0-9_]+/gi, "[redacted]");
+function sanitizeErrorText(text: string, token?: string): string {
+  let out = text.replace(/bearer\s+[a-z0-9._\-]+|ghp_[a-z0-9]+|github_pat_[a-z0-9_]+/gi, "[redacted]");
+  if (token) {
+    out = out.split(token).join("[redacted]");
+  }
+  return out;
 }
 
 function parseRetryHint(headers: Headers): { retryAfterSeconds?: number; retryAt?: string } {
@@ -208,7 +213,7 @@ function parseRetryHint(headers: Headers): { retryAfterSeconds?: number; retryAt
   return {};
 }
 
-function toNetworkError(operation: string, error: unknown): GitHubProviderError {
+function toNetworkError(operation: string, error: unknown, token?: string): GitHubProviderError {
   if (error instanceof GitHubProviderError) {
     return error;
   }
@@ -216,7 +221,7 @@ function toNetworkError(operation: string, error: unknown): GitHubProviderError 
   return new GitHubProviderError({
     code: "network_error",
     operation,
-    message: `${operation} network error: ${message}`,
+    message: `${operation} network error: ${sanitizeErrorText(message, token)}`,
   });
 }
 

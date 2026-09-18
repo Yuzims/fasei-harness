@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { resolveInvestigationRoute, runInvestigation } from "../src/server/investigation-service.js";
 import { GitHubProviderError } from "../src/github/errors.js";
+import { LiveGitHubProvider } from "../src/github/live-provider.js";
+import { investigate } from "../src/investigation/index.js";
+import { TraceCollector } from "../src/trace/trace-collector.js";
 
 const noLlmEnv = {
   AGENT_MODEL: undefined,
@@ -226,6 +229,168 @@ test("LIVE does not fall through to a matching snapshot fixture", async () => {
   assert.equal(session.actor, "unconfigured");
   assert.notEqual(session.actor, "test_driver");
   assert.ok(calls.some((url) => url.includes("api.github.com/repos/acme/box/issues/42")));
+});
+
+function headerMap(init?: RequestInit): Record<string, string> {
+  const out: Record<string, string> = {};
+  const headers = init?.headers;
+  if (!headers) {
+    return out;
+  }
+  if (headers instanceof Headers) {
+    headers.forEach((value, key) => {
+      out[key.toLowerCase()] = value;
+    });
+    return out;
+  }
+  if (Array.isArray(headers)) {
+    for (const [key, value] of headers) {
+      out[key.toLowerCase()] = value;
+    }
+    return out;
+  }
+  for (const [key, value] of Object.entries(headers)) {
+    out[key.toLowerCase()] = String(value);
+  }
+  return out;
+}
+
+const SECRET = "github_pat_TEST_SECRET_DO_NOT_LEAK";
+
+function assertNoSecret(value: unknown): void {
+  const blob = typeof value === "string" ? value : JSON.stringify(value);
+  assert.equal(blob.includes(SECRET), false, "secret must not appear in user-visible output");
+}
+
+test("LIVE Investigation sends GitHub Authorization through the HTTP layer", async () => {
+  const githubAuth: boolean[] = [];
+  const session = await runInvestigation(
+    { issue: "acme/box#42", mode: "live" },
+    {
+      env: { ...noLlmEnv, GITHUB_TOKEN: "test-token" },
+      fetchImpl: async (input, init) => {
+        const url = String(input);
+        const headers = headerMap(init);
+        if (url.includes("api.github.com")) {
+          githubAuth.push(headers.authorization === "Bearer test-token");
+          assert.equal(headers.accept, "application/vnd.github+json");
+          assert.equal(headers["x-github-api-version"], "2022-11-28");
+        }
+        return liveFetch([], "acme", "box", 42)(input, init);
+      },
+    },
+  );
+
+  assert.equal(session.mode, "live");
+  assert.equal(session.dataSource, "live");
+  assert.notEqual(session.actor, "test_driver");
+  assert.equal(session.actor, "unconfigured");
+  assert.equal(githubAuth.length > 0, true);
+  assert.equal(
+    githubAuth.every((ok) => ok),
+    true,
+    "every GitHub request must carry Bearer token",
+  );
+});
+
+test("LIVE + configured LLM GitHub requests still use the same HTTP Authorization", async () => {
+  const githubAuth: boolean[] = [];
+  const llmUsedGithubToken: boolean[] = [];
+  const session = await runInvestigation(
+    { issue: "https://github.com/debug-js/debug/issues/1", mode: "live" },
+    {
+      env: {
+        AGENT_MODEL: "openai",
+        OPENAI_API_KEY: "sk-test",
+        OPENAI_MODEL: "gpt-test",
+        OPENAI_BASE_URL: "https://llm.test/v1",
+        GITHUB_TOKEN: "test-token",
+      },
+      fetchImpl: async (input, init) => {
+        const url = String(input);
+        const headers = headerMap(init);
+        if (url.includes("api.github.com")) {
+          githubAuth.push(headers.authorization === "Bearer test-token");
+        }
+        if (url.includes("/chat/completions")) {
+          llmUsedGithubToken.push(headers.authorization === "Bearer test-token");
+        }
+        return liveWithConfiguredModelFetch([], "debug-js", "debug", 1)(input, init);
+      },
+    },
+  );
+
+  assert.equal(session.mode, "live");
+  assert.equal(session.actor, "llm");
+  assert.notEqual(session.actor, "test_driver");
+  assert.equal(githubAuth.length > 0, true);
+  assert.equal(
+    githubAuth.every((ok) => ok),
+    true,
+    "LiveGitHubProvider GitHub requests must carry Bearer token",
+  );
+  assert.equal(
+    llmUsedGithubToken.some((used) => used),
+    false,
+    "LLM requests must not reuse GITHUB_TOKEN",
+  );
+});
+
+test("LIVE Investigation does not leak GITHUB_TOKEN into DTO, trace, report, or errors", async () => {
+  const session = await runInvestigation(
+    { issue: "acme/box#42", mode: "live" },
+    {
+      env: { ...noLlmEnv, GITHUB_TOKEN: SECRET },
+      fetchImpl: liveFetch([], "acme", "box", 42),
+    },
+  );
+  assert.notEqual(session.actor, "test_driver");
+  assertNoSecret(session);
+
+  const trace = new TraceCollector();
+  const report = await investigate({
+    task: { owner: "debug-js", repository: "debug", issueNumber: 1 },
+    provider: new LiveGitHubProvider({
+      env: {
+        AGENT_MODEL: "openai",
+        OPENAI_API_KEY: "sk-test",
+        OPENAI_MODEL: "gpt-test",
+        OPENAI_BASE_URL: "https://llm.test/v1",
+        GITHUB_TOKEN: SECRET,
+      },
+      fetchImpl: liveWithConfiguredModelFetch([], "debug-js", "debug", 1),
+    }),
+    env: {
+      AGENT_MODEL: "openai",
+      OPENAI_API_KEY: "sk-test",
+      OPENAI_MODEL: "gpt-test",
+      OPENAI_BASE_URL: "https://llm.test/v1",
+      GITHUB_TOKEN: SECRET,
+    },
+    fetchImpl: liveWithConfiguredModelFetch([], "debug-js", "debug", 1),
+    trace,
+  });
+  assert.notEqual(report.actor, "test_driver");
+  assertNoSecret(report);
+  assertNoSecret(trace.getEvents());
+
+  await assert.rejects(
+    () =>
+      runInvestigation(
+        { issue: "foo/bar#1", mode: "live" },
+        {
+          env: { ...noLlmEnv, GITHUB_TOKEN: SECRET },
+          fetchImpl: async () =>
+            jsonResponse({ message: `unauthorized Bearer ${SECRET}` }, 401),
+        },
+      ),
+    (error: unknown) => {
+      assert.equal(error instanceof GitHubProviderError, true);
+      assertNoSecret(error instanceof Error ? error.message : error);
+      assertNoSecret(error instanceof Error ? error.stack : "");
+      return error instanceof GitHubProviderError && error.code === "unauthorized";
+    },
+  );
 });
 
 test("Live investigation must not use SnapshotInvestigationDriver", () => {

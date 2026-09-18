@@ -6,7 +6,16 @@ import { ClaimPanel } from "../components/ClaimPanel";
 import { EvidencePanel } from "../components/EvidencePanel";
 import { TraceTimeline } from "../components/TraceTimeline";
 import { VerificationChecks, VerificationSummary } from "../components/VerificationPanel";
-import { investigationErrorTitle, issueRef, type RunPhase } from "../lib/workbench";
+import {
+  catalogRunRequest,
+  exampleHeading,
+  featuredExamples,
+  investigationErrorTitle,
+  issueRef,
+  verificationLabel,
+  verificationSubtitle,
+  type RunPhase,
+} from "../lib/workbench";
 import type {
   InvestigationCatalogDTO,
   InvestigationCatalogItemDTO,
@@ -14,8 +23,42 @@ import type {
   InvestigationSessionDTO,
 } from "@dto";
 
+const WORKFLOW_STEPS = ["Issue", "Investigation", "Evidence", "Independent Verification", "Result"] as const;
+const OUTCOMES = ["verified_complete", "not_verified", "insufficient_evidence"] as const;
+const EMPTY_RESULT_ITEMS = [
+  "Verification result",
+  "Evidence",
+  "Investigation trace",
+  "Claims",
+  "Failure / recovery history when applicable",
+] as const;
+
 function catalogIssue(item: Pick<InvestigationCatalogItemDTO, "owner" | "repository" | "issueNumber">) {
   return issueRef(item);
+}
+
+function ExampleCard({
+  item,
+  disabled,
+  onSelect,
+}: {
+  item: InvestigationCatalogItemDTO;
+  disabled: boolean;
+  onSelect: (item: InvestigationCatalogItemDTO) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="example-card"
+      disabled={disabled}
+      title={item.description}
+      onClick={() => onSelect(item)}
+    >
+      <strong>{exampleHeading(item)}</strong>
+      <span className="muted mono">{catalogIssue(item)}</span>
+      <span className="example-id">{item.id}</span>
+    </button>
+  );
 }
 
 export function InvestigationView() {
@@ -55,24 +98,36 @@ export function InvestigationView() {
     void start({ issue });
   }
 
+  function onSelectExample(item: InvestigationCatalogItemDTO) {
+    setIssue(catalogIssue(item));
+    void start(catalogRunRequest(item));
+  }
+
+  const featured = catalog ? featuredExamples(catalog.snapshots) : [];
+  const showOnboarding = !session && phase !== "running";
+
   return (
     <div className="page">
       <section className="panel">
-        <h2>Investigate GitHub Issue</h2>
+        <h2>Investigate a GitHub Issue</h2>
+        <p className="hero-copy">
+          Verify whether an Agent actually resolved a GitHub Issue using independent evidence.
+        </p>
         <form className="issue-form" onSubmit={onSubmit}>
-          <input
-            value={issue}
-            onChange={(event) => setIssue(event.target.value)}
-            placeholder="owner/repository#123"
-            aria-label="GitHub issue"
-          />
-          <div className="issue-actions">
-            <span className="muted">Status: {phase}</span>
+          <div className="issue-row">
+            <input
+              value={issue}
+              onChange={(event) => setIssue(event.target.value)}
+              placeholder="owner/repository#123"
+              aria-label="GitHub issue"
+            />
             <button className="primary" type="submit" disabled={phase === "running" || !issue.trim()}>
               {phase === "running" ? "Investigating..." : "Investigate"}
             </button>
           </div>
-          <p className="muted">Snapshot replay only. No live GitHub calls.</p>
+          <p className="muted snapshot-note">
+            Demo investigations use recorded GitHub snapshots for deterministic, reproducible results.
+          </p>
         </form>
         {error ? (
           <div className="error-block" role="alert">
@@ -82,29 +137,37 @@ export function InvestigationView() {
             ) : null}
           </div>
         ) : null}
-        {catalog ? (
+      </section>
+
+      {catalog ? (
+        <section className="panel">
+          <h2>Try an example</h2>
+          <p className="muted">Start with a recorded GitHub Issue. Completion is decided by independent verification.</p>
+          <div className="example-grid">
+            {featured.map((item) => (
+              <ExampleCard
+                key={item.id}
+                item={item}
+                disabled={phase === "running"}
+                onSelect={onSelectExample}
+              />
+            ))}
+          </div>
           <details className="catalog-details">
-            <summary className="muted">Snapshot catalog</summary>
-            <p className="kicker" style={{ marginTop: 14 }}>
-              Real-v1 snapshots
-            </p>
-            <div className="catalog">
+            <summary>Show all examples</summary>
+            <div className="example-grid example-grid-compact">
               {catalog.snapshots.map((item) => (
-                <button
+                <ExampleCard
                   key={item.id}
-                  type="button"
-                  className="chip"
-                  title={item.description}
+                  item={item}
                   disabled={phase === "running"}
-                  onClick={() => {
-                    setIssue(catalogIssue(item));
-                    void start({ caseId: item.id });
-                  }}
-                >
-                  {item.id} {catalogIssue(item)}
-                </button>
+                  onSelect={onSelectExample}
+                />
               ))}
             </div>
+          </details>
+          <details className="catalog-details">
+            <summary className="muted">Developer scenarios</summary>
             <p className="kicker" style={{ marginTop: 14 }}>
               Fixtures
             </p>
@@ -116,10 +179,7 @@ export function InvestigationView() {
                   className="chip"
                   title={item.description}
                   disabled={phase === "running"}
-                  onClick={() => {
-                    setIssue(catalogIssue(item));
-                    void start({ scenarioId: item.id });
-                  }}
+                  onClick={() => onSelectExample(item)}
                 >
                   {item.id}
                 </button>
@@ -136,22 +196,52 @@ export function InvestigationView() {
                   className="chip"
                   title={item.description}
                   disabled={phase === "running"}
-                  onClick={() => {
-                    setIssue(catalogIssue(item));
-                    void start({ scenarioId: item.id });
-                  }}
+                  onClick={() => onSelectExample(item)}
                 >
                   {item.id}
                 </button>
               ))}
             </div>
           </details>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
+
+      {showOnboarding ? (
+        <>
+          <section className="panel">
+            <h2>How FASEI works</h2>
+            <ol className="workflow">
+              {WORKFLOW_STEPS.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            <div className="outcome-legend">
+              {OUTCOMES.map((status) => (
+                <div key={status} className={`outcome-item ${status}`}>
+                  <strong>{verificationLabel(status)}</strong>
+                  <span className="muted">{verificationSubtitle(status)}</span>
+                </div>
+              ))}
+            </div>
+            <p className="muted proof-note">The Agent's conclusion is not used as proof of completion.</p>
+            {phase !== "failed" ? (
+              <div className="empty-state">
+                <p className="empty-lead">Enter a GitHub Issue to start an investigation.</p>
+                <p className="muted">After you investigate, this page will show:</p>
+                <ul className="empty-list">
+                  {EMPTY_RESULT_ITEMS.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        </>
+      ) : null}
 
       {phase === "running" ? (
         <section className="panel">
-          <p className="empty">Investigating recorded snapshot…</p>
+          <p className="empty">Investigating…</p>
         </section>
       ) : null}
 
@@ -171,13 +261,6 @@ export function InvestigationView() {
           <AttemptPanel session={session} />
           <AgentOutput session={session} />
         </>
-      ) : phase === "idle" ? (
-        <section className="panel">
-          <p className="empty">
-            Enter a recorded GitHub issue to start an investigation. Completion is decided by
-            Independent Verification, not by the agent answer.
-          </p>
-        </section>
       ) : null}
     </div>
   );

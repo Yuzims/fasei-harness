@@ -1,6 +1,8 @@
 import type {
   InvestigationAttemptDTO,
+  InvestigationCatalogItemDTO,
   InvestigationEvidenceDTO,
+  InvestigationRequest,
   InvestigationSessionDTO,
 } from "@dto";
 
@@ -15,8 +17,48 @@ export interface TraceItem {
   tone?: CheckTone;
 }
 
+export const FEATURED_EXAMPLE_COUNT = 3;
+
+const REPO_DISPLAY_NAMES: Record<string, string> = {
+  vscode: "VS Code",
+  cli: "CLI",
+  mcp: "MCP",
+};
+
 export function issueRef(task: { owner: string; repository: string; issueNumber: number }): string {
   return `${task.owner}/${task.repository}#${task.issueNumber}`;
+}
+
+export function repositoryDisplayName(repository: string): string {
+  return repository
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map((token) => {
+      const known = REPO_DISPLAY_NAMES[token.toLowerCase()];
+      if (known) {
+        return known;
+      }
+      if (/[A-Z]/.test(token.slice(1))) {
+        return token;
+      }
+      return token.charAt(0).toUpperCase() + token.slice(1);
+    })
+    .join(" ");
+}
+
+export function exampleHeading(item: { repository: string; issueNumber: number }): string {
+  return `${repositoryDisplayName(item.repository)} #${item.issueNumber}`;
+}
+
+export function featuredExamples<T>(items: T[], count = FEATURED_EXAMPLE_COUNT): T[] {
+  return items.slice(0, count);
+}
+
+export function catalogRunRequest(item: InvestigationCatalogItemDTO): InvestigationRequest {
+  if (item.group === "real-v1") {
+    return { caseId: item.id };
+  }
+  return { scenarioId: item.id };
 }
 
 export function verificationLabel(status?: string): string {

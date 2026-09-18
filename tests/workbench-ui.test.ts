@@ -3,13 +3,18 @@ import test from "node:test";
 import type { InvestigationSessionDTO } from "../src/api/dto.ts";
 import {
   buildTraceItems,
+  catalogRunRequest,
+  exampleHeading,
+  featuredExamples,
   filterEvidence,
   formatMetric,
   investigationErrorTitle,
   isNotFoundError,
   recoveredFrom,
+  repositoryDisplayName,
   uniqueEvidenceKinds,
   verificationLabel,
+  verificationSubtitle,
   verificationTone,
 } from "../web/src/lib/workbench.ts";
 
@@ -118,4 +123,46 @@ test("UI：trace / recovery chain 来自 session 数据", () => {
 test("UI：unknown issue 文案不编造 verified_complete", () => {
   assert.equal(investigationErrorTitle({ status: 404 }), "Investigation not found");
   assert.notEqual(verificationLabel(undefined), "VERIFIED COMPLETE");
+});
+
+test("UI：example labels 来自 repository / issue，不从 identifier 推导 verification", () => {
+  assert.equal(repositoryDisplayName("vscode"), "VS Code");
+  assert.equal(repositoryDisplayName("streamlit"), "Streamlit");
+  assert.equal(repositoryDisplayName("playwright-mcp"), "Playwright MCP");
+  assert.equal(exampleHeading({ repository: "vscode", issueNumber: 258694 }), "VS Code #258694");
+  assert.equal(exampleHeading({ repository: "pytest", issueNumber: 14524 }), "Pytest #14524");
+  assert.doesNotMatch(
+    exampleHeading({ repository: "vscode", issueNumber: 258694 }),
+    /VERIFIED|NOT VERIFIED|INSUFFICIENT/i,
+  );
+  assert.deepEqual(
+    featuredExamples([{ id: "C01" }, { id: "C02" }, { id: "C03" }, { id: "C04" }]).map((item) => item.id),
+    ["C01", "C02", "C03"],
+  );
+  assert.deepEqual(
+    catalogRunRequest({
+      id: "C01",
+      group: "real-v1",
+      owner: "microsoft",
+      repository: "vscode",
+      issueNumber: 258694,
+      label: "microsoft/vscode#258694",
+      description: "Investigate whether microsoft/vscode#258694 is independently resolved.",
+    }),
+    { caseId: "C01" },
+  );
+  assert.deepEqual(
+    catalogRunRequest({
+      id: "tool-failure",
+      group: "recovery",
+      owner: "acme",
+      repository: "box",
+      issueNumber: 42,
+      label: "acme/box#42",
+      description: "First GitHub getIssue call times out.",
+    }),
+    { scenarioId: "tool-failure" },
+  );
+  assert.equal(verificationSubtitle("verified_complete"), "Independent verification passed");
+  assert.equal(verificationLabel("insufficient_evidence"), "INSUFFICIENT EVIDENCE");
 });

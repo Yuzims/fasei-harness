@@ -36,7 +36,10 @@ export function App() {
           ))}
         </nav>
         <div className="topbar-right">
-          <span className="mode-badge" title="Deterministic recorded GitHub data">
+          <span
+            className="mode-badge"
+            title="Demo investigations use recorded GitHub snapshots for deterministic, reproducible results."
+          >
             <span className="mode-dot" />
             Snapshot Mode
           </span>

@@ -3,7 +3,7 @@
  * Pure domain logic. No React / Hono / GitHub HTTP / LLM.
  */
 import { randomUUID } from "node:crypto";
-import { CODE_EVIDENCE_KINDS, issueFact, pullFact } from "./evidence-facts.js";
+import { CODE_EVIDENCE_KINDS, commitFact, issueFact, pullFact } from "./evidence-facts.js";
 import type {
   Claim,
   ClaimEvidence,
@@ -274,8 +274,8 @@ export function issueEvidenceItems(graph: EvidenceGraph): Evidence[] {
 }
 
 /**
- * Resolution-candidate PRs: pull_request evidence with an explicit graph edge
- * to the target issue (fixes / references / supports).
+ * Resolution-candidate evidence: pull requests or commits with an explicit
+ * graph edge to the target issue (fixes / references / supports).
  */
 export function resolutionCandidateEvidence(
   graph: EvidenceGraph,
@@ -286,24 +286,28 @@ export function resolutionCandidateEvidence(
     return [];
   }
   const allowed = new Set<EvidenceRelationType>(RESOLUTION_CANDIDATE_RELATIONS);
-  const pullIds = new Set<string>();
+  const candidateIds = new Set<string>();
   for (const relation of graph.relations) {
     if (!allowed.has(relation.type)) {
       continue;
     }
     if (issueIds.has(relation.toEvidenceId)) {
-      pullIds.add(relation.fromEvidenceId);
+      candidateIds.add(relation.fromEvidenceId);
     }
     if (issueIds.has(relation.fromEvidenceId)) {
-      pullIds.add(relation.toEvidenceId);
+      candidateIds.add(relation.toEvidenceId);
     }
   }
   const expectedRepo = `${task.target.owner}/${task.target.repository}`;
   return graph.evidence.filter((item) => {
-    if (!pullIds.has(item.id) || item.kind !== "pull_request") {
+    if (!candidateIds.has(item.id) || (item.kind !== "pull_request" && item.kind !== "commit")) {
       return false;
     }
-    const fact = pullFact(item);
+    if (item.kind === "pull_request") {
+      const fact = pullFact(item);
+      return !fact || fact.repository === expectedRepo || fact.repository === "";
+    }
+    const fact = commitFact(item);
     return !fact || fact.repository === expectedRepo || fact.repository === "";
   });
 }

@@ -28,6 +28,7 @@ export {
   compareOutcome,
   computeBenchmarkMetrics,
   isFalseCompletion,
+  isVerifierFalsePositive,
 } from "./metrics.js";
 export {
   compareFailureModes,

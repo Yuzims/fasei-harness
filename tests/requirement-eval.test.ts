@@ -33,7 +33,13 @@ function taskFor(issueNumber = 42) {
   });
 }
 
-function issueEvidence(input?: { number?: number; state?: "open" | "closed"; body?: string }) {
+function issueEvidence(input?: {
+  number?: number;
+  state?: "open" | "closed";
+  body?: string;
+  title?: string;
+  stateReason?: string;
+}) {
   const number = input?.number ?? 42;
   const state = input?.state ?? "closed";
   return createEvidence({
@@ -43,8 +49,9 @@ function issueEvidence(input?: { number?: number; state?: "open" | "closed"; bod
       number,
       repository: "acme/box",
       state,
-      title: "bug",
-      body: input?.body ?? "",
+      stateReason: input?.stateReason,
+      title: input?.title ?? "Null pointer when saving empty cart",
+      body: input?.body ?? "Saving an empty cart throws. Please fix.",
     },
     provenance: provenance(`issues/${number}`, `https://github.com/acme/box/issues/${number}`),
   });
@@ -56,7 +63,14 @@ function prEvidence(input?: { number?: number; merged?: boolean }) {
   return createEvidence({
     kind: "pull_request",
     summary: `PR #${number} merged=${merged}`,
-    payload: { number, repository: "acme/box", merged, state: merged ? "closed" : "open" },
+    payload: {
+      number,
+      repository: "acme/box",
+      merged,
+      state: merged ? "closed" : "open",
+      title: "Fix empty cart save",
+      body: "Fixes #42",
+    },
     provenance: provenance(`pull/${number}`, `https://github.com/acme/box/pull/${number}`),
   });
 }
@@ -65,7 +79,7 @@ function commitEvidence() {
   return createEvidence({
     kind: "commit",
     summary: "commit abc",
-    payload: { sha: "abc123", repository: "acme/box" },
+    payload: { sha: "abc123def456", repository: "acme/box", message: "Fix empty cart save\n\nFixes #42" },
     provenance: provenance("commit/abc123", "https://github.com/acme/box/commit/abc123"),
   });
 }

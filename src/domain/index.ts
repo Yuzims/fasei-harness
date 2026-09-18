@@ -63,11 +63,14 @@ export type { RecoveryBounds } from "./recovery-policy.js";
 
 export {
   CODE_EVIDENCE_KINDS,
+  EXPLICIT_NON_RESOLUTION_REASONS,
+  commitFact,
   isCodeEvidence,
+  isExplicitNonResolutionReason,
   issueFact,
   pullFact,
 } from "./evidence-facts.js";
-export type { IssueFact, PullFact } from "./evidence-facts.js";
+export type { CommitFact, IssueFact, PullFact } from "./evidence-facts.js";
 
 export {
   CLAIM_EVIDENCE_ROLES,
@@ -110,3 +113,16 @@ export type {
   RequirementEvaluation,
   RequirementOutcome,
 } from "./requirement-eval.js";
+
+export {
+  RESOLUTION_PATHS,
+  asResolutionCandidate,
+  closingKeywordReferencesIssue,
+  codeEvidenceForCandidates,
+  landedResolutionCandidates,
+  resolveResolutionCandidates,
+} from "./resolution-path.js";
+export type { ResolutionCandidate, ResolutionPathKind } from "./resolution-path.js";
+
+export { describeResolutionAlignment, contentTokens, identifierTokens } from "./resolution-alignment.js";
+export type { AlignmentOutcome } from "./resolution-alignment.js";

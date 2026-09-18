@@ -262,6 +262,7 @@ test("Phase 5：required evidence missing → INSUFFICIENT_EVIDENCE → gather o
   });
   gatherCtx.state.investigatedResources.add(resourceKey("timeline", "42"));
   gatherCtx.state.investigatedResources.add(resourceKey("comments", "42"));
+  gatherCtx.state.investigatedResources.add(resourceKey("commits", "repo"));
   const failure = analyzer.classify(gatherCtx);
   assert.ok(failure?.type === "insufficient_evidence" || failure?.type === "retrieval_failure");
   const withSources = planner.plan(

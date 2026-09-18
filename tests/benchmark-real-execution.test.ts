@@ -55,6 +55,7 @@ test("Real-v1 full execution produces 10 harness results", async () => {
   assert.equal(typeof result.metrics.recoveryRate, "number");
   assert.equal(typeof result.metrics.averageAttempts, "number");
   assert.equal(typeof result.metrics.averageToolCalls, "number");
+  assert.equal(typeof result.metrics.verifierFalsePositiveRate, "number");
 });
 
 test("Real-v1 agent input stays isolated from ground-truth.json", async () => {

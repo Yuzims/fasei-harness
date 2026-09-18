@@ -68,6 +68,14 @@ const RESOLUTION_CHAIN: ChainCheckSpec[] = [
     fallbackSeverity: "required",
   },
   {
+    condition: "eligible_closure",
+    id: "closure-semantics",
+    name: "eligible closure",
+    type: "closure_semantics",
+    kind: "issue",
+    fallbackSeverity: "required",
+  },
+  {
     condition: "resolution_candidate",
     id: "resolution-candidate",
     name: "resolution candidate",
@@ -78,7 +86,7 @@ const RESOLUTION_CHAIN: ChainCheckSpec[] = [
   {
     condition: "resolution_merged",
     id: "pr-merged",
-    name: "resolution merged",
+    name: "resolution landed",
     type: "pr_merge",
     kind: "pull_request",
     fallbackSeverity: "required",
@@ -89,6 +97,14 @@ const RESOLUTION_CHAIN: ChainCheckSpec[] = [
     name: "resolution code evidence",
     type: "commit_existence",
     kind: "commit",
+    fallbackSeverity: "required",
+  },
+  {
+    condition: "resolution_effect",
+    id: "resolution-effect",
+    name: "resolution effect alignment",
+    type: "resolution_effect",
+    kind: "other",
     fallbackSeverity: "required",
   },
   {
@@ -124,7 +140,7 @@ function requirementFor(
     severity: spec.fallbackSeverity,
     description: spec.name,
     condition: spec.condition,
-    acceptedKinds: spec.condition === "resolution_code_evidence" ? ["commit", "file", "code"] : undefined,
+    acceptedKinds: spec.condition === "resolution_code_evidence" ? ["commit", "file", "code"] : spec.condition === "resolution_candidate" ? ["pull_request", "commit"] : undefined,
   };
 }
 
@@ -277,10 +293,10 @@ export class IndependentCompletionVerifier {
         .map((item) => item.id),
       why:
         result.status === "verified_complete"
-          ? "All required independent checks passed."
+          ? "All required independent checks passed, including a landed resolution path and descriptive alignment."
           : result.status === "insufficient_evidence"
-            ? "Key evidence is missing; the harness cannot prove completion."
-            : "Evidence is sufficient to reject completion (failed condition or contradiction).",
+            ? "Evidence is not enough to prove completion and not enough to reject it."
+            : "Evidence is sufficient to reject completion (failed condition, explicit non-resolution, or contradiction).",
     });
 
     return result;

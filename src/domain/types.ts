@@ -53,9 +53,11 @@ export type EvidenceRequirementCondition =
   | "has_kind"
   | "issue_identity"
   | "issue_closed"
+  | "eligible_closure"
   | "resolution_candidate"
   | "resolution_merged"
   | "resolution_code_evidence"
+  | "resolution_effect"
   | "claim_support";
 
 /** 外部抓取一律 untrusted；Harness 自己算出来的汇总可以标 derived。 */
@@ -68,9 +70,11 @@ export type VerificationStatus = "verified_complete" | "not_verified" | "insuffi
 export type CheckType =
   | "identity"
   | "issue_state"
+  | "closure_semantics"
   | "pr_existence"
   | "pr_merge"
   | "commit_existence"
+  | "resolution_effect"
   | "evidence_existence"
   | "claim_coverage"
   | "other";

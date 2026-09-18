@@ -130,6 +130,7 @@ test("Benchmark：metrics 由合成结果计算", () => {
   assert.equal(metrics.averageToolCalls, 7);
   assert.equal(metrics.evidenceCoverage, 0.6875);
   assert.equal(metrics.unsupportedClaimRate, 0.375);
+  assert.equal(metrics.verifierFalsePositiveRate, 0);
 });
 
 test("Benchmark：空结果的 metrics 为 0，不除零", () => {
@@ -140,6 +141,7 @@ test("Benchmark：空结果的 metrics 为 0，不除零", () => {
   assert.equal(metrics.recoveryRate, 0);
   assert.equal(metrics.averageAttempts, 0);
   assert.equal(metrics.averageToolCalls, 0);
+  assert.equal(metrics.verifierFalsePositiveRate, 0);
 });
 
 test("Benchmark：三个现有 fixture 产出文档化的 verifier 结果", async () => {
@@ -169,6 +171,7 @@ test("Benchmark：三个现有 fixture 产出文档化的 verifier 结果", asyn
   assert.equal(parsed.scenarioCount, 3);
   assert.equal(parsed.metrics.taskSuccessRate, 1 / 3);
   assert.equal(parsed.metrics.falseCompletionRate, 0);
+  assert.equal(parsed.metrics.verifierFalsePositiveRate, 0);
   assert.equal(parsed.metrics.insufficientEvidenceRate, 1 / 3);
 });
 

@@ -15,6 +15,18 @@ export function isFalseCompletion(
   return agentClaimedComplete && verificationStatus !== "verified_complete";
 }
 
+/**
+ * Verifier false positive: harness verified_complete when ground truth says
+ * the task should not be considered verified. Distinct from agent-side
+ * falseCompletionRate.
+ */
+export function isVerifierFalsePositive(
+  expected: VerificationStatus,
+  observed: VerificationStatus,
+): boolean {
+  return observed === "verified_complete" && expected !== "verified_complete";
+}
+
 function mean(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1);
 }
@@ -32,6 +44,7 @@ export function computeBenchmarkMetrics(results: readonly ScenarioResult[]): Ben
       recoveryRate: 0,
       averageAttempts: 0,
       averageToolCalls: 0,
+      verifierFalsePositiveRate: 0,
     };
   }
 
@@ -39,6 +52,10 @@ export function computeBenchmarkMetrics(results: readonly ScenarioResult[]): Ben
     (item) => item.recovered || item.observedOutcome !== "verified_complete",
   );
   const recovered = results.filter((item) => item.recovered).length;
+  const shouldNotVerify = results.filter((item) => item.expectedOutcome !== "verified_complete");
+  const verifierFalsePositives = shouldNotVerify.filter((item) =>
+    isVerifierFalsePositive(item.expectedOutcome, item.observedOutcome),
+  ).length;
 
   return {
     taskSuccessRate: results.filter((item) => item.observedOutcome === "verified_complete").length / n,
@@ -50,6 +67,8 @@ export function computeBenchmarkMetrics(results: readonly ScenarioResult[]): Ben
     recoveryRate: failedFirst.length === 0 ? 0 : recovered / failedFirst.length,
     averageAttempts: mean(results.map((item) => item.attemptCount)),
     averageToolCalls: mean(results.map((item) => item.toolCallCount)),
+    verifierFalsePositiveRate:
+      shouldNotVerify.length === 0 ? 0 : verifierFalsePositives / shouldNotVerify.length,
   };
 }
 

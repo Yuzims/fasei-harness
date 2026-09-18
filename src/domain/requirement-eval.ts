@@ -9,17 +9,21 @@
  */
 import {
   claimSupportStatus,
-  codeEvidenceFor,
   contradictingRelations,
   isOptionalRequirement,
   issueEvidenceItems,
   mergeContradiction,
   requirementKinds,
-  resolutionCandidateEvidence,
   targetIssueEvidence,
   type EvidenceGraph,
 } from "./evidence-graph.js";
-import { issueFact, pullFact } from "./evidence-facts.js";
+import { isExplicitNonResolutionReason, issueFact } from "./evidence-facts.js";
+import { describeResolutionAlignment } from "./resolution-alignment.js";
+import {
+  codeEvidenceForCandidates,
+  landedResolutionCandidates,
+  resolveResolutionCandidates,
+} from "./resolution-path.js";
 import type {
   Evidence,
   EvidenceRequirement,
@@ -161,26 +165,55 @@ function evalIssueClosed(
   });
 }
 
+function evalEligibleClosure(
+  requirement: EvidenceRequirement,
+  context: RequirementEvalContext,
+): RequirementEvaluation {
+  const matches = targetIssueEvidence(context.graph, context.task);
+  if (matches.length === 0) {
+    return result(requirement, "eligible_closure", {
+      outcome: "missing",
+      reason: "No target issue evidence; cannot read closure semantics.",
+      evidenceIds: [],
+    });
+  }
+  const facts = matches.map(issueFact).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const rejected = facts.filter((item) => isExplicitNonResolutionReason(item.stateReason));
+  if (rejected.length > 0) {
+    const reason = rejected[0]?.stateReason ?? "not_planned";
+    return result(requirement, "eligible_closure", {
+      outcome: "rejected",
+      reason: `Issue closed as ${reason} is explicit non-resolution; it cannot be verified_complete.`,
+      evidenceIds: matches.map((item) => item.id),
+      expected: "completed resolution",
+      actual: reason,
+    });
+  }
+  return result(requirement, "eligible_closure", {
+    outcome: "satisfied",
+    reason: "Closure is not an explicit non-resolution (not_planned). Closed still is not resolved.",
+    evidenceIds: matches.map((item) => item.id),
+    actual: facts[0]?.stateReason ?? facts[0]?.state,
+  });
+}
+
 function evalResolutionCandidate(
   requirement: EvidenceRequirement,
   context: RequirementEvalContext,
 ): RequirementEvaluation {
   const pulls = context.graph.evidence.filter((item) => item.kind === "pull_request");
-  const candidates = resolutionCandidateEvidence(context.graph, context.task);
+  const candidates = resolveResolutionCandidates(context.graph, context.task);
   if (candidates.length > 0) {
-    const numbers = [
-      ...new Set(
-        candidates
-          .map(pullFact)
-          .filter((item): item is NonNullable<typeof item> => Boolean(item))
-          .map((item) => item.number),
-      ),
-    ];
+    const labels = candidates.map((item) =>
+      item.path === "pr_merge"
+        ? `PR #${item.pull?.number ?? "?"}`
+        : `commit ${item.commit?.sha?.slice(0, 12) ?? item.evidence.id.slice(0, 8)}`,
+    );
     return result(requirement, "resolution_candidate", {
       outcome: "satisfied",
-      reason: `Resolution candidate PR(s): ${numbers.map((n) => `#${n}`).join(", ") || "linked"}.`,
-      evidenceIds: candidates.map((item) => item.id),
-      actual: numbers,
+      reason: `Resolution candidate(s): ${labels.join(", ")}.`,
+      evidenceIds: candidates.map((item) => item.evidence.id),
+      actual: labels,
     });
   }
   if (pulls.length > 0) {
@@ -193,90 +226,63 @@ function evalResolutionCandidate(
   }
   return result(requirement, "resolution_candidate", {
     outcome: "missing",
-    reason: "No pull request evidence linked to the target issue.",
+    reason: "No pull request or direct-commit evidence linked to the target issue.",
     evidenceIds: [],
   });
-}
-
-function mergedCandidateEvidence(
-  graph: EvidenceGraph,
-  task: InvestigationTask,
-): { candidates: Evidence[]; merged: Evidence[]; unmerged: Evidence[]; conflict: boolean } {
-  const candidates = resolutionCandidateEvidence(graph, task);
-  const contradiction = mergeContradiction(graph, candidates);
-  const mergedViaRelation = candidates.filter((item) =>
-    graph.relations.some(
-      (relation) =>
-        relation.type === "merges" &&
-        (relation.toEvidenceId === item.id || relation.fromEvidenceId === item.id),
-    ),
-  );
-  const merged = [
-    ...new Map([...contradiction.merged, ...mergedViaRelation].map((item) => [item.id, item])).values(),
-  ];
-  return {
-    candidates,
-    merged,
-    unmerged: contradiction.unmerged,
-    conflict: contradiction.conflict,
-  };
 }
 
 function evalResolutionMerged(
   requirement: EvidenceRequirement,
   context: RequirementEvalContext,
 ): RequirementEvaluation {
-  const { candidates, merged, unmerged, conflict } = mergedCandidateEvidence(
-    context.graph,
-    context.task,
-  );
-  if (candidates.length === 0) {
-    return result(requirement, "resolution_merged", {
-      outcome: "missing",
-      reason: "No resolution-candidate PR to inspect for merged=true.",
-      evidenceIds: [],
-      expected: true,
-    });
-  }
-  if (conflict) {
+  const candidates = resolveResolutionCandidates(context.graph, context.task);
+  const pulls = candidates.filter((item) => item.path === "pr_merge").map((item) => item.evidence);
+  const contradiction = mergeContradiction(context.graph, pulls);
+  if (contradiction.conflict) {
     return result(requirement, "resolution_merged", {
       outcome: "rejected",
       reason: "Contradictory merge evidence for the same resolution-candidate PR.",
-      evidenceIds: [...merged, ...unmerged].map((item) => item.id),
+      evidenceIds: [...contradiction.merged, ...contradiction.unmerged].map((item) => item.id),
       expected: true,
       actual: "contradicted",
     });
   }
-  if (merged.length > 0) {
-    const numbers = [
-      ...new Set(
-        merged
-          .map(pullFact)
-          .filter((item): item is NonNullable<typeof item> => Boolean(item))
-          .map((item) => item.number),
-      ),
-    ];
+  const landed = landedResolutionCandidates(context.graph, context.task);
+  if (landed.length > 0) {
+    const labels = landed.map((item) =>
+      item.path === "pr_merge"
+        ? `merged PR #${item.pull?.number ?? "?"}`
+        : `direct commit ${item.commit?.sha?.slice(0, 12) ?? ""}`.trim(),
+    );
     return result(requirement, "resolution_merged", {
       outcome: "satisfied",
-      reason: `Candidate PR merged=true: ${numbers.map((n) => `#${n}`).join(", ") || "linked"}.`,
-      evidenceIds: merged.map((item) => item.id),
+      reason: `Resolution path landed: ${labels.join(", ")}.`,
+      evidenceIds: landed.map((item) => item.evidence.id),
       expected: true,
-      actual: true,
+      actual: labels,
     });
   }
-  if (unmerged.length > 0) {
+  if (candidates.length === 0) {
+    return result(requirement, "resolution_merged", {
+      outcome: "missing",
+      reason: "No resolution-candidate PR or direct commit to inspect for a landed path.",
+      evidenceIds: [],
+      expected: true,
+    });
+  }
+  if (contradiction.unmerged.length > 0) {
     return result(requirement, "resolution_merged", {
       outcome: "rejected",
       reason: "Candidate PR exists but merged=false (open or closed-unmerged is not completion).",
-      evidenceIds: unmerged.map((item) => item.id),
+      evidenceIds: contradiction.unmerged.map((item) => item.id),
       expected: true,
       actual: false,
     });
   }
   return result(requirement, "resolution_merged", {
     outcome: "missing",
-    reason: "Candidate PR evidence does not include a merged fact or merges relation.",
-    evidenceIds: candidates.map((item) => item.id),
+    reason: "Candidate evidence does not include a merged PR fact or a landed direct commit.",
+    evidenceIds: candidates.map((item) => item.evidence.id),
     expected: true,
   });
 }
@@ -285,15 +291,13 @@ function evalResolutionCodeEvidence(
   requirement: EvidenceRequirement,
   context: RequirementEvalContext,
 ): RequirementEvaluation {
-  const candidates = resolutionCandidateEvidence(context.graph, context.task);
-  const found = codeEvidenceFor(
-    context.graph,
-    candidates.map((item) => item.id),
-  );
+  const landed = landedResolutionCandidates(context.graph, context.task);
+  const candidates = landed.length > 0 ? landed : resolveResolutionCandidates(context.graph, context.task);
+  const found = codeEvidenceForCandidates(context.graph, candidates);
   if (found.length > 0) {
     return result(requirement, "resolution_code_evidence", {
       outcome: "satisfied",
-      reason: `Found ${found.length} commit/file/code evidence item(s) linked to the resolution PR. A merged PR record is not code evidence.`,
+      reason: `Found ${found.length} commit/file/code evidence item(s) linked to the landed resolution. A merged PR record is not code evidence.`,
       evidenceIds: found.map((item) => item.id),
     });
   }
@@ -302,6 +306,36 @@ function evalResolutionCodeEvidence(
     reason:
       "Required commit/file/code evidence is missing from the Evidence Graph. A pull request record is not enough.",
     evidenceIds: [],
+  });
+}
+
+function evalResolutionEffect(
+  requirement: EvidenceRequirement,
+  context: RequirementEvalContext,
+): RequirementEvaluation {
+  const landed = landedResolutionCandidates(context.graph, context.task);
+  if (landed.length === 0) {
+    return result(requirement, "resolution_effect", {
+      outcome: "missing",
+      reason:
+        "No landed resolution path, so resolution effect cannot be established. Close-link evidence is not effect proof.",
+      evidenceIds: [],
+    });
+  }
+  const issues = targetIssueEvidence(context.graph, context.task);
+  const code = codeEvidenceForCandidates(context.graph, landed);
+  const alignment = describeResolutionAlignment(issues[0], landed, code);
+  if (alignment.outcome === "aligned") {
+    return result(requirement, "resolution_effect", {
+      outcome: "satisfied",
+      reason: alignment.reason,
+      evidenceIds: [...landed.map((item) => item.evidence.id), ...code.map((item) => item.id)],
+    });
+  }
+  return result(requirement, "resolution_effect", {
+    outcome: "missing",
+    reason: alignment.reason,
+    evidenceIds: landed.map((item) => item.evidence.id),
   });
 }
 
@@ -396,9 +430,11 @@ const EVALUATORS: Record<
   has_kind: evalHasKind,
   issue_identity: evalIssueIdentity,
   issue_closed: evalIssueClosed,
+  eligible_closure: evalEligibleClosure,
   resolution_candidate: evalResolutionCandidate,
   resolution_merged: evalResolutionMerged,
   resolution_code_evidence: evalResolutionCodeEvidence,
+  resolution_effect: evalResolutionEffect,
   claim_support: evalClaimSupport,
 };
 

@@ -423,6 +423,7 @@ export function formatDatasetBenchmarkSummary(
   lines.push(`  recoveryRate: ${result.metrics.recoveryRate}`);
   lines.push(`  averageAttempts: ${result.metrics.averageAttempts}`);
   lines.push(`  averageToolCalls: ${result.metrics.averageToolCalls}`);
+  lines.push(`  verifierFalsePositiveRate: ${result.metrics.verifierFalsePositiveRate}`);
   if (resultPath) {
     lines.push("");
     lines.push(`Result: ${resultPath}`);

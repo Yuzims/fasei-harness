@@ -75,8 +75,8 @@ function requiredChecks(checks: VerificationCheck[]): VerificationCheck[] {
  * Agent 终答不参与判定。verified_complete 只在：
  * 关键/必需检查全过、必需证据齐、关键 Claim 都有 supporting evidence。
  *
- * 缺关键证据 → insufficient_evidence
- * 已有足够信息否定完成条件 / 存在矛盾 → not_verified
+ * 缺关键证据 / 无法证明 resolution effect → insufficient_evidence
+ * 已有足够信息否定完成条件 / 明确 non-resolution / 存在矛盾 → not_verified
  */
 export function buildVerificationResult(input: {
   checks: VerificationCheck[];

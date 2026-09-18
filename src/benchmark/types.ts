@@ -83,6 +83,8 @@ export interface BenchmarkMetrics {
   recoveryRate: number;
   averageAttempts: number;
   averageToolCalls: number;
+  /** Verifier said verified_complete where ground truth says the task should not be verified. */
+  verifierFalsePositiveRate: number;
 }
 
 export interface BenchmarkReport {

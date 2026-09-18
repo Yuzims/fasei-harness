@@ -43,7 +43,7 @@ test("C06 investigation continues after a missing comment-mentioned PR", async (
   const failed123 = prCalls.filter((step) => step.arguments.pullNumber === 123 && step.success === false);
   assert.ok(failed123.length <= 2, `repeated missing PR fetches: ${failed123.length}`);
   assert.ok(executed.report.investigationSteps.some((step) => step.tool === "record_claim"));
-  assert.equal(executed.observed.verificationStatus, "insufficient_evidence");
+  assert.equal(executed.observed.verificationStatus, "not_verified");
 });
 
 test("C07 snapshot exposes PR 7256 files and commits and the harness fetches them", async () => {

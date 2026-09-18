@@ -1,7 +1,7 @@
 {
   "dataset": "real-v1",
   "datasetVersion": "v1.1",
-  "timestamp": "2026-09-18T03:39:32.406Z",
+  "timestamp": "2026-09-18T04:00:54.749Z",
   "cases": [
     {
       "caseId": "C01",
@@ -73,11 +73,11 @@
     },
     {
       "caseId": "C05",
-      "observedOutcome": "insufficient_evidence",
+      "observedOutcome": "not_verified",
       "expectedOutcome": "not_verified",
       "evaluation": {
-        "passed": false,
-        "verificationPassed": false,
+        "passed": true,
+        "verificationPassed": true,
         "failureModesPassed": true,
         "recoveryPassed": true
       },
@@ -104,11 +104,11 @@
     },
     {
       "caseId": "C06",
-      "observedOutcome": "insufficient_evidence",
+      "observedOutcome": "not_verified",
       "expectedOutcome": "not_verified",
       "evaluation": {
-        "passed": false,
-        "verificationPassed": false,
+        "passed": true,
+        "verificationPassed": true,
         "failureModesPassed": true,
         "recoveryPassed": true
       },
@@ -135,25 +135,8 @@
     },
     {
       "caseId": "C07",
-      "observedOutcome": "verified_complete",
-      "expectedOutcome": "not_verified",
-      "evaluation": {
-        "passed": false,
-        "verificationPassed": false,
-        "failureModesPassed": true,
-        "recoveryPassed": true
-      },
-      "attempts": 1,
-      "toolCalls": 8,
-      "failureEvents": [],
-      "recoveryEvents": [],
-      "evidenceCount": 16,
-      "claimCount": 8
-    },
-    {
-      "caseId": "C08",
       "observedOutcome": "insufficient_evidence",
-      "expectedOutcome": "verified_complete",
+      "expectedOutcome": "not_verified",
       "evaluation": {
         "passed": false,
         "verificationPassed": false,
@@ -165,7 +148,7 @@
       "failureEvents": [
         {
           "type": "tool_failure",
-          "reason": "PR 596 not in snapshot real-v1-C08",
+          "reason": "PR 6248 not in snapshot real-v1-C07",
           "tool": "github_get_pull_request",
           "errorCode": "not_found",
           "retryable": false
@@ -178,8 +161,25 @@
           "nextStep": "Stop. Recheck credentials or the target identity instead of repeating the same tool."
         }
       ],
+      "evidenceCount": 16,
+      "claimCount": 8
+    },
+    {
+      "caseId": "C08",
+      "observedOutcome": "verified_complete",
+      "expectedOutcome": "verified_complete",
+      "evaluation": {
+        "passed": true,
+        "verificationPassed": true,
+        "failureModesPassed": true,
+        "recoveryPassed": true
+      },
+      "attempts": 1,
+      "toolCalls": 8,
+      "failureEvents": [],
+      "recoveryEvents": [],
       "evidenceCount": 6,
-      "claimCount": 4
+      "claimCount": 6
     },
     {
       "caseId": "C09",
@@ -233,12 +233,13 @@
   ],
   "metrics": {
     "taskSuccessRate": 0.6,
-    "falseCompletionRate": 0,
-    "insufficientEvidenceRate": 0.4,
-    "evidenceCoverage": 0.7333333333333332,
+    "falseCompletionRate": 0.1,
+    "insufficientEvidenceRate": 0.2,
+    "evidenceCoverage": 0.7999999999999999,
     "unsupportedClaimRate": 0,
     "recoveryRate": 0,
     "averageAttempts": 1,
-    "averageToolCalls": 7.2
+    "averageToolCalls": 7.2,
+    "verifierFalsePositiveRate": 0
   }
 }

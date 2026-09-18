@@ -602,6 +602,85 @@ Remaining limitations:
 - Closed-without-PR cases are `insufficient_evidence`; Ground Truth labels them `not_verified` (C05/C06/C10).
 - Comment/commit `#N` mentions that are not snapshot PRs still produce a single non-retryable `not_found`, which FailureAnalyzer reports as `tool_failure` even when the verification status is `insufficient_evidence`.
 
+## Phase 7.2D — Verification Semantics & Benchmark Contract Alignment — DONE
+
+Verification statuses are now a contract, not three labels around a PR-only chain.
+
+```text
+verified_complete
+  identity matches
+  issue is closed
+  closure is not explicit non-resolution (not_planned)
+  a resolution candidate exists (merged PR or direct commit linked to the issue)
+  that path landed
+  implementation evidence exists on that path
+  descriptive alignment between issue problem terms and the landed resolution
+  required claims / EvidenceRequirements hold
+  no required-check contradiction
+
+not_verified
+  enough evidence to reject completion:
+  wrong identity, open issue, closed as not_planned,
+  unmerged resolution PR, or an explicit contradiction
+
+insufficient_evidence
+  not enough to prove completion and not enough to reject it
+  including: no resolution path, or a landed GitHub path whose
+  description does not align with the issue (effect unproven)
+```
+
+Resolution path is unified: `pr_merge` and `direct_commit` share `resolution_candidate` / `resolution_merged` / `resolution_code_evidence`. A commit is not complete merely because it exists; it must be linked to the issue (closing keywords / graph edge), have a real SHA, count as code evidence, and pass descriptive alignment.
+
+Descriptive alignment is **not** semantic code review. It only checks issue-title identifiers or problem-term overlap after stripping closing-keyword lines. Failure is `insufficient_evidence`, not a hardcoded `wrong_target`.
+
+Evaluator still uses exact verification-status match. `falseCompletionRate` remains Agent-side (agent claimed complete, verifier did not). New metric:
+
+```text
+verifierFalsePositiveRate
+  = count(expected !== verified_complete AND observed === verified_complete)
+    / count(expected !== verified_complete)
+```
+
+Ground truth stays evaluator-only.
+
+Actual Real-v1 run after this contract:
+
+| Case | Observed | Expected | Evaluator | Why |
+|---|---|---|---|---|
+| C01 | `verified_complete` | `verified_complete` | pass | Merged PR 284149 path + descriptive alignment. |
+| C02 | `verified_complete` | `verified_complete` | pass | Merged PR 14527 path + descriptive alignment. |
+| C03 | `verified_complete` | `verified_complete` | pass | Merged PR 14022 path + descriptive alignment. |
+| C04 | `verified_complete` | `verified_complete` | pass | Duplicate resolved by landed PR 14504; PR body shares audio/TTS problem terms. |
+| C05 | `not_verified` | `not_verified` | pass | Closed `not_planned` is explicit non-resolution. |
+| C06 | `not_verified` | `not_verified` | pass | Same closure semantics as C05. |
+| C07 | `insufficient_evidence` | `not_verified` | fail | PR 7256 is a landed GitHub path, but `listDeviceSessions` does not appear in the resolution. Effect is unproven; the harness does not claim `wrong_target`. |
+| C08 | `verified_complete` | `verified_complete` | pass | Direct commit `e70118a` (`Resolves #291`) is a landed path with code evidence. |
+| C09 | `verified_complete` | `verified_complete` | pass | Merged PR 279 path + untrusted-content terms. |
+| C10 | `insufficient_evidence` | `not_verified` | fail | Closed `completed` with no resolution path. Closed + write-up is not enough to prove or reject completion under this contract. |
+
+Metrics from that run:
+
+```text
+taskSuccessRate: 0.6
+falseCompletionRate: 0.1
+insufficientEvidenceRate: 0.2
+evidenceCoverage: 0.8
+unsupportedClaimRate: 0
+recoveryRate: 0
+averageAttempts: 1
+averageToolCalls: 7.2
+verifierFalsePositiveRate: 0
+```
+
+Evaluator: 8 passed / 2 failed. Two consecutive `npm run benchmark:real` runs matched after canonicalizing timestamp. `falseCompletionRate` 0.1 is C07: the test driver recorded resolved claims on the merged PR while the verifier kept `insufficient_evidence`. `verifierFalsePositiveRate` is 0 because the verifier never said `verified_complete` on a case Ground Truth says should not be verified.
+
+Remaining limitations:
+
+- Descriptive alignment is a conservative gate, not proof that the change fixed the bug.
+- C07 Ground Truth is `not_verified` / `wrong_target`; observed `insufficient_evidence` is an exact-status miss, not a verifier false positive.
+- C10 Ground Truth is `not_verified`; without explicit non-resolution the contract yields `insufficient_evidence`.
+- Evaluator does not introduce a second disposition enum; exact status match remains the pass/fail rule.
+
 ## Not started
 
 Phase 7.3+ waits for a new task.

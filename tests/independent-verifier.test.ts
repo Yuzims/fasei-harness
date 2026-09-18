@@ -281,13 +281,26 @@ function completeResolutionRun(options?: { withClaim?: boolean; withCode?: boole
   const issue = createEvidence({
     kind: "issue",
     summary: "Issue #42 is closed",
-    payload: { number: 42, repository: "acme/box", state: "closed", title: "cart", body: "" },
+    payload: {
+      number: 42,
+      repository: "acme/box",
+      state: "closed",
+      title: "Null pointer when saving empty cart",
+      body: "Saving an empty cart throws. Please fix.",
+    },
     provenance: provenance("issues/42", "https://github.com/acme/box/issues/42"),
   });
   const pr = createEvidence({
     kind: "pull_request",
     summary: "PR #7 merged=true",
-    payload: { number: 7, repository: "acme/box", merged: true, state: "closed" },
+    payload: {
+      number: 7,
+      repository: "acme/box",
+      merged: true,
+      state: "closed",
+      title: "Fix empty cart save",
+      body: "Fixes #42",
+    },
     provenance: provenance("pull/7", "https://github.com/acme/box/pull/7"),
   });
   run.evidence.push(issue, pr);
@@ -297,9 +310,9 @@ function completeResolutionRun(options?: { withClaim?: boolean; withCode?: boole
   if (withCode) {
     const commit = createEvidence({
       kind: "commit",
-      summary: "commit abc",
-      payload: { sha: "abc123", repository: "acme/box" },
-      provenance: provenance("commit/abc123", "https://github.com/acme/box/commit/abc123"),
+      summary: "commit abc123def456",
+      payload: { sha: "abc123def456", repository: "acme/box", message: "Fix empty cart save\n\nFixes #42" },
+      provenance: provenance("commit/abc123def456", "https://github.com/acme/box/commit/abc123def456"),
     });
     run.evidence.push(commit);
     run.relations.push(

@@ -10,7 +10,7 @@
 import { randomUUID } from "node:crypto";
 import type { Task, ToolResult } from "../core/types.js";
 import type { HistoryMessage, Model, ModelContext, ModelResponse } from "../agent/model.js";
-import type { ClaimPolarity } from "../domain/index.js";
+import { closingKeywordReferencesIssue, type ClaimPolarity } from "../domain/index.js";
 import { resourceKey, type InvestigationState } from "./state.js";
 
 export const TEST_DRIVER_NOTICE =
@@ -144,19 +144,55 @@ export function buildDriverClaims(state: InvestigationState): Record<string, unk
     }
   }
 
-  if (state.candidatePrs.size === 0) {
-    claims.push({
-      text: `No linked pull request was observed for Issue #${issueNumber}; issue closed is not resolution evidence.`,
-      polarity: "unknown",
-      critical: true,
-      evidenceIds: [...issueIds, ...timelineIds, ...commentIds].filter(Boolean),
-      role: "contextual",
+  if (state.mergedPrs.size === 0) {
+    const commitEvidence = state.run.evidence.filter((item) => item.kind === "commit");
+    const closing = commitEvidence.filter((item) => {
+      const payload = item.payload && typeof item.payload === "object" ? (item.payload as { message?: unknown }) : {};
+      const message = typeof payload.message === "string" ? payload.message : item.summary;
+      return closingKeywordReferencesIssue(message, issueNumber);
     });
-    questions.push("No merge, commit, or pull-request evidence explains a resolution.");
+    if (closing.length > 0) {
+      const support = [...new Set([...issueIds, ...timelineIds, ...closing.map((item) => item.id)])];
+      claims.push({
+        text: `Issue #${issueNumber} has a direct-commit resolution candidate.`,
+        polarity: "resolved",
+        critical: true,
+        evidenceIds: support,
+        role: "supports",
+      });
+      claims.push({
+        text: `Direct commit evidence was observed for Issue #${issueNumber}.`,
+        polarity: "resolved",
+        critical: false,
+        evidenceIds: closing.map((item) => item.id),
+        role: "supports",
+      });
+    } else if (state.candidatePrs.size === 0) {
+      claims.push({
+        text: `No linked pull request was observed for Issue #${issueNumber}; issue closed is not resolution evidence.`,
+        polarity: "unknown",
+        critical: true,
+        evidenceIds: [...issueIds, ...timelineIds, ...commentIds].filter(Boolean),
+        role: "contextual",
+      });
+      questions.push("No merge, commit, or pull-request evidence explains a resolution.");
+    }
   }
 
   const polarity: ClaimPolarity =
-    state.mergedPrs.size > 0 ? "resolved" : state.candidatePrs.size > 0 ? "partial" : "unknown";
+    state.mergedPrs.size > 0 ||
+    state.run.evidence.some((item) => {
+      if (item.kind !== "commit") {
+        return false;
+      }
+      const payload = item.payload && typeof item.payload === "object" ? (item.payload as { message?: unknown }) : {};
+      const message = typeof payload.message === "string" ? payload.message : item.summary;
+      return closingKeywordReferencesIssue(message, issueNumber);
+    })
+      ? "resolved"
+      : state.candidatePrs.size > 0
+        ? "partial"
+        : "unknown";
 
   return {
     claims,
@@ -164,7 +200,9 @@ export function buildDriverClaims(state: InvestigationState): Record<string, unk
     polarity,
     conclusion:
       polarity === "resolved"
-        ? `Candidate resolution via merged PR ${[...state.mergedPrs].map((n) => `#${n}`).join(", ")}. Not verified.`
+        ? state.mergedPrs.size > 0
+          ? `Candidate resolution via merged PR ${[...state.mergedPrs].map((n) => `#${n}`).join(", ")}. Not verified.`
+          : "Candidate resolution via direct commit. Not verified."
         : polarity === "partial"
           ? "Related PR found but not merged. Not resolved."
           : "Insufficient resolution evidence.",

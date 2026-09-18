@@ -203,6 +203,13 @@ export function remainingEvidenceSources(state: InvestigationState): string[] {
       missing.push(`commits/${pullNumber}`);
     }
   }
+  if (
+    state.mergedPrs.size === 0 &&
+    !state.investigatedResources.has(resourceKey("commits", "repo")) &&
+    state.investigatedResources.has(resourceKey("timeline", String(issueNumber)))
+  ) {
+    missing.push("commits/repo");
+  }
   return missing;
 }
 

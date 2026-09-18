@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  closingKeywordReferencesIssue,
   createClaim,
   createClaimEvidenceBinding,
   createEvidence,
@@ -260,6 +261,13 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
       session.state.addCandidatePr(mentioned);
       relate(session, timelineId, pullEvidenceId(session, mentioned), "mentions");
     }
+    const shaMatch = /\b([0-9a-f]{7,40})\b/i.exec(String(event.body ?? ""));
+    if (shaMatch?.[1]) {
+      const commitId = evidenceIdByRef(session, resourceKey("commit", shaMatch[1]));
+      if (commitId && closingKeywordReferencesIssue(String(event.body ?? ""), issueNumber)) {
+        relate(session, commitId, issueEvidenceId(session), "fixes");
+      }
+    }
   }
   return ids;
 }
@@ -415,6 +423,12 @@ function ingestCommits(session: InvestigationSession, output: unknown, pullNumbe
     });
     if (id) {
       ids.push(id);
+      const issueId = issueEvidenceId(session);
+      const issueNumber = session.state.task.target.issueNumber;
+      const message = String(commit.message ?? "");
+      if (closingKeywordReferencesIssue(message, issueNumber)) {
+        relate(session, id, issueId, "fixes");
+      }
       if (pullNumber && pullNumber > 0) {
         const prId = pullEvidenceId(session, pullNumber);
         relate(session, id, prId, "derived_from");

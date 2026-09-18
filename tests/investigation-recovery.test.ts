@@ -22,6 +22,7 @@ import {
   applyRecoveryPlan,
   investigate,
   investigationFingerprint,
+  planInvestigationStrategy,
   type AnalysisContext,
   type InvestigationSession,
 } from "../src/investigation/index.js";
@@ -474,6 +475,93 @@ test("Phase 5：end-to-end premature completion recovers then re-verifies comple
     planned?.data.action === "continue_investigation" ||
       planned?.data.action === "gather_missing_evidence",
   );
+});
+
+test("Phase 8.8.4 Test 6 — RecoveryPlan nextRequirementIds become the next attempt target", async () => {
+  const provider = new SnapshotGitHubProvider(githubFixturePath("resolved"));
+  const trace = new TraceCollector();
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider,
+    trace,
+    maxAttempts: 3,
+    modelFactory: (session: InvestigationSession): Model => {
+      const driver = new SnapshotInvestigationDriver(session.state);
+      return {
+        async decide(task, history, toolResults, context): Promise<ModelResponse> {
+          const attempt = context?.attempt ?? 1;
+          if (attempt === 1) {
+            const issueKey = resourceKey("issue", String(session.state.task.target.issueNumber));
+            if (!session.state.investigatedResources.has(issueKey)) {
+              return {
+                type: "tool_call",
+                call: {
+                  id: "p1",
+                  name: "github_get_issue",
+                  arguments: { owner: "acme", repo: "box", issueNumber: 42 },
+                },
+              };
+            }
+            if (!session.state.claimsRecorded) {
+              return {
+                type: "tool_call",
+                call: {
+                  id: "p2",
+                  name: "record_claim",
+                  arguments: {
+                    claims: [
+                      {
+                        text: "Issue #42 is resolved.",
+                        polarity: "resolved",
+                        critical: true,
+                        evidenceIds: session.state.run.evidence.map((item) => item.id),
+                        role: "supports",
+                      },
+                    ],
+                    conclusion: "Resolved.",
+                    polarity: "resolved",
+                  },
+                },
+              };
+            }
+            return { type: "final", message: "Done. Issue is resolved." };
+          }
+          const legal = context?.legalInvestigationActions ?? [];
+          assert.equal(
+            legal.some((item) => item.tool === "github_get_issue"),
+            false,
+            "recovery attempt must not re-open issue observation",
+          );
+          return driver.decide(task, history, toolResults, context);
+        },
+      };
+    },
+  });
+
+  assert.ok(result.run.attempts.length >= 2);
+  const first = result.run.attempts[0];
+  const second = result.run.attempts[1];
+  assert.ok(first && second);
+  assert.ok(first.failure?.id);
+  assert.ok(first.recovery?.id);
+  assert.equal(first.recovery?.failureEventId, first.failure?.id);
+  assert.ok((first.recovery?.nextRequirementIds ?? []).length > 0);
+  assert.equal(second.parentAttemptId, first.id);
+  assert.equal(second.recoveryPlanId, first.recovery?.id);
+  assert.equal(second.failureEventId, first.failure?.id);
+
+  const applied = trace.getEvents().find((event) => event.type === "recovery_applied");
+  const nextStrategy = applied?.data.nextStrategy as { scope?: string[] } | undefined;
+  assert.deepEqual(nextStrategy?.scope, first.recovery?.nextRequirementIds);
+
+  const recovered = makeCtx({ evidence: [issueEvidence(42)] });
+  recovered.state.lastRecovery = first.recovery;
+  recovered.state.investigationStrategy = second.strategy;
+  recovered.state.investigatedResources.add(resourceKey("issue", "42"));
+  recovered.state.issueState = "closed";
+  const targeted = planInvestigationStrategy(recovered.state);
+  assert.equal(targeted.legalActions.some((item) => item.tool === "github_get_issue"), false);
+  assert.ok(targeted.legalActions.some((item) => item.tool.startsWith("github_")));
 });
 
 test("Phase 5：timeout then success uses a new append-only attempt", async () => {

@@ -23,6 +23,8 @@ import {
   NO_LEGAL_INVESTIGATION_ACTION,
   SnapshotInvestigationDriver,
   UNTRUSTED_NOTICE,
+  GAP_CLOSED_REASON,
+  GAP_OPEN_UNRESOLVABLE_REASON,
   computeEvidenceGap,
   formatStateForModel,
   investigate,
@@ -753,21 +755,25 @@ test("Test 16 — 8.7.8-style gap: closed issue does not skip to claim; resoluti
   assert.notEqual(result.status, "verified_complete");
 });
 
-test("Recovery nextRequirementIds keep attempt 2 on the remaining gap", () => {
-  const state = makeState();
-  addClosedIssue(state);
+function withRecoveryTarget(state: InvestigationState, ids: string[]): void {
   state.lastRecovery = {
     action: "continue_investigation",
-    reason: "Gather missing resolution evidence",
-    nextStep: "Gather missing evidence (req-pr, req-commit).",
-    nextRequirementIds: ["req-pr", "req-commit"],
+    reason: "Gather missing recovery-target evidence",
+    nextStep: `Focus ${ids.join(", ")}.`,
+    nextRequirementIds: ids,
   };
   state.investigationStrategy = {
     type: "continue_investigation",
-    reason: "Continue toward missing requirements",
-    scope: ["req-pr", "req-commit"],
+    reason: "Targeted recovery investigation",
+    scope: ids,
   };
-  const legal = proposeCandidateActions(state);
+}
+
+test("Recovery nextRequirementIds keep attempt 2 on the remaining gap", () => {
+  const state = makeState();
+  addClosedIssue(state);
+  withRecoveryTarget(state, ["req-pr", "req-commit"]);
+  const legal = planInvestigationStrategy(state).legalActions;
   assert.equal(toolNames(legal).includes("github_get_issue"), false);
   assert.equal(
     legal.some((item) => item.targetRequirementIds.includes("req-pr")),
@@ -1090,5 +1096,188 @@ test("Test B6 — premature completion still recovers through FailureAnalyzer an
     trace.getEvents().some((event) => event.type === "recovery_planned"),
     true,
   );
+});
+
+test("Phase 8.8.4 Test 1 — empty nextRequirementIds keeps ordinary investigation actions", () => {
+  const ordinary = makeState();
+  addClosedIssue(ordinary);
+  const unconstrained = planInvestigationStrategy(ordinary);
+
+  const emptyTarget = makeState();
+  addClosedIssue(emptyTarget);
+  withRecoveryTarget(emptyTarget, []);
+  const withEmpty = planInvestigationStrategy(emptyTarget);
+
+  assert.deepEqual(toolNames(unconstrained.legalActions).sort(), toolNames(withEmpty.legalActions).sort());
+  assert.equal(unconstrained.closure, withEmpty.closure);
+  assert.equal(toolNames(unconstrained.legalActions).includes("github_get_issue_timeline"), true);
+  assert.equal(toolNames(unconstrained.legalActions).includes("github_get_issue"), false);
+});
+
+test("Phase 8.8.4 Test 2 — recovery target filters unrelated actions from legalActions", () => {
+  const state = makeState();
+  addClosedIssue(state);
+  state.addCandidatePr(7);
+  state.mergedPrs.add(7);
+  withRecoveryTarget(state, ["resolution_merged"]);
+  const proposed = proposeCandidateActions(state);
+  assert.equal(toolNames(proposed).includes("github_get_pull_request"), true);
+  assert.equal(toolNames(proposed).includes("github_get_pull_request_files"), true);
+  const planned = planInvestigationStrategy(state);
+  const legal = toolNames(planned.legalActions);
+  assert.equal(legal.includes("github_get_pull_request"), true);
+  assert.equal(legal.includes("github_get_pull_request_files"), false);
+  assert.equal(
+    legal.includes("github_list_commits") &&
+      planned.legalActions.some((item) => item.tool === "github_list_commits" && item.arguments.pullNumber === 7),
+    false,
+  );
+  assert.equal(legal.includes("record_claim"), false);
+  assert.equal(planned.closure, "GAP_OPEN_ACTIONABLE");
+});
+
+test("Phase 8.8.4 Test 3 — recovery target allows discovery actions for resolution_merged", () => {
+  const state = makeState();
+  addClosedIssue(state);
+  withRecoveryTarget(state, ["pr-merged"]);
+  const planned = planInvestigationStrategy(state);
+  const legal = toolNames(planned.legalActions);
+  assert.equal(legal.includes("github_get_issue_timeline"), true);
+  assert.equal(legal.includes("github_get_issue_comments"), true);
+  assert.equal(legal.includes("github_list_commits"), true);
+  assert.equal(legal.includes("github_get_issue"), false);
+  assert.equal(legal.includes("github_get_pull_request_files"), false);
+  assert.notEqual(planned.closure, "GAP_CLOSED");
+  assert.notEqual(planned.legalActions.length, 0);
+});
+
+test("Phase 8.8.4 Test 4 — satisfied recovery target stops strategy with GAP_CLOSED", () => {
+  const state = makeState();
+  const issue = addClosedIssue(state);
+  addMergedPr(state, issue.id, 7);
+  withRecoveryTarget(state, ["pr-merged"]);
+  const planned = planInvestigationStrategy(state);
+  assert.equal(planned.gap.satisfiedRequirements.some((item) => item.condition === "resolution_merged"), true);
+  assert.equal(planned.closure, "GAP_CLOSED");
+  assert.equal(planned.legalActions.length, 0);
+  assert.equal(planned.closureReason, GAP_CLOSED_REASON);
+});
+
+test("Phase 8.8.4 Test 5 — resolution_effect recovery target is unresolvable after a landed path", () => {
+  const state = makeState();
+  const issue = addClosedIssue(state, {
+    title: "Null pointer when saving empty cart",
+    body: "Saving an empty cart throws.",
+  });
+  const pr = createEvidence({
+    kind: "pull_request",
+    summary: "PR #7 merged=true",
+    payload: {
+      number: 7,
+      repository: "acme/box",
+      merged: true,
+      state: "closed",
+      title: "Update changelog formatting",
+      body: "Docs only. Fixes #42",
+    },
+    provenance: provenance("pull/7"),
+    contentRef: resourceKey("pr", "7"),
+  });
+  const merge = createEvidence({
+    kind: "pull_request",
+    summary: "PR #7 merged=true",
+    payload: { number: 7, merged: true, mergeCommitSha: "abc123" },
+    provenance: provenance("pull/7"),
+    contentRef: resourceKey("pr-merge", "7"),
+  });
+  state.addEvidence(pr);
+  state.addEvidence(merge);
+  state.addRelation(createRelation({ fromEvidenceId: pr.id, toEvidenceId: issue.id, type: "fixes" }));
+  state.addCandidatePr(7);
+  state.mergedPrs.add(7);
+  state.investigatedResources.add(resourceKey("pull", "7"));
+  withRecoveryTarget(state, ["resolution_effect"]);
+  const proposed = proposeCandidateActions(state);
+  assert.equal(
+    proposed.some(
+      (item) =>
+        item.tool === "github_get_pull_request_files" ||
+        (item.tool === "github_list_commits" && item.arguments.pullNumber === 7),
+    ),
+    true,
+  );
+  const planned = planInvestigationStrategy(state);
+  assert.equal(planned.gap.satisfiedRequirements.some((item) => item.condition === "resolution_merged"), true);
+  assert.equal(planned.gap.missingRequirements.some((item) => item.condition === "resolution_effect"), true);
+  assert.equal(planned.closure, "GAP_OPEN_UNRESOLVABLE");
+  assert.equal(planned.legalActions.length, 0);
+  assert.equal(planned.closureReason, GAP_OPEN_UNRESOLVABLE_REASON);
+});
+
+test("Phase 8.8.4 Test 7 — Fake Model cannot choose an action outside recovery legalActions", async () => {
+  const provider = new SpyProvider(githubFixturePath("resolved"));
+  const trace = new TraceCollector();
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider,
+    model: {
+      async decide(): Promise<ModelResponse> {
+        return {
+          type: "tool_call",
+          call: {
+            id: "bypass-recovery",
+            name: "github_get_pull_request_files",
+            arguments: { owner: "acme", repo: "box", pullNumber: 7 },
+          },
+        };
+      },
+    },
+    trace,
+    maxAttempts: 1,
+    prepareSession: (session) => {
+      addClosedIssue(session.state);
+      session.state.addCandidatePr(7);
+      session.state.mergedPrs.add(7);
+      withRecoveryTarget(session.state, ["resolution_merged"]);
+    },
+  });
+  assert.equal(provider.operations.includes("getPullRequestFiles"), false);
+  assert.equal(
+    result.investigationSteps.some((step) => step.tool === "github_get_pull_request_files"),
+    false,
+  );
+  assert.equal(
+    trace.getEvents().some((event) => event.type === "illegal_investigation_action_rejected"),
+    true,
+  );
+  assert.equal(result.agentResult?.decision, "illegal_investigation_action");
+  assert.equal(result.agentResult?.output, ILLEGAL_INVESTIGATION_ACTION);
+});
+
+test("Phase 8.8.4 Test 8 — satisfying a recovery target does not mint verified_complete", async () => {
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider: new SnapshotGitHubProvider(githubFixturePath("resolved")),
+    model: {
+      async decide(): Promise<ModelResponse> {
+        return { type: "final", message: "Recovery target already gathered." };
+      },
+    },
+    maxAttempts: 1,
+    prepareSession: (session) => {
+      const issue = addClosedIssue(session.state);
+      addMergedPr(session.state, issue.id, 7);
+      withRecoveryTarget(session.state, ["pr-merged"]);
+    },
+  });
+  assert.equal(result.agentResult?.decision, "gap_closed");
+  assert.notEqual(result.verification?.status, "verified_complete");
+  assert.notEqual(result.run.status, "verified_complete");
+  const independent = new IndependentCompletionVerifier().verify({
+    task: result.task,
+    run: result.run,
+  });
+  assert.equal(result.verification?.status, independent.status);
+  assert.equal(independent.status, "insufficient_evidence");
 });
 

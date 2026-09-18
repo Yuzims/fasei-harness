@@ -13,7 +13,10 @@ import {
 } from "./evidence-gap.js";
 import {
   decideInvestigationClosure,
+  GAP_CLOSED_REASON,
+  GAP_OPEN_UNRESOLVABLE_REASON,
   hasTerminalNegativeEvidence,
+  isUnresolvableOpenGap,
   NO_LEGAL_INVESTIGATION_ACTION,
   type InvestigationClosureStatus,
 } from "./investigation-closure.js";
@@ -157,16 +160,69 @@ function resolutionGapsOpen(gap: EvidenceGap): boolean {
   );
 }
 
+function recoveryTargetIds(state: InvestigationState): string[] {
+  const ids = state.lastRecovery?.nextRequirementIds ?? [];
+  return [...new Set(ids.filter((id) => id.length > 0))];
+}
+
 function focusRequirementIds(state: InvestigationState): string[] {
-  const fromPlan = state.lastRecovery?.nextRequirementIds ?? [];
-  const fromScope = (state.investigationStrategy?.scope ?? []).filter(
-    (item) =>
-      item.startsWith("req-") ||
-      item.includes("resolution") ||
-      item.includes("commit") ||
-      item.includes("pr"),
+  return recoveryTargetIds(state);
+}
+
+function matchGapItem(gap: EvidenceGap, id: string): EvidenceGapItem | undefined {
+  return gap.items.find((item) => item.requirementId === id || item.condition === id);
+}
+
+function activeRecoveryRequirements(state: InvestigationState, gap: EvidenceGap): EvidenceGapItem[] {
+  const seen = new Set<string>();
+  const active: EvidenceGapItem[] = [];
+  for (const id of recoveryTargetIds(state)) {
+    const item = matchGapItem(gap, id);
+    if (!item || seen.has(item.requirementId) || item.outcome === "satisfied") {
+      continue;
+    }
+    seen.add(item.requirementId);
+    active.push(item);
+  }
+  return active;
+}
+
+function actionAdvancesRecoveryTarget(
+  action: CandidateInvestigationAction,
+  gap: EvidenceGap,
+  target: EvidenceGapItem,
+): boolean {
+  if (target.condition === "resolution_effect" && isUnresolvableOpenGap(gap)) {
+    return false;
+  }
+  if (action.targetRequirementIds.includes(target.requirementId)) {
+    return true;
+  }
+  const targetIndex = gap.items.findIndex((item) => item.requirementId === target.requirementId);
+  if (targetIndex <= 0) {
+    return false;
+  }
+  return action.targetRequirementIds.some((id) => {
+    const item = gap.items.find((entry) => entry.requirementId === id);
+    if (!item || item.optional || item.outcome === "satisfied") {
+      return false;
+    }
+    const itemIndex = gap.items.findIndex((entry) => entry.requirementId === item.requirementId);
+    return itemIndex >= 0 && itemIndex < targetIndex;
+  });
+}
+
+function filterActionsForRecoveryTargets(
+  actions: CandidateInvestigationAction[],
+  gap: EvidenceGap,
+  active: EvidenceGapItem[],
+): CandidateInvestigationAction[] {
+  if (active.length === 0) {
+    return actions;
+  }
+  return actions.filter((action) =>
+    active.some((target) => actionAdvancesRecoveryTarget(action, gap, target)),
   );
-  return [...new Set([...fromPlan, ...fromScope])];
 }
 
 function retryFailedToolAction(
@@ -572,7 +628,32 @@ export function planInvestigationStrategy(
 } {
   const gap = options.gap ?? computeEvidenceGap(state.task, state.run);
   const proposed = proposeCandidateActions(state, { ...options, gap });
-  const decided = decideInvestigationClosure({ gap, legalActions: proposed, state });
+  const specified = recoveryTargetIds(state).length > 0;
+  const active = activeRecoveryRequirements(state, gap);
+
+  if (specified && active.length === 0 && !hasTerminalNegativeEvidence(gap)) {
+    return {
+      gap,
+      legalActions: [],
+      remainingLlmCalls: options.remainingLlmCalls,
+      closure: "GAP_CLOSED",
+      closureReason: GAP_CLOSED_REASON,
+    };
+  }
+
+  const filtered = specified
+    ? filterActionsForRecoveryTargets(proposed, gap, active)
+    : proposed;
+  const decided = decideInvestigationClosure({ gap, legalActions: filtered, state });
+  if (specified && active.length > 0 && decided.status === "NO_LEGAL_ACTION") {
+    return {
+      gap,
+      legalActions: [],
+      remainingLlmCalls: options.remainingLlmCalls,
+      closure: "GAP_OPEN_UNRESOLVABLE",
+      closureReason: GAP_OPEN_UNRESOLVABLE_REASON,
+    };
+  }
   return {
     gap,
     legalActions: decided.legalActions,

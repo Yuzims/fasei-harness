@@ -153,6 +153,7 @@ export class InvestigationState {
       lastFailureId: this.lastFailure?.id,
       lastRecoveryAction: this.lastRecovery?.action,
       lastRecoveryPlanId: this.lastRecovery?.id,
+      nextRequirementIds: this.lastRecovery?.nextRequirementIds,
       nextStep: this.lastRecovery?.nextStep,
     };
   }

@@ -5,6 +5,7 @@ import { loadSnapshot as loadGithubSnapshot } from "../../github/snapshot-store.
 import type { InvestigationSnapshot } from "../../github/types.js";
 import type { BenchmarkFailureMode, BenchmarkScenarioKind, ExpectedOutcome } from "../types.js";
 import { BenchmarkDatasetError } from "./errors.js";
+import { assertGroundTruthCoversDataset, loadGroundTruth } from "./ground-truth.js";
 import { syntheticDatasetManifestPath } from "./paths.js";
 import {
   DATASET_SCHEMA_VERSION,
@@ -163,7 +164,11 @@ function parseFailureMode(raw: unknown, caseId: string, kind: BenchmarkScenarioK
   return raw as BenchmarkFailureMode;
 }
 
-function parseCase(raw: unknown, index: number): BenchmarkDatasetCase {
+function parseCase(
+  raw: unknown,
+  index: number,
+  datasetKind: BenchmarkDatasetKind,
+): { datasetCase: BenchmarkDatasetCase; expectedOutcome?: ExpectedOutcome } {
   if (!isRecord(raw)) {
     throw new BenchmarkDatasetError("invalid_manifest", `cases[${index}] must be an object`);
   }
@@ -172,8 +177,27 @@ function parseCase(raw: unknown, index: number): BenchmarkDatasetCase {
   const snapshotPath = requireNonEmptyString(raw.snapshotPath, `case ${caseId} snapshotPath`, "missing_snapshot");
   const kind = parseKind(raw.kind, caseId);
   const source = parseSource(raw.source, caseId);
-  const expectedOutcome = parseExpectedOutcome(raw.expectedOutcome, caseId);
-  const reservedModes = parseFailureModes(raw.expectedFailureModes, `case ${caseId} expectedFailureModes`);
+
+  if (datasetKind === "real") {
+    if (raw.expectedOutcome !== undefined) {
+      throw new BenchmarkDatasetError(
+        "invalid_manifest",
+        `case ${caseId} expectedOutcome must not appear in a real dataset manifest; use ground-truth.json`,
+      );
+    }
+    if (raw.expectedFailureModes !== undefined) {
+      throw new BenchmarkDatasetError(
+        "invalid_manifest",
+        `case ${caseId} expectedFailureModes must not appear in a real dataset manifest; use ground-truth.json`,
+      );
+    }
+  }
+
+  const expectedOutcome =
+    datasetKind === "synthetic" ? parseExpectedOutcome(raw.expectedOutcome, caseId) : undefined;
+  if (datasetKind === "synthetic" && raw.expectedFailureModes !== undefined) {
+    parseFailureModes(raw.expectedFailureModes, `case ${caseId} expectedFailureModes`);
+  }
 
   let sourceMetadata: Record<string, unknown> | undefined;
   if (raw.sourceMetadata !== undefined) {
@@ -192,26 +216,27 @@ function parseCase(raw: unknown, index: number): BenchmarkDatasetCase {
   }
 
   return {
-    caseId,
-    source,
-    sourceUrl: parseOptionalString(raw.sourceUrl, `case ${caseId} sourceUrl`),
-    snapshotPath,
-    scenarioId,
-    kind,
-    failureMode: parseFailureMode(raw.failureMode, caseId, kind),
-    description: parseOptionalString(raw.description, `case ${caseId} description`),
+    datasetCase: {
+      caseId,
+      source,
+      sourceUrl: parseOptionalString(raw.sourceUrl, `case ${caseId} sourceUrl`),
+      snapshotPath,
+      scenarioId,
+      kind,
+      failureMode: parseFailureMode(raw.failureMode, caseId, kind),
+      description: parseOptionalString(raw.description, `case ${caseId} description`),
+      groundTruthReference: parseOptionalString(
+        raw.groundTruthReference,
+        `case ${caseId} groundTruthReference`,
+      ),
+      snapshotCapturedAt: parseOptionalString(raw.snapshotCapturedAt, `case ${caseId} snapshotCapturedAt`),
+      snapshotCutoff: parseOptionalString(raw.snapshotCutoff, `case ${caseId} snapshotCutoff`),
+      tags,
+      difficulty: parseOptionalString(raw.difficulty, `case ${caseId} difficulty`),
+      sourceMetadata,
+      notes: parseOptionalString(raw.notes, `case ${caseId} notes`),
+    },
     expectedOutcome,
-    groundTruthReference: parseOptionalString(
-      raw.groundTruthReference,
-      `case ${caseId} groundTruthReference`,
-    ),
-    snapshotCapturedAt: parseOptionalString(raw.snapshotCapturedAt, `case ${caseId} snapshotCapturedAt`),
-    snapshotCutoff: parseOptionalString(raw.snapshotCutoff, `case ${caseId} snapshotCutoff`),
-    tags,
-    difficulty: parseOptionalString(raw.difficulty, `case ${caseId} difficulty`),
-    sourceMetadata,
-    expectedFailureModes: reservedModes,
-    notes: parseOptionalString(raw.notes, `case ${caseId} notes`),
   };
 }
 
@@ -336,7 +361,15 @@ export function validateDataset(raw: unknown, rootDir: string): BenchmarkDataset
     throw new BenchmarkDatasetError("invalid_manifest", "cases must be an array");
   }
 
-  const cases = raw.cases.map((item, index) => parseCase(item, index));
+  const evaluationOutcomes: Record<string, ExpectedOutcome> = {};
+  const cases: BenchmarkDatasetCase[] = [];
+  for (const [index, item] of raw.cases.entries()) {
+    const parsed = parseCase(item, index, metadata.kind);
+    cases.push(parsed.datasetCase);
+    if (parsed.expectedOutcome) {
+      evaluationOutcomes[parsed.datasetCase.caseId] = parsed.expectedOutcome;
+    }
+  }
   const seen = new Set<string>();
   for (const item of cases) {
     if (seen.has(item.caseId)) {
@@ -352,7 +385,16 @@ export function validateDataset(raw: unknown, rootDir: string): BenchmarkDataset
     assertSnapshotHasNoGroundTruth(snapshot, item.caseId);
   }
 
-  return { metadata, cases, rootDir };
+  const dataset: BenchmarkDataset = {
+    metadata,
+    cases,
+    rootDir,
+    ...(metadata.kind === "synthetic" ? { evaluationOutcomes } : {}),
+  };
+  if (metadata.kind === "real") {
+    assertGroundTruthCoversDataset(dataset, loadGroundTruth(dataset));
+  }
+  return dataset;
 }
 
 export function loadDataset(manifestPath: string = syntheticDatasetManifestPath()): BenchmarkDataset {

@@ -34,7 +34,12 @@ export interface BenchmarkScenario {
   /** Absolute path to a recorded InvestigationSnapshot. Benchmark runtime uses this, not the live GitHub API. */
   snapshotPath?: string;
   target: InvestigationTarget;
-  expectedOutcome: ExpectedOutcome;
+  /**
+   * Evaluator contract for built-in and synthetic scenarios.
+   * Agent runtime must not read this. Real dataset cases omit it;
+   * the evaluator loads ground-truth.json instead.
+   */
+  expectedOutcome?: ExpectedOutcome;
 }
 
 export interface ObservedOutcome {

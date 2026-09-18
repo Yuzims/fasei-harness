@@ -73,6 +73,8 @@ test("Test 1：合法 Dataset 可以加载", () => {
   assert.equal(resolved.source.issueNumber, 42);
   assert.equal(resolved.snapshotPath, "snapshots/resolved.json");
   assert.equal(resolved.scenarioId, "resolved");
+  assert.equal("expectedOutcome" in resolved, false);
+  assert.equal(dataset.evaluationOutcomes?.["synthetic-resolved"]?.verificationStatus, "verified_complete");
 });
 
 test("Test 2：不存在 snapshot 时失败", () => {
@@ -218,13 +220,10 @@ test("Dataset Case 在 fixture mode 下两次运行结果稳定", async () => {
 test("expectedOutcome.failureModes 不从 scenario.failureMode 或 reserved expectedFailureModes 回填", () => {
   const dataset = loadDataset();
   const original = loadCase(dataset, "synthetic-resolved");
-  const scenario = convertCaseToScenario(dataset, {
-    ...original,
-    expectedFailureModes: ["tool_failure"],
-    expectedOutcome: { verificationStatus: "verified_complete" },
-  });
+  const scenario = convertCaseToScenario(dataset, original);
+  assert.equal("expectedOutcome" in original, false);
   assert.equal(scenario.failureMode, undefined);
-  assert.equal(scenario.expectedOutcome.failureModes, undefined);
+  assert.equal(scenario.expectedOutcome?.failureModes, undefined);
   assert.deepEqual(expectedFailureModes(scenario), []);
 });
 

@@ -58,8 +58,8 @@
         "verificationStatus": "not_verified"
       },
       "expectedFailureModes": ["wrong_target"],
-      "rationale": "Related merged PRs in the same repository and multi-session area are not sufficient to prove this issue's specific target was resolved. If the harness fails this case, WRONG_TARGET is the relevant classification. That classification is not copied into observed failure modes.",
-      "ambiguity": "GitHub shows related PR references including 7256. Related PR plus same area plus merged is not proof of resolution for this issue."
+      "rationale": "PR #7256 was merged and explicitly says \"Closes #4490\". Independent semantic/effect verification still does not accept that GitHub closure linkage alone as proof that this issue's reported failure was resolved. The issue describes three different user accounts and a maximumSessions off-by-one cookie-creation problem, while PR #7256 is titled and described primarily as preventing duplicate cookies when the same user signs in multiple times. The explicit close linkage is acknowledged; the semantic mismatch is why the benchmark outcome remains not_verified. If the harness fails this case, WRONG_TARGET is the relevant evaluator classification. That classification is not copied into the agent snapshot or into observed failure modes.",
+      "ambiguity": "GitHub records an explicit Closes #4490 linkage from merged PR #7256. Closure linkage is not treated as independent resolution evidence when the PR's described effect does not match the issue's reported failure."
     },
     {
       "caseId": "C08",

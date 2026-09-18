@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
+  BenchmarkDatasetError,
   DATASET_SCHEMA_VERSION,
   REAL_DATASET_ID,
   SYNTHETIC_DATASET_ID,
+  assertGroundTruthCoversDataset,
   assertGroundTruthMatchesCase,
   assertSnapshotHasNoGroundTruth,
   convertCaseToScenario,
-  evaluateScenarioContract,
+  evaluateExpectedContract,
   expectedFailureModes,
+  expectedOutcomeForDatasetCase,
   loadCase,
   loadDataset,
   loadGroundTruth,
@@ -19,8 +23,10 @@ import {
   loadSnapshot,
   realDatasetManifestPath,
   syntheticDatasetManifestPath,
+  validateDataset,
   type ObservedOutcome,
 } from "../src/benchmark/index.js";
+import { createInvestigationTask } from "../src/domain/index.js";
 import { SnapshotGitHubProvider } from "../src/github/snapshot-provider.js";
 import { UNTRUSTED } from "../src/github/types.js";
 
@@ -91,12 +97,14 @@ test("real-v1 repository and issue identities are valid and match snapshots", ()
   }
 });
 
-test("real-v1 expected outcomes and ground truth metadata are valid and separated", () => {
+test("real-v1 expected outcomes live only in ground-truth.json", () => {
   const dataset = loadDataset(realDatasetManifestPath());
   const groundTruth = loadGroundTruth(dataset);
   assert.equal(groundTruth.datasetVersion, "v1");
   assert.equal(groundTruth.schemaVersion, "1");
   assert.equal(groundTruth.cases.length, 10);
+  assert.equal(dataset.evaluationOutcomes, undefined);
+  assertGroundTruthCoversDataset(dataset, groundTruth);
 
   const expectedStatus: Record<string, string> = {
     C01: "verified_complete",
@@ -114,18 +122,20 @@ test("real-v1 expected outcomes and ground truth metadata are valid and separate
   for (const item of dataset.cases) {
     assert.equal(item.kind, "normal");
     assert.equal(item.failureMode, undefined);
-    assert.equal(item.expectedOutcome.verificationStatus, expectedStatus[item.caseId]);
+    assert.equal("expectedOutcome" in item, false);
+    assert.equal("expectedFailureModes" in item, false);
     assert.equal(item.groundTruthReference, "ground-truth.json");
     const record = loadGroundTruthCase(dataset, item.caseId);
     assertGroundTruthMatchesCase(item, record);
-    assert.equal(record.expectedOutcome.verificationStatus, item.expectedOutcome.verificationStatus);
+    assert.equal(record.expectedOutcome.verificationStatus, expectedStatus[item.caseId]);
+    assert.equal(expectedOutcomeForDatasetCase(dataset, item.caseId).verificationStatus, expectedStatus[item.caseId]);
   }
 
-  const c07 = loadCase(dataset, "C07");
+  const c07 = loadGroundTruthCase(dataset, "C07");
   assert.deepEqual(c07.expectedFailureModes, ["wrong_target"]);
   assert.equal(c07.expectedOutcome.failureModes, undefined);
-  const scenario = convertCaseToScenario(dataset, c07);
-  assert.equal(scenario.expectedOutcome.failureModes, undefined);
+  const scenario = convertCaseToScenario(dataset, loadCase(dataset, "C07"));
+  assert.equal("expectedOutcome" in scenario, false);
   assert.deepEqual(expectedFailureModes(scenario), []);
 });
 
@@ -186,7 +196,7 @@ test("C05 snapshot is closed as not planned without a fetched resolution PR", as
   assert.equal(issue.stateReason, "not_planned");
 });
 
-test("C07 snapshot includes related PR observations without telling the agent the target is wrong", async () => {
+test("C07 snapshot includes PR 7256 observations without telling the agent the target is wrong", async () => {
   const dataset = loadDataset(realDatasetManifestPath());
   const datasetCase = loadCase(dataset, "C07");
   const snapshot = loadSnapshot(dataset, "C07");
@@ -221,27 +231,154 @@ test("C09 snapshot keeps prompt-injection issue text as external_untrusted data"
   assert.equal(issue.trust, UNTRUSTED);
 });
 
-test("expected vs observed evaluation still uses the existing benchmark evaluator", () => {
+test("expected vs observed evaluation for real-v1 uses ground-truth.json", () => {
   const dataset = loadDataset(realDatasetManifestPath());
-  const c01 = convertCaseToScenario(dataset, loadCase(dataset, "C01"));
-  const c05 = convertCaseToScenario(dataset, loadCase(dataset, "C05"));
-  const c07 = convertCaseToScenario(dataset, loadCase(dataset, "C07"));
+  const c01 = expectedOutcomeForDatasetCase(dataset, "C01");
+  const c05 = expectedOutcomeForDatasetCase(dataset, "C05");
+  const c07 = expectedOutcomeForDatasetCase(dataset, "C07");
+  const scenario = convertCaseToScenario(dataset, loadCase(dataset, "C07"));
 
-  assert.equal(evaluateScenarioContract(c01, observed({ verificationStatus: "verified_complete" })).passed, true);
-  assert.equal(evaluateScenarioContract(c01, observed({ verificationStatus: "not_verified" })).passed, false);
-  assert.equal(evaluateScenarioContract(c05, observed({ verificationStatus: "not_verified" })).passed, true);
+  assert.equal(evaluateExpectedContract(c01, observed({ verificationStatus: "verified_complete" })).passed, true);
+  assert.equal(evaluateExpectedContract(c01, observed({ verificationStatus: "not_verified" })).passed, false);
+  assert.equal(evaluateExpectedContract(c05, observed({ verificationStatus: "not_verified" })).passed, true);
   assert.equal(
-    evaluateScenarioContract(c05, observed({ verificationStatus: "verified_complete" })).passed,
+    evaluateExpectedContract(c05, observed({ verificationStatus: "verified_complete" })).passed,
     false,
   );
-  assert.equal(evaluateScenarioContract(c07, observed({ verificationStatus: "not_verified" })).passed, true);
+  assert.equal(evaluateExpectedContract(c07, observed({ verificationStatus: "not_verified" })).passed, true);
   assert.equal(
-    evaluateScenarioContract(
+    evaluateExpectedContract(
       c07,
       observed({ verificationStatus: "not_verified", failureTypes: ["insufficient_evidence"] }),
     ).passed,
     true,
   );
-  assert.equal(c07.kind, "normal");
-  assert.equal(c07.failureMode, undefined);
+  assert.equal(scenario.kind, "normal");
+  assert.equal(scenario.failureMode, undefined);
+  assert.equal("expectedOutcome" in scenario, false);
+});
+
+function collectObjectKeys(value: unknown, into: Set<string>): void {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectObjectKeys(item, into);
+    }
+    return;
+  }
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    into.add(key);
+    collectObjectKeys(nested, into);
+  }
+}
+
+test("real-v1 manifest contains no expectedOutcome or expectedFailureModes", () => {
+  const raw = JSON.parse(readFileSync(realDatasetManifestPath(), "utf8")) as unknown;
+  const keys = new Set<string>();
+  collectObjectKeys(raw, keys);
+  assert.equal(keys.has("expectedOutcome"), false);
+  assert.equal(keys.has("expectedFailureModes"), false);
+
+  const dataset = loadDataset(realDatasetManifestPath());
+  for (const item of dataset.cases) {
+    assert.equal("expectedOutcome" in item, false);
+    assert.equal("expectedFailureModes" in item, false);
+  }
+});
+
+test("real-v1 ground-truth.json contains the expected outcomes and keeps C07 evaluator-only", () => {
+  const dataset = loadDataset(realDatasetManifestPath());
+  const groundTruth = loadGroundTruth(dataset);
+  const keys = new Set<string>();
+  collectObjectKeys(groundTruth, keys);
+  assert.equal(keys.has("expectedOutcome"), true);
+  assert.equal(keys.has("expectedFailureModes"), true);
+
+  const c07 = loadGroundTruthCase(dataset, "C07");
+  assert.equal(c07.expectedOutcome.verificationStatus, "not_verified");
+  assert.deepEqual(c07.expectedFailureModes, ["wrong_target"]);
+  assert.match(c07.rationale ?? "", /Closes #4490/);
+  assert.match(c07.rationale ?? "", /PR #7256/);
+  assert.match(c07.rationale ?? "", /three different user accounts/i);
+  assert.match(c07.rationale ?? "", /maximumSessions/);
+  assert.match(c07.rationale ?? "", /duplicate cookies/i);
+  assert.equal(/related PR/i.test(c07.rationale ?? ""), false);
+  assert.equal(/related PR/i.test(c07.ambiguity ?? ""), false);
+
+  const datasetCase = loadCase(dataset, "C07");
+  const scenario = convertCaseToScenario(dataset, datasetCase);
+  assert.equal("expectedOutcome" in datasetCase, false);
+  assert.equal("expectedFailureModes" in datasetCase, false);
+  assert.equal("expectedOutcome" in scenario, false);
+  assert.equal(JSON.stringify(scenario).includes("expectedFailureModes"), false);
+  assert.equal(JSON.stringify(scenario).includes("wrong_target"), false);
+});
+
+test("loading or converting a real dataset case does not expose ground truth to agent input", () => {
+  const dataset = loadDataset(realDatasetManifestPath());
+  for (const item of dataset.cases) {
+    const snapshot = loadSnapshot(dataset, item.caseId);
+    assertSnapshotHasNoGroundTruth(snapshot, item.caseId);
+    const scenario = convertCaseToScenario(dataset, item);
+    assert.equal("expectedOutcome" in scenario, false);
+    const serializedScenario = JSON.stringify(scenario);
+    assert.equal(serializedScenario.includes("expectedOutcome"), false);
+    assert.equal(serializedScenario.includes("expectedFailureModes"), false);
+    const task = createInvestigationTask({
+      id: scenario.id,
+      target: scenario.target,
+      description: scenario.description,
+    });
+    const serializedTask = JSON.stringify(task);
+    assert.equal(serializedTask.includes("expectedOutcome"), false);
+    assert.equal(serializedTask.includes("expectedFailureModes"), false);
+    assert.equal(serializedTask.includes("ground-truth.json"), false);
+  }
+});
+
+test("real dataset loader rejects ground truth fields in the manifest", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fasei-real-gt-leak-"));
+  mkdirSync(join(dir, "snapshots"), { recursive: true });
+  copyFileSync(
+    join(dirname(syntheticDatasetManifestPath()), "snapshots", "resolved.json"),
+    join(dir, "snapshots", "resolved.json"),
+  );
+  const baseCase = {
+    caseId: "C01",
+    source: { type: "github", repository: "acme/box", issueNumber: 42 },
+    snapshotPath: "snapshots/resolved.json",
+    scenarioId: "C01",
+    kind: "normal",
+  };
+  const leakingOutcome = {
+    datasetVersion: "v1",
+    schemaVersion: "1",
+    kind: "real",
+    name: "temp-real",
+    cases: [{ ...baseCase, expectedOutcome: { verificationStatus: "verified_complete" } }],
+  };
+  assert.throws(
+    () => validateDataset(leakingOutcome, dir),
+    (error: unknown) =>
+      error instanceof BenchmarkDatasetError &&
+      error.code === "invalid_manifest" &&
+      error.message.includes("expectedOutcome"),
+  );
+
+  const leakingModes = {
+    datasetVersion: "v1",
+    schemaVersion: "1",
+    kind: "real",
+    name: "temp-real",
+    cases: [{ ...baseCase, expectedFailureModes: ["wrong_target"] }],
+  };
+  assert.throws(
+    () => validateDataset(leakingModes, dir),
+    (error: unknown) =>
+      error instanceof BenchmarkDatasetError &&
+      error.code === "invalid_manifest" &&
+      error.message.includes("expectedFailureModes"),
+  );
 });

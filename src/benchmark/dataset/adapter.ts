@@ -1,13 +1,24 @@
 import { createTarget } from "../../domain/index.js";
-import type { BenchmarkScenario } from "../types.js";
+import type { BenchmarkScenario, ExpectedOutcome } from "../types.js";
 import { BenchmarkDatasetError } from "./errors.js";
 import { resolveDatasetSnapshotPath } from "./loader.js";
 import type { BenchmarkDataset, BenchmarkDatasetCase } from "./types.js";
 
+function copyExpectedOutcome(expected: ExpectedOutcome): ExpectedOutcome {
+  return {
+    verificationStatus: expected.verificationStatus,
+    ...(expected.failureModes ? { failureModes: [...expected.failureModes] } : {}),
+    ...(expected.recovery ? { recovery: { required: expected.recovery.required } } : {}),
+  };
+}
+
 /**
  * Dataset Case → BenchmarkScenario.
  *
- * Expected outcome is copied from the case contract.
+ * Copies agent-facing input only. Synthetic evaluation contracts may be
+ * attached as scenario.expectedOutcome for the evaluator; real cases omit
+ * that field. Ground truth is never copied from ground-truth.json here.
+ *
  * scenario.failureMode is experiment intent and is never used to fill
  * expectedOutcome.failureModes.
  */
@@ -20,6 +31,7 @@ export function convertCaseToScenario(
     throw new BenchmarkDatasetError("missing_case", `case not in dataset: ${datasetCase.caseId}`);
   }
   const { owner, repository } = splitRepository(datasetCase.source.repository);
+  const expected = dataset.evaluationOutcomes?.[datasetCase.caseId];
   return {
     id: datasetCase.scenarioId,
     description:
@@ -33,15 +45,7 @@ export function convertCaseToScenario(
       repository,
       issueNumber: datasetCase.source.issueNumber,
     }),
-    expectedOutcome: {
-      verificationStatus: datasetCase.expectedOutcome.verificationStatus,
-      ...(datasetCase.expectedOutcome.failureModes
-        ? { failureModes: [...datasetCase.expectedOutcome.failureModes] }
-        : {}),
-      ...(datasetCase.expectedOutcome.recovery
-        ? { recovery: { required: datasetCase.expectedOutcome.recovery.required } }
-        : {}),
-    },
+    ...(expected ? { expectedOutcome: copyExpectedOutcome(expected) } : {}),
   };
 }
 

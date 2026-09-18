@@ -391,12 +391,13 @@ source.type / source.repository / source.issueNumber
 snapshotPath
 scenarioId
 kind / optional failureMode
-expectedOutcome
 ```
 
-Reserved optional fields (stored, not a second evaluation contract): `tags`, `difficulty`, `sourceMetadata`, `expectedFailureModes`, `notes`.
+Synthetic manifests may include `expectedOutcome` as an inline evaluation contract. The loader stores it on `dataset.evaluationOutcomes`, not on `BenchmarkDatasetCase`. Real manifests must not include `expectedOutcome` or `expectedFailureModes`; those live in `ground-truth.json`.
 
-Evaluation still uses `expectedOutcome`. `scenario.failureMode` is experiment intent. `expectedOutcome.failureModes` is the observed production failure the evaluator checks. There is no fallback from `failureMode` or reserved `expectedFailureModes`.
+Reserved optional fields (stored, not a second evaluation contract): `tags`, `difficulty`, `sourceMetadata`, `notes`.
+
+Evaluation uses `expectedOutcome` from synthetic `evaluationOutcomes` or real `ground-truth.json`. `scenario.failureMode` is experiment intent. `expectedOutcome.failureModes` is the observed production failure the evaluator checks. There is no fallback from `failureMode`.
 
 ### Snapshot strategy
 
@@ -422,8 +423,9 @@ Dataset snapshots live under `fixtures/benchmark/dataset/` and are distinct from
 
 - unique `caseId`
 - snapshot file exists and is a valid InvestigationSnapshot
-- scenario fields present (`scenarioId`, `kind`, `expectedOutcome`)
-- `expectedOutcome.verificationStatus` / `failureModes` / `recovery` are legal
+- scenario fields present (`scenarioId`, `kind`)
+- synthetic `expectedOutcome.verificationStatus` / `failureModes` / `recovery` are legal and stored as `evaluationOutcomes`
+- real cases must not include `expectedOutcome` or `expectedFailureModes`; `ground-truth.json` must cover every case
 - repository / issue identity complete (`github` + `owner/name` + positive issue number)
 - snapshot identity matches case identity (owner / repository / issue number)
 - supported `schemaVersion`
@@ -479,9 +481,9 @@ real-v1/
   cases/C01..C10/snapshot.json
 ```
 
-Agent input is the recorded `InvestigationSnapshot`. Ground truth is `ground-truth.json` and is evaluator-only. Snapshots do not contain `expectedOutcome`, `correct_pr`, or failure-mode gold labels.
+Agent input is the recorded `InvestigationSnapshot`. Ground truth is `ground-truth.json` and is evaluator-only. The real-v1 manifest does not contain `expectedOutcome` or `expectedFailureModes`. Snapshots do not contain `expectedOutcome`, `correct_pr`, or failure-mode gold labels. `convertCaseToScenario()` does not copy ground truth onto the scenario passed to the agent runtime.
 
-C07 stores `expectedFailureModes: [wrong_target]` as ground-truth metadata. That field is not copied into the agent snapshot or into observed failures.
+C07 stores `expectedFailureModes: [wrong_target]` in `ground-truth.json` only. That field is not copied into the agent snapshot, dataset case, converted scenario, or observed failures. The rationale acknowledges that merged PR #7256 explicitly says `Closes #4490`, and explains why independent semantic/effect verification still does not accept that closure linkage.
 
 ## Not started
 

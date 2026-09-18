@@ -27,6 +27,7 @@ export {
 export {
   compareFailureModes,
   compareRecovery,
+  evaluateExpectedContract,
   evaluateScenarioContract,
   expectedFailureModes,
 } from "./evaluate.js";
@@ -48,9 +49,11 @@ export {
   REAL_DATASET_ID,
   SYNTHETIC_DATASET_ID,
   BenchmarkDatasetError,
+  assertGroundTruthCoversDataset,
   assertGroundTruthMatchesCase,
   assertSnapshotHasNoGroundTruth,
   convertCaseToScenario,
+  expectedOutcomeForDatasetCase,
   loadCase,
   loadCaseSnapshot,
   loadDataset,

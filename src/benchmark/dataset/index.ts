@@ -30,7 +30,9 @@ export {
   validateDataset,
 } from "./loader.js";
 export {
+  assertGroundTruthCoversDataset,
   assertGroundTruthMatchesCase,
+  expectedOutcomeForDatasetCase,
   groundTruthPathFor,
   loadGroundTruth,
   loadGroundTruthCase,

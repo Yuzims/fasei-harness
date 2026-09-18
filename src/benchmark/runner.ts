@@ -9,8 +9,13 @@ import { SnapshotGitHubProvider } from "../github/snapshot-provider.js";
 import { githubFixturePath, loadSnapshot } from "../github/snapshot-store.js";
 import type { InvestigationSnapshot } from "../github/types.js";
 import { investigate, type InvestigationAgentReport } from "../investigation/index.js";
-import { convertCaseToScenario, loadCase, type BenchmarkDataset } from "./dataset/index.js";
-import { evaluateScenarioContract, expectedFailureModes } from "./evaluate.js";
+import {
+  convertCaseToScenario,
+  expectedOutcomeForDatasetCase,
+  loadCase,
+  type BenchmarkDataset,
+} from "./dataset/index.js";
+import { evaluateExpectedContract } from "./evaluate.js";
 import { prepareScenarioEnvironment } from "./injection.js";
 import { buildBenchmarkReport, isFalseCompletion } from "./metrics.js";
 import { FASEI_BENCHMARK_SCENARIOS } from "./scenarios.js";
@@ -19,6 +24,7 @@ import {
   FASEI_BENCHMARK_VERSION,
   type BenchmarkReport,
   type BenchmarkScenario,
+  type ExpectedOutcome,
   type ObservedOutcome,
   type ScenarioResult,
 } from "./types.js";
@@ -72,23 +78,30 @@ export function observeScenario(report: InvestigationAgentReport): ObservedOutco
   };
 }
 
-export function scoreScenario(scenario: BenchmarkScenario, report: InvestigationAgentReport): ScenarioResult {
+export function scoreScenario(
+  scenario: BenchmarkScenario,
+  report: InvestigationAgentReport,
+  expectedOutcome: ExpectedOutcome | undefined = scenario.expectedOutcome,
+): ScenarioResult {
+  if (!expectedOutcome) {
+    throw new Error(
+      `scenario ${scenario.id} is missing expectedOutcome; load ground-truth.json for real dataset evaluation`,
+    );
+  }
   const observed = observeScenario(report);
-  const expected = scenario.expectedOutcome.verificationStatus;
-  const expectedModes = expectedFailureModes(scenario);
-  const evaluation = evaluateScenarioContract(scenario, observed);
+  const evaluation = evaluateExpectedContract(expectedOutcome, observed);
   const falseCompletion = isFalseCompletion(observed.agentClaimedComplete, observed.verificationStatus);
   return {
     scenarioId: scenario.id,
     kind: scenario.kind,
-    expectedOutcome: expected,
+    expectedOutcome: expectedOutcome.verificationStatus,
     observedOutcome: observed.verificationStatus,
     passed: evaluation.passed,
     attemptCount: observed.attemptCount,
     toolCallCount: observed.toolCallCount,
     verificationStatus: observed.verificationStatus,
     failureTypes: observed.failureTypes,
-    expectedFailureModes: expectedModes,
+    expectedFailureModes: expectedOutcome.failureModes ?? [],
     observedFailureModes: observed.failureTypes,
     agentClaimedComplete: observed.agentClaimedComplete,
     falseCompletion,
@@ -136,7 +149,8 @@ export async function runScenario(scenario: BenchmarkScenario): Promise<Scenario
 export async function runBenchmarkCase(dataset: BenchmarkDataset, caseId: string): Promise<ScenarioResult> {
   const datasetCase = loadCase(dataset, caseId);
   const scenario = convertCaseToScenario(dataset, datasetCase);
-  return runScenario(scenario);
+  const report = await executeScenario(scenario);
+  return scoreScenario(scenario, report, expectedOutcomeForDatasetCase(dataset, caseId));
 }
 
 export async function runFaseiBenchmark(

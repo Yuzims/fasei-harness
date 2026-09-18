@@ -1,12 +1,15 @@
 /**
  * Benchmark dataset contract.
  *
- * Dataset Case = what the experiment data is.
- * Scenario = how that data is treated as an experiment.
- * Expected Outcome = what the Harness should observe.
+ * Dataset Case = experiment input metadata (identity + snapshot path).
+ * Snapshot = agent-visible GitHub observations.
+ * Ground truth = evaluator-only expected outcomes:
+ *   synthetic: inline evaluationOutcomes from the manifest
+ *   real: ground-truth.json
+ * Scenario = how that input is treated as an experiment.
  * Observed Outcome = what the Harness actually produced.
  *
- * Evaluation still uses expectedOutcome. This module does not
+ * BenchmarkDatasetCase does not carry expectedOutcome. This module does not
  * reimplement verification, failure analysis, or recovery.
  */
 import type { InvestigationSnapshot } from "../../github/types.js";
@@ -31,14 +34,12 @@ export interface BenchmarkDatasetCase {
   kind: BenchmarkScenarioKind;
   failureMode?: BenchmarkFailureMode;
   description?: string;
-  expectedOutcome: ExpectedOutcome;
   groundTruthReference?: string;
   snapshotCapturedAt?: string;
   snapshotCutoff?: string;
   tags?: string[];
   difficulty?: string;
   sourceMetadata?: Record<string, unknown>;
-  expectedFailureModes?: BenchmarkFailureMode[];
   notes?: string;
 }
 
@@ -54,6 +55,11 @@ export interface BenchmarkDataset {
   metadata: BenchmarkDatasetMetadata;
   cases: BenchmarkDatasetCase[];
   rootDir: string;
+  /**
+   * Synthetic-only inline evaluation contracts, keyed by caseId.
+   * Real datasets omit this; the evaluator loads ground-truth.json.
+   */
+  evaluationOutcomes?: Readonly<Record<string, ExpectedOutcome>>;
 }
 
 export interface LoadedDatasetCase {

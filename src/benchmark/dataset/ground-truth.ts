@@ -128,10 +128,39 @@ export function assertGroundTruthMatchesCase(
       `ground truth caseId ${record.caseId} does not match ${datasetCase.caseId}`,
     );
   }
-  if (datasetCase.expectedOutcome.verificationStatus !== record.expectedOutcome.verificationStatus) {
+}
+
+export function assertGroundTruthCoversDataset(
+  dataset: BenchmarkDataset,
+  groundTruth: BenchmarkGroundTruth,
+): void {
+  const caseIds = new Set(dataset.cases.map((item) => item.caseId));
+  const groundTruthIds = new Set(groundTruth.cases.map((item) => item.caseId));
+  for (const caseId of caseIds) {
+    if (!groundTruthIds.has(caseId)) {
+      throw new BenchmarkDatasetError("missing_case", `ground truth not found for case ${caseId}`);
+    }
+  }
+  for (const caseId of groundTruthIds) {
+    if (!caseIds.has(caseId)) {
+      throw new BenchmarkDatasetError(
+        "identity_mismatch",
+        `ground-truth.json has case ${caseId} which is not in the dataset manifest`,
+      );
+    }
+  }
+}
+
+export function expectedOutcomeForDatasetCase(dataset: BenchmarkDataset, caseId: string): ExpectedOutcome {
+  if (dataset.metadata.kind === "real") {
+    return loadGroundTruthCase(dataset, caseId).expectedOutcome;
+  }
+  const expected = dataset.evaluationOutcomes?.[caseId];
+  if (!expected) {
     throw new BenchmarkDatasetError(
       "invalid_expected_outcome",
-      `case ${datasetCase.caseId} expectedOutcome does not match ground-truth.json`,
+      `case ${caseId} is missing an evaluation contract`,
     );
   }
+  return expected;
 }

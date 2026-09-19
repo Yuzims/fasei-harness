@@ -63,3 +63,47 @@ export type {
   ResolutionAnalysisGrounding,
   ResolutionAnalysisGroundingInput,
 } from "./resolution-analysis-grounding.js";
+export {
+  RETRIEVAL_EVALUATION_BASELINE_NOTE,
+  RETRIEVAL_EVALUATION_REAL_CASE_IDS,
+  RETRIEVAL_EVALUATION_VERSION,
+  REAL_V1_RETRIEVAL_GROUND_TRUTH,
+  aggregateRetrievalCases,
+  applyDiscoveryOrderSelection,
+  buildRetrievalEvaluationReport,
+  compareRetrievalEvaluation,
+  evaluateAllSyntheticRetrievalCases,
+  evaluateRealV1RetrievalCase,
+  evaluateRealV1RetrievalCases,
+  evaluateRetrievalCandidates,
+  evaluateSyntheticRetrievalCase,
+  realV1RetrievalReports,
+  runRetrievalEvaluation,
+  selectorForStrategy,
+  syntheticRetrievalCases,
+} from "./retrieval-evaluation.js";
+export type {
+  RetrievalEvaluationAggregate,
+  RetrievalEvaluationCase,
+  RetrievalEvaluationCaseConfig,
+  RetrievalEvaluationComparison,
+  RetrievalEvaluationReport,
+  RetrievalEvaluationRun,
+  RetrievalEvaluationStrategy,
+  RetrievalGroundTruth,
+} from "./retrieval-evaluation.js";
+export {
+  candidateIdsMatch,
+  diagnoseRetrieval,
+  discoveryFound,
+  investigationSucceeded,
+  isRelevantCandidate,
+  precisionAtK,
+  recallAtK,
+  topKFound,
+} from "./retrieval-metrics.js";
+export type {
+  ExpectedResolutionCandidate,
+  RetrievalCandidateView,
+  RetrievalDiagnosis,
+} from "./retrieval-metrics.js";

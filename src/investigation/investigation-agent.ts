@@ -34,7 +34,7 @@ import type { AnalysisContext } from "./analysis-context.js";
 import { applyRecoveryPlan, defaultInvestigationStrategy, waitBackoff } from "./apply-recovery.js";
 import { FailureAnalyzer } from "./failure-analyzer.js";
 import { createInvestigationToolList } from "./investigation-tools.js";
-import type { InvestigationSession } from "./investigation-tools.js";
+import type { InvestigationSession, RetrievalCandidateSelection } from "./investigation-tools.js";
 import {
   toAgentReport,
   type InvestigationActor,
@@ -117,6 +117,12 @@ export interface InvestigateOptions {
    * semantics, and IndependentCompletionVerifier are unchanged.
    */
   compactPatchExposure?: "metadata_only" | "patch_enabled";
+  /**
+   * Test/evaluation boundary only. Production omits this and uses
+   * applyCandidateSelection. Ranking, budget, verifier, and recovery are
+   * unchanged when this is omitted.
+   */
+  candidateSelection?: RetrievalCandidateSelection;
 }
 
 class InvestigationLoopModel implements Model {
@@ -467,6 +473,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     llmUsage,
     llmRuntime: runtime,
     compactPatchExposure: options.compactPatchExposure ?? "patch_enabled",
+    candidateSelection: options.candidateSelection,
   };
   const tools = createInvestigationToolList(options.provider, session);
   const registry = new ToolRegistry();

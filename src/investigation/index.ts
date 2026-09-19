@@ -66,7 +66,7 @@ export {
   createRecordResolutionAnalysisTool,
   ingestObservation,
 } from "./investigation-tools.js";
-export type { InvestigationSession } from "./investigation-tools.js";
+export type { InvestigationSession, RetrievalCandidateSelection } from "./investigation-tools.js";
 export {
   compactInvestigationToolOutput,
   compactRecordClaimOutput,
@@ -101,6 +101,7 @@ export {
   retrievalIntentsForGap,
   selectTopCandidates,
   temporalProximityScore,
+  withCandidateStatus,
 } from "./retrieval/index.js";
 export type {
   RetrievalCandidate,

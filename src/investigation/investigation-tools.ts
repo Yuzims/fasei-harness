@@ -58,6 +58,11 @@ import {
 const POLARITIES: ClaimPolarity[] = ["resolved", "unresolved", "partial", "unknown"];
 const ROLES: ClaimEvidenceRole[] = ["supports", "contradicts", "contextual"];
 
+export type RetrievalCandidateSelection = (
+  candidates: readonly RetrievalCandidate[],
+  limit?: number,
+) => RetrievalCandidate[];
+
 export interface InvestigationSession {
   state: InvestigationState;
   trace: TraceCollector;
@@ -72,6 +77,12 @@ export interface InvestigationSession {
    * Agent-visible Resolution Analysis text. Evidence.payload is unchanged.
    */
   compactPatchExposure?: CompactPatchExposure;
+  /**
+   * Evaluation/test boundary. Production omits this and uses
+   * applyCandidateSelection (evidence-driven ranking + Top-K).
+   * The selector must still honor MAX_INVESTIGATED_CANDIDATES.
+   */
+  candidateSelection?: RetrievalCandidateSelection;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -145,7 +156,16 @@ function applyGroupSelection(
   sourceType: RetrievalCandidate["sourceType"],
 ): void {
   const group = session.state.retrievalCandidates.filter((item) => item.sourceType === sourceType);
-  const selected = applyCandidateSelection(group, MAX_INVESTIGATED_CANDIDATES);
+  const selector = session.candidateSelection ?? applyCandidateSelection;
+  const selected = selector(group, MAX_INVESTIGATED_CANDIDATES);
+  const inBudget = selected.filter(
+    (item) => item.status === "investigating" || item.status === "promoted",
+  ).length;
+  if (inBudget > MAX_INVESTIGATED_CANDIDATES) {
+    throw new Error(
+      `retrieval investigation budget exceeded: ${inBudget} > ${MAX_INVESTIGATED_CANDIDATES}`,
+    );
+  }
   session.state.replaceRetrievalGroup(sourceType, selected);
   selected.forEach((candidate, rank) => {
     recordCandidateRanked(session, candidate, rank);

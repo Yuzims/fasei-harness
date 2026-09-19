@@ -9,6 +9,7 @@ import { aggregateLlmUsage, type LlmUsageAggregate } from "../agent/llm-usage.js
 import type { LlmRuntimeBudget } from "../agent/llm-runtime.js";
 import type { InvestigationRun, ResolutionAnalysis } from "../domain/index.js";
 import type { InvestigationState, ToolHistoryEntry } from "./state.js";
+import type { RetrievalCandidate } from "./retrieval/candidate.js";
 
 export type InvestigationActor = "llm" | "test_driver" | "unconfigured";
 
@@ -45,6 +46,7 @@ export interface InvestigationAgentReport {
   verification?: VerificationResult;
   llmUsage: LlmUsageAggregate;
   runtimeBudget?: LlmRuntimeBudget;
+  retrievalCandidates: RetrievalCandidate[];
 }
 
 export function stepsFromHistory(history: ToolHistoryEntry[]): InvestigationStep[] {
@@ -151,5 +153,9 @@ export function toAgentReport(input: {
     verification: input.verification,
     llmUsage: input.llmUsage ?? aggregateLlmUsage([]),
     runtimeBudget: input.runtimeBudget,
+    retrievalCandidates: input.state.retrievalCandidates.map((candidate) => ({
+      ...candidate,
+      relevanceSignals: { ...candidate.relevanceSignals },
+    })),
   };
 }

@@ -34,21 +34,23 @@ export function AgentOutput({ session }: { session: InvestigationSessionDTO }) {
       <p className="panel-sub">以下内容来自 Agent 的调查与解释，不是 Harness 的独立验证结果。</p>
 
       <div className="lane-block" data-testid="agent-conclusion">
-        <p className="kicker">调查结论</p>
+        <p className="kicker">Agent 调查结论</p>
         <p className="lane-lead">{agent.conclusion}</p>
       </div>
 
-      <div className="lane-block" data-testid="agent-findings">
-        <p className="kicker">调查发现</p>
-        <ul className="finding-list">
-          {agent.findings.map((finding) => (
-            <li key={finding.id} className={finding.tone}>
-              <span>{checkMark(finding.tone === "fail" ? "fail" : "pass")}</span>
-              <span>{finding.text}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {agent.findings.length > 0 ? (
+        <div className="lane-block" data-testid="agent-findings">
+          <p className="kicker">调查发现</p>
+          <ul className="finding-list">
+            {agent.findings.map((finding) => (
+              <li key={finding.id} className={finding.tone}>
+                <span>{checkMark(finding.tone === "fail" ? "fail" : "pass")}</span>
+                <span>{finding.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="lane-block" data-testid="agent-judgment">
         <p className="kicker">Agent 判断</p>

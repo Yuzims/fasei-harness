@@ -872,6 +872,25 @@ IndependentCompletionVerifier →  only authority for verified completion
 
 Empty / omitted `nextRequirementIds` still means unconstrained first-attempt / existing recovery behavior. `resolution_effect` is not turned into a retrieval requirement. IndependentCompletionVerifier, Ground Truth, GitHub Provider, and Evidence-Gap Strategy are unchanged.
 
+## Phase 9.0 — Investigation Experience / UI Information Architecture — DONE
+
+Presentation-only rewrite of the Investigation result page. Agent investigation and Harness verification stay in separate lanes. Chinese labels are deterministic mappings, not a second LLM pass. Runtime, verifier, Evidence Graph, Recovery, Strategy, Benchmark, Ground Truth, and GitHub Provider semantics are unchanged.
+
+## Phase 9.0.1 — Truthful Investigation Findings — DONE
+
+Presentation-only correction of two Phase 9.0 UI inferences:
+
+1. Evidence absence is not a negative investigation result. Findings require an actual investigation step / tool result (`session.steps`, attempt tool failure) plus the corresponding evidence. Timeline, comments, or PR-file inspection do not prove the agent retrieved related PRs. Tool failure stays in Failure / Recovery and is never rewritten as “未发现”.
+2. Agent conclusion is only the authored Agent report. Missing or Harness-filled templates use a presentation fallback (“当前没有可展示的 Agent 调查结论。”) and never a first-person fake conclusion.
+
+```text
+Investigation Activity + Evidence / Result → Presentation Finding
+authored Agent report → Agent conclusion
+Harness verification → Harness lane
+```
+
+Finding `source` is internal: `investigation_step` | `tool_result` | `agent_report`. No new runtime events, evidence types, LLM calls, or GitHub calls.
+
 ## Not started
 
 Later phases wait for a new task.

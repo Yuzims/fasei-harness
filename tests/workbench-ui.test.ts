@@ -331,7 +331,8 @@ test("UI：verified_complete 展示已验证解决，不把 Agent 结论当成�
   const view = buildInvestigationResultView(current);
   assert.equal(view.result.statusLabel, "已验证解决");
   assert.equal(view.result.subtitle, "当前证据可以证明这个 Issue 已经解决。");
-  assert.match(view.agent.conclusion, /已合并的 Pull Request|代码 \/ Commit/);
+  assert.equal(view.agent.conclusion, "Looks resolved.");
+  assert.equal(view.agent.conclusionSource, "agent_report");
   assert.equal(view.agent.judgment, "目前认为该 Issue 已经解决。");
   assert.equal(view.harness.statusLabel, "已验证解决");
   assert.equal(view.harness.satisfiedLabel, "满足 3 / 3 项证据要求");
@@ -379,8 +380,12 @@ test("UI：not_verified 不显示为调查失败", () => {
   const view = buildInvestigationResultView(current);
   assert.equal(view.result.statusLabel, "未验证完成");
   assert.notEqual(view.result.statusLabel, "调查失败");
-  assert.match(view.agent.conclusion, /已关闭/);
-  assert.match(view.agent.conclusion, /没有发现能够证明问题已通过代码修改解决的证据/);
+  assert.equal(view.agent.conclusion, "当前没有可展示的 Agent 调查结论。");
+  assert.equal(view.agent.conclusionSource, "presentation_fallback");
+  assert.doesNotMatch(view.agent.conclusion, /我检查了|我发现|我的判断是/);
+  assert.equal(view.agent.findings.find((item) => item.id === "issue-state")?.text, "Issue 当前状态：已关闭");
+  assert.equal(view.agent.findings.some((item) => item.id === "pr-absent" || item.id === "commit-absent"), false);
+  assert.equal(view.agent.findings.some((item) => item.id === "resolution-chain"), false);
   assert.equal(view.incident, undefined);
   assert.equal(incidentIsInvestigationFailure(view.incident), false);
   assert.equal(JSON.stringify(view).includes("调查失败"), false);
@@ -436,7 +441,7 @@ test("UI：INSUFFICIENT_EVIDENCE 显示证据不足，不是 Tool Failure", () =
   assert.equal(incidentIsInvestigationFailure(view.incident), false);
   assert.notEqual(view.incident?.kind, "process");
   assert.equal(view.incident?.rawFailureType, "insufficient_evidence");
-  assert.match(view.agent.conclusion, /没有发现能够证明该问题已经解决的证据/);
+  assert.match(view.agent.conclusion, /当前没有可展示的 Agent 调查结论/);
   assert.deepEqual(view.agent.unresolvedQuestions, ["是否存在尚未关联到 Issue 的修复？"]);
   assert.equal(view.harness.satisfiedLabel, "满足 1 / 3 项证据要求");
   assert.deepEqual(view.incident?.nextEvidence, ["已合并的 Pull Request", "代码 / Commit 证据"]);
@@ -625,25 +630,199 @@ test("UI：Agent 调查结论与 Harness 验证分开，即使两者不一致也
   assert.equal(view.incident?.kind, "insufficient");
 });
 
-test("UI：调查发现来自已有 evidence，不把没有证据写成绝对事实", () => {
+test("UI：调查发现只来自实际调查步骤与结果，不从 Evidence 缺失推断调查过", () => {
   const current = session({
     issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
     evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
   });
   const findings = buildInvestigationFindings(current);
   assert.equal(findings.find((item) => item.id === "issue-state")?.text, "Issue 当前状态：打开");
-  assert.equal(findings.find((item) => item.id === "pr-absent")?.text, "未发现关联 Pull Request");
-  assert.equal(
-    findings.find((item) => item.id === "commit-absent")?.text,
-    "当前调查没有找到能够证明问题已修复的 Commit。",
-  );
+  assert.equal(findings.find((item) => item.id === "issue-state")?.source, "tool_result");
+  assert.equal(findings.some((item) => item.id === "pr-absent"), false);
+  assert.equal(findings.some((item) => item.id === "pr-checked-empty"), false);
+  assert.equal(findings.some((item) => item.id === "commit-absent"), false);
+  assert.equal(findings.some((item) => item.id === "commit-checked-empty"), false);
+  assert.equal(findings.some((item) => item.id === "resolution-chain"), false);
+  assert.equal(JSON.stringify(findings).includes("未发现关联 Pull Request"), false);
+  assert.equal(JSON.stringify(findings).includes("没有找到能够证明问题已修复的 Commit"), false);
   assert.equal(JSON.stringify(findings).includes("没有人修复过这个问题"), false);
+  assert.equal(JSON.stringify(findings).includes("Issue 没有被解决"), false);
 });
 
-test("UI：英文 Agent 结论只做 presentation fallback，不伪造新的 LLM 结论", () => {
+test("UI：查过 PR 且结果为空才展示未找到关联 PR，没查过则不展示", () => {
+  const checkedEmpty = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+    steps: [
+      { step: 1, tool: "github_get_issue", success: true, evidenceIds: ["ev-issue"] },
+      { step: 2, tool: "github_get_pull_request", success: true, evidenceIds: [] },
+    ],
+  });
+  const checkedFindings = buildInvestigationFindings(checkedEmpty);
+  const emptyPr = checkedFindings.find((item) => item.id === "pr-checked-empty");
+  assert.equal(emptyPr?.text, "已检查关联 Pull Request，目前没有找到可用的关联 PR。");
+  assert.equal(emptyPr?.source, "investigation_step");
+  assert.equal(checkedFindings.some((item) => item.id === "pr-absent"), false);
+
+  const neverChecked = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+    steps: [{ step: 1, tool: "github_get_issue", success: true, evidenceIds: ["ev-issue"] }],
+  });
+  const neverFindings = buildInvestigationFindings(neverChecked);
+  assert.equal(neverFindings.some((item) => item.id === "pr-checked-empty" || item.id === "pr-absent"), false);
+});
+
+test("UI：Timeline / Comments 不是 PR 调查，不能据此生成未找到 PR", () => {
+  const timelineOnly = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+    steps: [
+      { step: 1, tool: "github_get_issue", success: true, evidenceIds: ["ev-issue"] },
+      { step: 2, tool: "github_get_issue_timeline", success: true, evidenceIds: [] },
+    ],
+  });
+  const commentsOnly = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+    steps: [
+      { step: 1, tool: "github_get_issue", success: true, evidenceIds: ["ev-issue"] },
+      { step: 2, tool: "github_get_issue_comments", success: true, evidenceIds: [] },
+    ],
+  });
+  const filesOnly = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+    steps: [
+      { step: 1, tool: "github_get_issue", success: true, evidenceIds: ["ev-issue"] },
+      { step: 2, tool: "github_get_pull_request_files", success: true, evidenceIds: [] },
+    ],
+  });
+  for (const current of [timelineOnly, commentsOnly, filesOnly]) {
+    const findings = buildInvestigationFindings(current);
+    assert.equal(findings.some((item) => item.id === "pr-checked-empty" || item.id === "pr-absent"), false);
+    assert.equal(JSON.stringify(findings).includes("未发现关联 Pull Request"), false);
+    assert.equal(JSON.stringify(findings).includes("没有找到可用的关联 PR"), false);
+  }
+});
+
+test("UI：PR 检索失败不写成未发现 PR，而由 Failure 区域说明", () => {
   const current = session({
     issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
     evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+    steps: [
+      { step: 1, tool: "github_get_issue", success: true, evidenceIds: ["ev-issue"] },
+      { step: 2, tool: "github_get_pull_request", success: false, evidenceIds: [] },
+    ],
+    attempts: [
+      {
+        id: "attempt-1",
+        attempt: 1,
+        checks: [],
+        failureType: "tool_failure",
+        failureTool: "github_get_pull_request",
+        failureReason: "getPullRequest timed out",
+        evidenceIds: ["ev-issue"],
+        claimIds: [],
+      },
+    ],
+  });
+  const findings = buildInvestigationFindings(current);
+  assert.equal(findings.some((item) => item.id === "pr-absent" || item.id === "pr-checked-empty"), false);
+  assert.equal(JSON.stringify(findings).includes("未发现关联 Pull Request"), false);
+  const timelineThenFailedPr = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+    steps: [
+      { step: 1, tool: "github_get_issue", success: true, evidenceIds: ["ev-issue"] },
+      { step: 2, tool: "github_get_issue_timeline", success: true, evidenceIds: [] },
+      { step: 3, tool: "github_get_pull_request", success: false, evidenceIds: [] },
+    ],
+    attempts: [
+      {
+        id: "attempt-1",
+        attempt: 1,
+        checks: [],
+        failureType: "tool_failure",
+        failureTool: "github_get_pull_request",
+        failureReason: "getPullRequest timed out",
+        evidenceIds: ["ev-issue"],
+        claimIds: [],
+      },
+    ],
+  });
+  assert.equal(
+    buildInvestigationFindings(timelineThenFailedPr).some(
+      (item) => item.id === "pr-checked-empty" || item.id === "pr-absent",
+    ),
+    false,
+  );
+  const incident = investigationIncident(current);
+  assert.equal(incident?.kind, "process");
+  assert.equal(incident?.summary, "关联 Pull Request 的检索未成功。");
+});
+
+test("UI：查过 Commit 且结果为空才展示未找到修复 Commit", () => {
+  const checkedEmpty = session({
+    issue: { owner: "acme", repository: "box", number: 42, state: "closed" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #42 is closed", trust: "external_untrusted" }],
+    steps: [
+      { step: 1, tool: "github_get_issue", success: true, evidenceIds: ["ev-issue"] },
+      { step: 2, tool: "github_list_commits", success: true, evidenceIds: [] },
+    ],
+  });
+  const findings = buildInvestigationFindings(checkedEmpty);
+  assert.equal(
+    findings.find((item) => item.id === "commit-checked-empty")?.text,
+    "已检查 Commit，目前没有找到能够确认修复的 Commit。",
+  );
+  assert.equal(findings.find((item) => item.id === "commit-checked-empty")?.source, "investigation_step");
+  assert.equal(findings.some((item) => item.id === "commit-absent"), false);
+
+  const neverChecked = session({
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #42 is closed", trust: "external_untrusted" }],
+    steps: [{ step: 1, tool: "get_issue", success: true, evidenceIds: ["ev-issue"] }],
+  });
+  assert.equal(
+    buildInvestigationFindings(neverChecked).some(
+      (item) => item.id === "commit-checked-empty" || item.id === "commit-absent",
+    ),
+    false,
+  );
+
+  const failedCommit = session({
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #42 is closed", trust: "external_untrusted" }],
+    steps: [
+      { step: 1, tool: "get_issue", success: true, evidenceIds: ["ev-issue"] },
+      { step: 2, tool: "github_list_commits", success: false, evidenceIds: [] },
+    ],
+    attempts: [
+      {
+        id: "attempt-1",
+        attempt: 1,
+        checks: [],
+        failureType: "tool_failure",
+        failureTool: "github_list_commits",
+        failureReason: "listCommits timed out",
+        evidenceIds: ["ev-issue"],
+        claimIds: [],
+      },
+    ],
+  });
+  assert.equal(
+    buildInvestigationFindings(failedCommit).some(
+      (item) => item.id === "commit-checked-empty" || item.id === "commit-absent",
+    ),
+    false,
+  );
+  assert.equal(investigationIncident(failedCommit)?.summary, "Commit 的检索未成功。");
+});
+
+test("UI：缺失 Agent 结论时不伪造第一人称调查结论", () => {
+  const current = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+    agentOutput: "Insufficient evidence to explain how issue #37395 was resolved.",
     report: {
       conclusion: "Insufficient evidence to explain how issue #37395 was resolved.",
       polarity: "unknown",
@@ -652,9 +831,53 @@ test("UI：英文 Agent 结论只做 presentation fallback，不伪造新的 LLM
     },
   });
   const conclusion = presentAgentConclusion(current);
-  assert.notEqual(conclusion, "Insufficient evidence to explain how issue #37395 was resolved.");
-  assert.match(conclusion, /没有发现能够证明该问题已经解决的证据/);
+  assert.equal(conclusion, "当前没有可展示的 Agent 调查结论。");
+  assert.doesNotMatch(conclusion, /我检查了|我发现|我的判断是/);
   const view = buildInvestigationResultView(current);
+  assert.equal(view.agent.conclusionSource, "presentation_fallback");
   assert.equal(view.agent.originalConclusion, "Insufficient evidence to explain how issue #37395 was resolved.");
   assert.equal(presentAgentJudgment(current), "目前无法确认该 Issue 已经解决。");
+});
+
+test("UI：真实英文 Agent 结论原样展示，不翻译也不伪装成前端生成的 Agent 原话", () => {
+  const current = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    report: {
+      conclusion: "The related PR is merged, but runtime proof is still missing.",
+      polarity: "partial",
+      uncertainty: "",
+      openQuestions: [],
+    },
+  });
+  const conclusion = presentAgentConclusion(current);
+  assert.equal(conclusion, "The related PR is merged, but runtime proof is still missing.");
+  assert.doesNotMatch(conclusion, /我检查了|我发现|我的判断是/);
+  const view = buildInvestigationResultView(current);
+  assert.equal(view.agent.conclusionSource, "agent_report");
+  assert.equal(view.agent.judgment, "目前认为该 Issue 仅部分解决。");
+});
+
+test("UI：真实中文 Agent 结论原样展示，不覆盖也不改写成 Harness 判断", () => {
+  const current = session({
+    report: {
+      conclusion: "根据已收集的证据，我认为相关修复可能已经合并。",
+      polarity: "resolved",
+      uncertainty: "",
+      openQuestions: [],
+    },
+    verification: {
+      status: "insufficient_evidence",
+      evidenceCoverage: 0.33,
+      prematureCompletion: false,
+      missingRequirementIds: ["req-pr"],
+      unsupportedClaimIds: [],
+      checks: [{ id: "pr-merged", name: "resolution landed", status: "fail", message: "missing" }],
+    },
+  });
+  assert.equal(presentAgentConclusion(current), "根据已收集的证据，我认为相关修复可能已经合并。");
+  const view = buildInvestigationResultView(current);
+  assert.equal(view.agent.conclusionSource, "agent_report");
+  assert.equal(view.agent.judgment, "目前认为该 Issue 已经解决。");
+  assert.equal(view.harness.statusLabel, "证据不足");
+  assert.equal(view.agent.disagreesWithHarness, true);
 });

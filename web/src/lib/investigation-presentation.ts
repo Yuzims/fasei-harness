@@ -94,10 +94,15 @@ const PROCESS_FAILURE_SUMMARY: Record<string, string> = {
   unknown: "调查过程中遇到问题，因此当前结果可能不完整。",
 };
 
+export type InvestigationFindingSource = "investigation_step" | "tool_result" | "agent_report";
+
+export type AgentConclusionSource = "agent_report" | "presentation_fallback";
+
 export interface InvestigationFinding {
   id: string;
   tone: CheckTone;
   text: string;
+  source: InvestigationFindingSource;
 }
 
 export interface PresentedAnalysisText {
@@ -144,6 +149,7 @@ export interface InvestigationResultView {
   };
   agent: {
     conclusion: string;
+    conclusionSource: AgentConclusionSource;
     originalConclusion: string;
     findings: InvestigationFinding[];
     judgment: string;
@@ -166,8 +172,112 @@ export interface InvestigationResultView {
   rawAgentOutput: string;
 }
 
-function hasChinese(text: string): boolean {
-  return /[\u4e00-\u9fff]/.test(text);
+const MISSING_AGENT_CONCLUSION = "当前没有可展示的 Agent 调查结论。";
+const UNCONFIGURED_CONCLUSION = "当前未配置可用于调查的大模型，因此没有完成 Agent 调查。";
+
+const HARNESS_FILLED_CONCLUSION = [
+  /^Insufficient evidence to explain how issue #\d+ was resolved\.?$/i,
+  /^Issue #\d+ is closed or related to a PR, but merge evidence is missing\.?$/i,
+  /has a merged PR candidate; this is an investigation claim, not verification\.?$/i,
+];
+
+const ISSUE_TOOLS = ["get_issue"];
+const PR_RETRIEVAL_TOOLS = ["get_pull_request"];
+const PR_INSPECTION_TOOLS = [
+  "get_pull_request",
+  "get_pull_request_files",
+  "get_pull_request_reviews",
+];
+const COMMIT_TOOLS = ["list_commits"];
+const PROCESS_TOOL_FAILURES = new Set(["tool_failure", "retrieval_failure"]);
+
+interface ToolActivity {
+  succeeded: boolean;
+  failed: boolean;
+}
+
+function canonicalTool(tool: string): string {
+  return tool.replace(/^github_/, "");
+}
+
+function toolMatches(tool: string | undefined, names: string[]): boolean {
+  if (!tool) {
+    return false;
+  }
+  const canonical = canonicalTool(tool);
+  return names.some((name) => canonicalTool(name) === canonical);
+}
+
+function collectToolActivity(session: InvestigationSessionDTO, names: string[]): ToolActivity {
+  const steps = session.steps.filter((step) => toolMatches(step.tool, names));
+  const attemptFailed = session.attempts.some(
+    (attempt) =>
+      PROCESS_TOOL_FAILURES.has(attempt.failureType ?? "") && toolMatches(attempt.failureTool, names),
+  );
+  return {
+    succeeded: steps.some((step) => step.success),
+    failed: steps.some((step) => !step.success) || attemptFailed,
+  };
+}
+
+function checkedEmpty(activity: ToolActivity): boolean {
+  return activity.succeeded && !activity.failed;
+}
+
+function isHarnessFilledConclusion(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return true;
+  }
+  return HARNESS_FILLED_CONCLUSION.some((pattern) => pattern.test(trimmed));
+}
+
+function looksLikeProseConclusion(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.length > 0 && !trimmed.startsWith("{") && !trimmed.startsWith("[");
+}
+
+function pickAuthoredConclusion(text?: string): string | undefined {
+  if (!text || !looksLikeProseConclusion(text) || isHarnessFilledConclusion(text)) {
+    return undefined;
+  }
+  return text.trim();
+}
+
+function realAgentConclusion(session: InvestigationSessionDTO): string | undefined {
+  const fromReport = pickAuthoredConclusion(session.report.conclusion);
+  if (fromReport) {
+    return fromReport;
+  }
+  if (!session.report.conclusion?.trim()) {
+    const fromOutput = pickAuthoredConclusion(session.agentOutput);
+    if (fromOutput) {
+      return fromOutput;
+    }
+  }
+  for (const candidate of [
+    ...[...session.attempts].reverse().map((attempt) => attempt.agentConclusion),
+    session.rawAgentOutput,
+  ]) {
+    const authored = pickAuthoredConclusion(candidate);
+    if (authored) {
+      return authored;
+    }
+  }
+  return undefined;
+}
+
+function processFailureSummary(attempt: InvestigationAttemptDTO): string {
+  const type = attempt.failureType ?? "unknown";
+  if (type === "tool_failure" || type === "retrieval_failure") {
+    if (toolMatches(attempt.failureTool, PR_INSPECTION_TOOLS)) {
+      return "关联 Pull Request 的检索未成功。";
+    }
+    if (toolMatches(attempt.failureTool, COMMIT_TOOLS)) {
+      return "Commit 的检索未成功。";
+    }
+  }
+  return PROCESS_FAILURE_SUMMARY[type] ?? "调查过程中遇到问题，因此当前结果可能不完整。";
 }
 
 function presentKnownText(text: string, table: Record<string, string>): string {
@@ -210,6 +320,36 @@ function pullMerged(item: { summary: string }): boolean | undefined {
   return match[1].toLowerCase() === "true";
 }
 
+function pullFindingText(
+  pulls: InvestigationSessionDTO["evidence"],
+): { tone: CheckTone; text: string } {
+  const labels = pulls.map((item) => {
+    const number = pullNumberFromEvidence(item);
+    const merged = pullMerged(item);
+    if (number && merged === true) {
+      return `${number}（已合并）`;
+    }
+    if (number && merged === false) {
+      return `${number}（未合并）`;
+    }
+    return number ?? item.summary;
+  });
+  return {
+    tone: pulls.some((item) => pullMerged(item) === true) ? "pass" : "warn",
+    text: `发现关联 Pull Request：${labels.join("、")}`,
+  };
+}
+
+function commitFindingText(codeEvidence: InvestigationSessionDTO["evidence"]): string {
+  const commits = codeEvidence.filter((item) => item.kind === "commit" || item.kind === "code").length;
+  const files = codeEvidence.filter((item) => item.kind === "file").length;
+  const parts = [
+    commits > 0 ? `${commits} 条 Commit / 代码证据` : undefined,
+    files > 0 ? `${files} 个文件变更` : undefined,
+  ].filter(Boolean);
+  return `发现代码 / Commit 证据：${parts.join("，")}`;
+}
+
 export function buildInvestigationFindings(session: InvestigationSessionDTO): InvestigationFinding[] {
   const findings: InvestigationFinding[] = [];
   const issueEvidence = session.evidence.find((item) => item.kind === "issue");
@@ -219,110 +359,91 @@ export function buildInvestigationFindings(session: InvestigationSessionDTO): In
     findings.push({
       id: "issue-state",
       tone: "pass",
+      source: issueEvidence ? "tool_result" : "investigation_step",
       text: state ? `Issue 当前状态：${state}` : `已获取 Issue ${issueRef(session.task)}`,
     });
   } else {
-    findings.push({
-      id: "issue-missing",
-      tone: "warn",
-      text: "当前调查没有获取到 Issue 记录。",
-    });
+    const issueActivity = collectToolActivity(session, ISSUE_TOOLS);
+    if (checkedEmpty(issueActivity)) {
+      findings.push({
+        id: "issue-missing",
+        tone: "warn",
+        source: "investigation_step",
+        text: "已检查 Issue，目前没有获取到可用的 Issue 记录。",
+      });
+    }
   }
 
   const pulls = session.evidence.filter((item) => item.kind === "pull_request");
-  if (pulls.length === 0) {
-    findings.push({
-      id: "pr-absent",
-      tone: "warn",
-      text: "未发现关联 Pull Request",
-    });
-  } else {
-    const labels = pulls.map((item) => {
-      const number = pullNumberFromEvidence(item);
-      const merged = pullMerged(item);
-      if (number && merged === true) {
-        return `${number}（已合并）`;
-      }
-      if (number && merged === false) {
-        return `${number}（未合并）`;
-      }
-      return number ?? item.summary;
-    });
+  const prActivity = collectToolActivity(session, PR_RETRIEVAL_TOOLS);
+  if (pulls.length > 0) {
+    const presented = pullFindingText(pulls);
     findings.push({
       id: "pr-present",
-      tone: pulls.some((item) => pullMerged(item) === true) ? "pass" : "warn",
-      text: `发现关联 Pull Request：${labels.join("、")}`,
+      tone: presented.tone,
+      source: "tool_result",
+      text: presented.text,
+    });
+  } else if (checkedEmpty(prActivity)) {
+    findings.push({
+      id: "pr-checked-empty",
+      tone: "warn",
+      source: "investigation_step",
+      text: "已检查关联 Pull Request，目前没有找到可用的关联 PR。",
     });
   }
 
   const codeEvidence = session.evidence.filter(
     (item) => item.kind === "commit" || item.kind === "code" || item.kind === "file",
   );
-  if (codeEvidence.length === 0) {
-    findings.push({
-      id: "commit-absent",
-      tone: "warn",
-      text: "当前调查没有找到能够证明问题已修复的 Commit。",
-    });
-  } else {
-    const commits = codeEvidence.filter((item) => item.kind === "commit" || item.kind === "code").length;
-    const files = codeEvidence.filter((item) => item.kind === "file").length;
-    const parts = [
-      commits > 0 ? `${commits} 条 Commit / 代码证据` : undefined,
-      files > 0 ? `${files} 个文件变更` : undefined,
-    ].filter(Boolean);
+  const commitActivity = collectToolActivity(session, COMMIT_TOOLS);
+  if (codeEvidence.length > 0) {
     findings.push({
       id: "commit-present",
       tone: "pass",
-      text: `发现代码 / Commit 证据：${parts.join("，")}`,
+      source: "tool_result",
+      text: commitFindingText(codeEvidence),
+    });
+  } else if (checkedEmpty(commitActivity)) {
+    findings.push({
+      id: "commit-checked-empty",
+      tone: "warn",
+      source: "investigation_step",
+      text: "已检查 Commit，目前没有找到能够确认修复的 Commit。",
     });
   }
 
   const hasResolutionLink = session.relations.some(
     (item) => item.type === "fixes" || item.type === "merges",
   );
-  findings.push({
-    id: "resolution-chain",
-    tone: hasResolutionLink ? "pass" : "warn",
-    text: hasResolutionLink
-      ? "当前证据中存在 Issue 与解决记录之间的关联。"
-      : "当前没有建立 Issue → Resolution 的完整证据链",
-  });
+  if (hasResolutionLink) {
+    findings.push({
+      id: "resolution-chain",
+      tone: "pass",
+      source: "tool_result",
+      text: "当前证据中存在 Issue 与解决记录之间的关联。",
+    });
+  }
 
   return findings;
 }
 
-export function presentAgentConclusion(session: InvestigationSessionDTO): string {
-  const original = session.report.conclusion || session.agentOutput;
-  if (original && hasChinese(original)) {
-    return original;
-  }
+export function presentAgentConclusionView(session: InvestigationSessionDTO): {
+  text: string;
+  source: AgentConclusionSource;
+} {
   if (session.actor === "unconfigured" || session.status === "unconfigured") {
-    return "当前未配置可用于调查的大模型，因此没有完成 Agent 调查。";
+    return { text: UNCONFIGURED_CONCLUSION, source: "presentation_fallback" };
   }
+  const authored = realAgentConclusion(session);
+  if (authored) {
+    return { text: authored, source: "agent_report" };
+  }
+  return { text: MISSING_AGENT_CONCLUSION, source: "presentation_fallback" };
+}
 
-  const issueClosed = session.issue.state === "closed";
-  const pulls = session.evidence.filter((item) => item.kind === "pull_request");
-  const hasPr = pulls.length > 0;
-  const mergedPr = pulls.some((item) => pullMerged(item) === true);
-  const hasCode = session.evidence.some(
-    (item) => item.kind === "commit" || item.kind === "code" || item.kind === "file",
-  );
-  const polarity = session.report.polarity;
-
-  if (issueClosed && !hasPr && !hasCode) {
-    return "Issue 已关闭，但没有发现能够证明问题已通过代码修改解决的证据。";
-  }
-  if (mergedPr && hasCode) {
-    return "我检查了 Issue 当前状态、关联 Pull Request 和 Commit 信息。调查发现了已合并的 Pull Request 以及相关代码 / Commit 证据，并解释了它们与该 Issue 的关系。";
-  }
-  if (hasPr && !mergedPr) {
-    return "我检查了 Issue 当前状态和关联 Pull Request。目前发现了相关 Pull Request，但没有确认合并或代码修复证据，因此无法确认该 Issue 已经解决。";
-  }
-  if (polarity === "resolved") {
-    return "我检查了 Issue 当前状态、关联 Pull Request 和 Commit 信息。根据已收集的证据，目前认为该 Issue 可能已经解决。";
-  }
-  return "我检查了 Issue 当前状态、关联 Pull Request 和 Commit 信息。目前没有发现能够证明该问题已经解决的证据，因此无法确认它已经解决。";
+export function presentAgentConclusion(session: InvestigationSessionDTO): string {
+  return presentAgentConclusionView(session).text;
 }
 
 export function presentAgentJudgment(session: InvestigationSessionDTO): string {
@@ -398,11 +519,10 @@ function nextEvidenceFromAttempt(attempt?: InvestigationAttemptDTO): string[] {
 }
 
 function processIncident(attempt: InvestigationAttemptDTO): IncidentView {
-  const type = attempt.failureType ?? "unknown";
   return {
     kind: "process",
     title: "调查过程中遇到问题",
-    summary: PROCESS_FAILURE_SUMMARY[type] ?? "调查过程中遇到问题，因此当前结果可能不完整。",
+    summary: processFailureSummary(attempt),
     recoveryTitle: attempt.recoveryAction ? "恢复策略" : undefined,
     recoverySummary: presentRecoveryReason(attempt.recoveryAction, attempt.recoveryReason),
     nextEvidence: nextEvidenceFromAttempt(attempt),
@@ -490,6 +610,7 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
   ]
     .filter(Boolean)
     .join(" · ");
+  const presentedConclusion = presentAgentConclusionView(session);
 
   return {
     result: {
@@ -499,7 +620,8 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
       issueLine,
     },
     agent: {
-      conclusion: presentAgentConclusion(session),
+      conclusion: presentedConclusion.text,
+      conclusionSource: presentedConclusion.source,
       originalConclusion,
       findings: buildInvestigationFindings(session),
       judgment: presentAgentJudgment(session),

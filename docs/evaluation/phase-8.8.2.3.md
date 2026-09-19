@@ -2,6 +2,8 @@
 
 This phase repairs Evidence-Gap Investigation Strategy stop / closure semantics. It does not change IndependentCompletionVerifier verdicts, Recovery Planner, Failure Analyzer, Dataset, Ground Truth, GitHub Provider, LLM runtime, or semantic `resolution_effect` alignment.
 
+> Later correction (Phase 8.8.6): `issue_closed rejected` is no longer terminal negative evidence. An open issue continues investigation; IndependentCompletionVerifier still uses `issue_closed` as a completion condition.
+
 ## Scope
 
 - HEAD at start: `46a4a43c46fc31b06fecd96bd6b01786848796a2`

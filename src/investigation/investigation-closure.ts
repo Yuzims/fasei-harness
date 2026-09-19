@@ -75,13 +75,14 @@ export function requiredGapsSatisfied(gap: EvidenceGap): boolean {
 /**
  * Negative evidence that is already enough to stop investigation.
  * Further GitHub fetches cannot turn this into verified_complete.
+ *
+ * `issue_closed` rejected is not terminal. An open issue only proves the
+ * issue is not currently closed; it does not prove “unresolved” and must
+ * not empty the legal investigation set. IndependentCompletionVerifier
+ * still uses `issue_closed` as a completion condition.
  */
 export function hasTerminalNegativeEvidence(gap: EvidenceGap): boolean {
-  return (
-    isRejected(gap, "eligible_closure") ||
-    isRejected(gap, "issue_identity") ||
-    isRejected(gap, "issue_closed")
-  );
+  return isRejected(gap, "eligible_closure") || isRejected(gap, "issue_identity");
 }
 
 function allowsRecheckTarget(state: InvestigationState): boolean {

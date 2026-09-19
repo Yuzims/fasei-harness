@@ -872,6 +872,20 @@ IndependentCompletionVerifier →  only authority for verified completion
 
 Empty / omitted `nextRequirementIds` still means unconstrained first-attempt / existing recovery behavior. `resolution_effect` is not turned into a retrieval requirement. IndependentCompletionVerifier, Ground Truth, GitHub Provider, and Evidence-Gap Strategy are unchanged.
 
+## Phase 8.8.6 — Open-Issue Closure Semantics — DONE
+
+`issue_closed rejected` is a verification condition, not an investigation terminal.
+
+An open GitHub issue only proves the issue is not currently closed. It does not prove “unresolved” and must not empty `legalActions` after `get_issue`. Evidence-Gap Strategy now continues with timeline / comments / PR / files / commits while `issue_closed` remains rejected.
+
+Terminal negative evidence is limited to `eligible_closure` (`not_planned`) and `issue_identity`. IndependentCompletionVerifier, EvidenceRequirement evaluation, Recovery, Dataset, and Ground Truth are unchanged: an open issue still cannot become `verified_complete`.
+
+```text
+Evidence Requirement rejected  ≠  Investigation Terminal Condition
+issue_closed rejected          →  keep investigating
+eligible_closure / identity rejected →  GAP_CLOSED
+```
+
 ## Phase 9.0 — Investigation Experience / UI Information Architecture — DONE
 
 Presentation-only rewrite of the Investigation result page. Agent investigation and Harness verification stay in separate lanes. Chinese labels are deterministic mappings, not a second LLM pass. Runtime, verifier, Evidence Graph, Recovery, Strategy, Benchmark, Ground Truth, and GitHub Provider semantics are unchanged.

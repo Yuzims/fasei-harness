@@ -1,5 +1,5 @@
 /**
- * Phase 8.8.2.3 — Strategy stop and closure semantics.
+ * Phase 8.8.2.3 / 8.8.6 — Strategy stop and closure semantics.
  * Deterministic: no live LLM / GitHub.
  */
 import assert from "node:assert/strict";
@@ -17,6 +17,7 @@ import {
   IndependentCompletionVerifier,
   computeEvidenceGap,
   decideInvestigationClosure,
+  hasTerminalNegativeEvidence,
   investigate,
   planInvestigationStrategy,
   proposeCandidateActions,
@@ -208,11 +209,85 @@ test("GAP_CLOSED on explicit non-resolution (not_planned)", () => {
     gap.rejectedRequirements.some((item) => item.condition === "eligible_closure"),
     true,
   );
+  assert.equal(hasTerminalNegativeEvidence(gap), true);
   const legal = proposeCandidateActions(state, { gap });
   assert.equal(legal.some((item) => item.tool.startsWith("github_")), false);
   const planned = planInvestigationStrategy(state, { gap });
   assert.equal(planned.closure, "GAP_CLOSED");
   assert.equal(planned.legalActions.length, 0);
+});
+
+test("Phase 8.8.6 — open issue_closed rejected is not terminal negative evidence", () => {
+  const state = makeState();
+  addClosedIssue(state, { state: "open" });
+  const gap = computeEvidenceGap(state.task, state.run);
+  assert.equal(
+    gap.rejectedRequirements.some((item) => item.condition === "issue_closed"),
+    true,
+  );
+  assert.equal(
+    gap.rejectedRequirements.some((item) => item.condition === "eligible_closure"),
+    false,
+  );
+  assert.equal(hasTerminalNegativeEvidence(gap), false);
+  const legal = proposeCandidateActions(state, { gap });
+  assert.equal(
+    legal.some(
+      (item) =>
+        item.tool === "github_get_issue_timeline" ||
+        item.tool === "github_get_issue_comments" ||
+        item.tool === "github_list_commits",
+    ),
+    true,
+  );
+  const planned = planInvestigationStrategy(state, { gap });
+  assert.equal(planned.closure, "GAP_OPEN_ACTIONABLE");
+  assert.notEqual(planned.closure, "GAP_CLOSED");
+  assert.ok(planned.legalActions.length > 0);
+});
+
+test("Phase 8.8.6 — wrong issue identity remains terminal", () => {
+  const state = makeState();
+  const evidence = createEvidence({
+    kind: "issue",
+    summary: "Issue #99 is closed",
+    payload: {
+      number: 99,
+      repository: "acme/other",
+      state: "closed",
+      title: "Unrelated ticket",
+      body: "Wrong repository and number.",
+    },
+    provenance: provenance("issues/99"),
+    contentRef: resourceKey("issue", "99"),
+  });
+  state.addEvidence(evidence);
+  state.investigatedResources.add(resourceKey("issue", "99"));
+  const gap = computeEvidenceGap(state.task, state.run);
+  assert.equal(
+    gap.rejectedRequirements.some((item) => item.condition === "issue_identity"),
+    true,
+  );
+  assert.equal(hasTerminalNegativeEvidence(gap), true);
+  const planned = planInvestigationStrategy(state, { gap });
+  assert.equal(planned.closure, "GAP_CLOSED");
+  assert.equal(planned.legalActions.length, 0);
+});
+
+test("Phase 8.8.6 — IndependentCompletionVerifier still rejects an open issue", () => {
+  const state = makeState();
+  const issue = addClosedIssue(state, { state: "open" });
+  const pr = addPr(state, issue.id, 7, true);
+  addFileAndCommit(state, pr.id, 7);
+  state.claimsRecorded = true;
+  const gap = computeEvidenceGap(state.task, state.run);
+  assert.equal(gap.items.find((item) => item.condition === "issue_closed")?.outcome, "rejected");
+  assert.equal(hasTerminalNegativeEvidence(gap), false);
+  const independent = new IndependentCompletionVerifier().verify({
+    task: state.task,
+    run: state.run,
+  });
+  assert.notEqual(independent.status, "verified_complete");
 });
 
 test("GAP_OPEN_ACTIONABLE while an unused candidate can still advance the gap", () => {
@@ -345,4 +420,43 @@ test("not_planned stops the loop without chasing phantom PR files", async () => 
   assert.equal(result.verification?.status, independent.status);
   const blocked = trace.getEvents().find((event) => event.type === "investigation_blocked");
   assert.equal(blocked?.data.code, "GAP_CLOSED");
+});
+
+test("Phase 8.8.6 — open issue continues past get_issue and does not mint verified_complete", async () => {
+  const stateSeed = makeState();
+  addClosedIssue(stateSeed, { state: "open" });
+  const trace = new TraceCollector();
+  const result = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider: new SnapshotGitHubProvider(githubFixturePath("resolved")),
+    model: firstLegalModel(),
+    trace,
+    maxAttempts: 1,
+    maxSteps: 6,
+    prepareSession: (session) => {
+      session.state.addEvidence(stateSeed.run.evidence[0]!);
+      session.state.investigatedResources.add(resourceKey("issue", "42"));
+      session.state.issueState = "open";
+    },
+  });
+  assert.notEqual(result.agentResult?.decision, "gap_closed");
+  assert.equal(
+    result.investigationSteps.some(
+      (step) =>
+        step.tool === "github_get_issue_timeline" ||
+        step.tool === "github_get_issue_comments" ||
+        step.tool === "github_list_commits" ||
+        step.tool === "github_get_pull_request",
+    ),
+    true,
+  );
+  assert.notEqual(result.verification?.status, "verified_complete");
+  const independent = new IndependentCompletionVerifier().verify({
+    task: result.task,
+    run: result.run,
+  });
+  assert.equal(result.verification?.status, independent.status);
+  assert.notEqual(independent.status, "verified_complete");
+  const blocked = trace.getEvents().find((event) => event.type === "investigation_blocked");
+  assert.notEqual(blocked?.data.code, "GAP_CLOSED");
 });

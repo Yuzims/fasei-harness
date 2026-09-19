@@ -39,6 +39,21 @@ import {
   buildResolutionAnalyses,
   recordAuthoredResolutionAnalysis,
 } from "./resolution-analysis.js";
+import {
+  MAX_INVESTIGATED_CANDIDATES,
+  applyCandidateSelection,
+  discoverCommitCandidates,
+  discoverPullCandidates,
+  discoveryOutcome,
+  recordCandidateDiscovered,
+  recordCandidateRanked,
+  recordCandidateRejected,
+  recordCandidateSelected,
+  recordDiscoveryStarted,
+  recordInvestigationStarted,
+  type IssueRetrievalContext,
+  type RetrievalCandidate,
+} from "./retrieval/index.js";
 
 const POLARITIES: ClaimPolarity[] = ["resolved", "unresolved", "partial", "unknown"];
 const ROLES: ClaimEvidenceRole[] = ["supports", "contradicts", "contextual"];
@@ -103,6 +118,106 @@ function relate(
     }
     throw error;
   }
+}
+
+function issueRetrievalContext(session: InvestigationSession): IssueRetrievalContext {
+  const issue = session.state.run.evidence.find((item) => item.kind === "issue");
+  const payload = isRecord(issue?.payload) ? issue.payload : {};
+  const createdAt =
+    typeof payload.createdAt === "string"
+      ? payload.createdAt
+      : typeof payload.created_at === "string"
+        ? payload.created_at
+        : undefined;
+  return {
+    issueNumber: session.state.task.target.issueNumber,
+    issueTitle: typeof payload.title === "string" ? payload.title : undefined,
+    issueBody: typeof payload.body === "string" ? payload.body : undefined,
+    issueCreatedAt: createdAt,
+    structurallyReferencedIds: session.state.retrievalCandidates
+      .filter((item) => item.sourceType === "commit")
+      .map((item) => item.sourceId),
+  };
+}
+
+function applyGroupSelection(
+  session: InvestigationSession,
+  sourceType: RetrievalCandidate["sourceType"],
+): void {
+  const group = session.state.retrievalCandidates.filter((item) => item.sourceType === sourceType);
+  const selected = applyCandidateSelection(group, MAX_INVESTIGATED_CANDIDATES);
+  session.state.replaceRetrievalGroup(sourceType, selected);
+  selected.forEach((candidate, rank) => {
+    recordCandidateRanked(session, candidate, rank);
+    if (candidate.status === "investigating") {
+      recordCandidateSelected(session, candidate);
+    } else if (candidate.status === "rejected") {
+      recordCandidateRejected(session, candidate);
+    }
+  });
+}
+
+function registerPullCandidates(
+  session: InvestigationSession,
+  pullNumbers: number[],
+  extraText = "",
+): void {
+  const unique = [...new Set(pullNumbers)].filter(
+    (number) => Number.isInteger(number) && number > 0 && number !== session.state.task.target.issueNumber,
+  );
+  if (unique.length === 0) {
+    return;
+  }
+  recordDiscoveryStarted(session, {
+    intent: "find_resolution_pr",
+    source: "issue_observation",
+    candidateBound: MAX_INVESTIGATED_CANDIDATES,
+  });
+  const discovered = discoverPullCandidates(
+    unique.map((number) => ({ number, title: extraText, body: extraText })),
+    issueRetrievalContext(session),
+  );
+  for (const candidate of discovered) {
+    session.state.addRetrievalCandidate(candidate);
+    recordCandidateDiscovered(session, session.state.retrievalCandidates.find((item) => item.id === candidate.id) ?? candidate);
+  }
+  applyGroupSelection(session, "pull_request");
+}
+
+function discoverRepositoryCommitCandidates(
+  session: InvestigationSession,
+  output: unknown,
+): string[] {
+  const { commits: raw, truncated } = unwrapCommitList(output);
+  const commits = raw.slice(0, MAX_REPOSITORY_COMMIT_DISCOVERY);
+  session.state.investigatedResources.add(resourceKey("commits", "repo"));
+  recordDiscoveryStarted(session, {
+    intent: "find_resolution_commit",
+    truncated: truncated === true,
+    discoveryBound: MAX_REPOSITORY_COMMIT_DISCOVERY,
+    observedCount: commits.length,
+  });
+  const discovered = discoverCommitCandidates(
+    commits.filter(isRecord).map((commit) => ({
+      sha: String(commit.sha ?? ""),
+      message: String(commit.message ?? ""),
+      createdAt: typeof commit.createdAt === "string" ? commit.createdAt : undefined,
+    })),
+    issueRetrievalContext(session),
+  );
+  for (const candidate of discovered) {
+    session.state.addRetrievalCandidate(candidate);
+    recordCandidateDiscovered(session, candidate);
+  }
+  applyGroupSelection(session, "commit");
+  const outcome = discoveryOutcome({
+    candidateCount: discovered.length,
+    truncated: truncated === true,
+  });
+  session.state.retrievalOutcome = outcome.outcome;
+  session.state.retrievalOutcomeReason = outcome.reason;
+  session.state.discoveryTruncated = truncated === true;
+  return [];
 }
 
 function issueEvidenceId(session: InvestigationSession): string | undefined {
@@ -197,9 +312,12 @@ function ingestIssue(session: InvestigationSession, output: unknown): string[] {
   }
   const title = String(output.title ?? "");
   const body = String(output.body ?? "");
+  const mentioned: number[] = [];
   for (const pullNumber of mentionPullNumbers(`${title}\n${body}`, session.state.task.target.issueNumber)) {
     session.state.addCandidatePr(pullNumber);
+    mentioned.push(pullNumber);
   }
+  registerPullCandidates(session, mentioned, `${title}\n${body}`);
   return ids;
 }
 
@@ -233,15 +351,18 @@ function ingestComments(session: InvestigationSession, output: unknown): string[
       relate(session, commentId, pullEvidenceId(session, pullNumber), "mentions");
     }
   }
+  const mentioned: number[] = [];
   for (const comment of comments) {
     if (!isRecord(comment)) {
       continue;
     }
     for (const pullNumber of mentionPullNumbers(String(comment.body ?? ""), issueNumber)) {
       session.state.addCandidatePr(pullNumber);
+      mentioned.push(pullNumber);
       relate(session, commentId, pullEvidenceId(session, pullNumber), "mentions");
     }
   }
+  registerPullCandidates(session, mentioned);
   return ids;
 }
 
@@ -273,6 +394,7 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
     ids.push(timelineId);
     relate(session, timelineId, issueEvidenceId(session), "references");
   }
+  const mentioned: number[] = [];
   for (const event of events) {
     if (!isRecord(event)) {
       continue;
@@ -280,11 +402,13 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
     const pullNumber = Number(event.pullRequestNumber);
     if (Number.isInteger(pullNumber) && pullNumber > 0) {
       session.state.addCandidatePr(pullNumber);
+      mentioned.push(pullNumber);
       relate(session, timelineId, pullEvidenceId(session, pullNumber), "mentions");
     }
-    for (const mentioned of mentionPullNumbers(String(event.body ?? ""), issueNumber)) {
-      session.state.addCandidatePr(mentioned);
-      relate(session, timelineId, pullEvidenceId(session, mentioned), "mentions");
+    for (const mentionedNumber of mentionPullNumbers(String(event.body ?? ""), issueNumber)) {
+      session.state.addCandidatePr(mentionedNumber);
+      mentioned.push(mentionedNumber);
+      relate(session, timelineId, pullEvidenceId(session, mentionedNumber), "mentions");
     }
     const shaMatch = /\b([0-9a-f]{7,40})\b/i.exec(String(event.body ?? ""));
     if (shaMatch?.[1]) {
@@ -294,6 +418,7 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
       }
     }
   }
+  registerPullCandidates(session, mentioned);
   return ids;
 }
 
@@ -317,6 +442,13 @@ function ingestPullRequest(session: InvestigationSession, output: unknown): stri
     );
   }
   session.state.addCandidatePr(number);
+  const existing = session.state.retrievalCandidates.find(
+    (item) => item.sourceType === "pull_request" && item.sourceId === String(number),
+  );
+  if (existing) {
+    session.state.setRetrievalCandidateStatus("pull_request", String(number), "investigating");
+    recordInvestigationStarted(session, { ...existing, status: "investigating" });
+  }
   const ids: string[] = [];
   const prId = addEvidenceOnce(session, resourceKey("pr", String(number)), {
     kind: "pull_request",
@@ -354,6 +486,9 @@ function ingestPullRequest(session: InvestigationSession, output: unknown): stri
   }
   if (prId) {
     linkPullGraph(session, number, prId, merged);
+    if (existing) {
+      session.state.setRetrievalCandidateStatus("pull_request", String(number), "promoted");
+    }
   }
   return ids;
 }
@@ -419,60 +554,90 @@ function ingestFiles(session: InvestigationSession, output: unknown, pullNumber:
   return ids;
 }
 
-function ingestCommits(session: InvestigationSession, output: unknown, pullNumber: number | undefined): string[] {
-  const { commits: raw } = unwrapCommitList(output);
-  const repositoryWide = !(pullNumber && pullNumber > 0);
-  const commits = repositoryWide ? raw.slice(0, MAX_REPOSITORY_COMMIT_DISCOVERY) : raw;
-  const ids: string[] = [];
-  if (pullNumber && pullNumber > 0) {
-    session.state.investigatedResources.add(resourceKey("commits", String(pullNumber)));
-  } else {
-    session.state.investigatedResources.add(resourceKey("commits", "repo"));
+function ingestCommitRecord(
+  session: InvestigationSession,
+  commit: Record<string, unknown>,
+  operation: "listCommits" | "getCommit",
+  pullNumber: number | undefined,
+): string | undefined {
+  const sha = String(commit.sha ?? "");
+  const id = addEvidenceOnce(session, resourceKey("commit", sha), {
+    kind: "commit",
+    summary: `Commit ${sha.slice(0, 12)}: ${String(commit.message ?? "").split("\n")[0] ?? ""}`,
+    payload: commit,
+    provenance: {
+      source: "github",
+      operation,
+      resource: sha ? `commit/${sha}` : "commits",
+      url: String(commit.url ?? ""),
+      repository: String(commit.repository ?? ""),
+      retrievedAt: String(commit.retrievedAt ?? new Date().toISOString()),
+      trust: "external_untrusted",
+    },
+  });
+  if (!id) {
+    return undefined;
   }
-  for (const commit of commits) {
+  const issueId = issueEvidenceId(session);
+  const issueNumber = session.state.task.target.issueNumber;
+  const message = String(commit.message ?? "");
+  if (closingKeywordReferencesIssue(message, issueNumber)) {
+    relate(session, id, issueId, "fixes");
+  }
+  if (pullNumber && pullNumber > 0) {
+    const prId = pullEvidenceId(session, pullNumber);
+    relate(session, id, prId, "derived_from");
+    const merge = session.state.run.evidence.find(
+      (item) => item.contentRef === resourceKey("pr-merge", String(pullNumber)),
+    );
+    const mergeSha =
+      merge && isRecord(merge.payload) && typeof merge.payload.mergeCommitSha === "string"
+        ? merge.payload.mergeCommitSha
+        : undefined;
+    if (mergeSha && sha && mergeSha === sha) {
+      relate(session, id, prId, "merges");
+    }
+  }
+  return id;
+}
+
+function ingestCommits(session: InvestigationSession, output: unknown, pullNumber: number | undefined): string[] {
+  const repositoryWide = !(pullNumber && pullNumber > 0);
+  if (repositoryWide) {
+    return discoverRepositoryCommitCandidates(session, output);
+  }
+  const { commits: raw } = unwrapCommitList(output);
+  const ids: string[] = [];
+  session.state.investigatedResources.add(resourceKey("commits", String(pullNumber)));
+  for (const commit of raw) {
     if (!isRecord(commit)) {
       continue;
     }
-    const sha = String(commit.sha ?? "");
-    const id = addEvidenceOnce(session, resourceKey("commit", sha), {
-      kind: "commit",
-      summary: `Commit ${sha.slice(0, 12)}: ${String(commit.message ?? "").split("\n")[0] ?? ""}`,
-      payload: commit,
-      provenance: {
-        source: "github",
-        operation: "listCommits",
-        resource: sha ? `commit/${sha}` : "commits",
-        url: String(commit.url ?? ""),
-        repository: String(commit.repository ?? ""),
-        retrievedAt: String(commit.retrievedAt ?? new Date().toISOString()),
-        trust: "external_untrusted",
-      },
-    });
+    const id = ingestCommitRecord(session, commit, "listCommits", pullNumber);
     if (id) {
       ids.push(id);
-      const issueId = issueEvidenceId(session);
-      const issueNumber = session.state.task.target.issueNumber;
-      const message = String(commit.message ?? "");
-      if (closingKeywordReferencesIssue(message, issueNumber)) {
-        relate(session, id, issueId, "fixes");
-      }
-      if (pullNumber && pullNumber > 0) {
-        const prId = pullEvidenceId(session, pullNumber);
-        relate(session, id, prId, "derived_from");
-        const merge = session.state.run.evidence.find(
-          (item) => item.contentRef === resourceKey("pr-merge", String(pullNumber)),
-        );
-        const mergeSha =
-          merge && isRecord(merge.payload) && typeof merge.payload.mergeCommitSha === "string"
-            ? merge.payload.mergeCommitSha
-            : undefined;
-        if (mergeSha && sha && mergeSha === sha) {
-          relate(session, id, prId, "merges");
-        }
-      }
     }
   }
   return ids;
+}
+
+function ingestInvestigatedCommit(session: InvestigationSession, output: unknown): string[] {
+  if (!isRecord(output)) {
+    return [];
+  }
+  const sha = String(output.sha ?? "");
+  const existing = session.state.retrievalCandidates.find(
+    (item) => item.sourceType === "commit" && item.sourceId === sha,
+  );
+  if (existing) {
+    session.state.setRetrievalCandidateStatus("commit", sha, "investigating");
+    recordInvestigationStarted(session, { ...existing, status: "investigating" });
+  }
+  const id = ingestCommitRecord(session, output, "getCommit", undefined);
+  if (id && existing) {
+    session.state.setRetrievalCandidateStatus("commit", sha, "promoted");
+  }
+  return id ? [id] : [];
 }
 
 function syncResolutionAnalyses(session: InvestigationSession): void {
@@ -514,6 +679,9 @@ export function ingestObservation(
         output,
         typeof args.pullNumber === "number" ? args.pullNumber : undefined,
       );
+      break;
+    case "github_get_commit":
+      ids = ingestInvestigatedCommit(session, output);
       break;
     default:
       return [];
@@ -806,6 +974,8 @@ export function evidenceKindFromTool(toolName: string): EvidenceKind | undefined
     case "github_get_pull_request_files":
       return "file";
     case "github_list_commits":
+      return "commit";
+    case "github_get_commit":
       return "commit";
     default:
       return undefined;

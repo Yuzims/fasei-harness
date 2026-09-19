@@ -11,6 +11,7 @@ import type {
   RecoveryPlan,
   ResolutionAnalysis,
 } from "../domain/index.js";
+import type { RetrievalCandidate } from "./retrieval/candidate.js";
 
 export type RetrievalStrategy = "default" | "timeline" | "comments" | "linked_pr" | "broaden";
 
@@ -53,6 +54,10 @@ export class InvestigationState {
   lastFailure?: FailureEvent;
   lastRecovery?: RecoveryPlan;
   readonly authoredResolutionCandidates = new Set<string>();
+  readonly retrievalCandidates: RetrievalCandidate[] = [];
+  retrievalOutcome?: "ok" | "no_candidate_found";
+  retrievalOutcomeReason?: string;
+  discoveryTruncated?: boolean;
 
   constructor(
     readonly task: InvestigationTask,
@@ -77,6 +82,62 @@ export class InvestigationState {
     if (pullNumber > 0 && pullNumber !== this.task.target.issueNumber) {
       this.candidatePrs.add(pullNumber);
     }
+  }
+
+  addRetrievalCandidate(candidate: RetrievalCandidate): RetrievalCandidate {
+    const index = this.retrievalCandidates.findIndex((item) => item.id === candidate.id);
+    if (index >= 0) {
+      const current = this.retrievalCandidates[index];
+      if (current.status === "promoted" || current.status === "investigating") {
+        this.retrievalCandidates[index] = {
+          ...current,
+          relevanceSignals: { ...current.relevanceSignals, ...candidate.relevanceSignals },
+          retrievalReason: candidate.retrievalReason || current.retrievalReason,
+        };
+        return this.retrievalCandidates[index];
+      }
+      this.retrievalCandidates[index] = {
+        ...candidate,
+        relevanceSignals: { ...current.relevanceSignals, ...candidate.relevanceSignals },
+        status: current.status === "rejected" ? candidate.status : current.status,
+      };
+      return this.retrievalCandidates[index];
+    }
+    this.retrievalCandidates.push(candidate);
+    return candidate;
+  }
+
+  replaceRetrievalGroup(
+    sourceType: RetrievalCandidate["sourceType"],
+    next: RetrievalCandidate[],
+  ): void {
+    const kept = this.retrievalCandidates.filter((item) => item.sourceType !== sourceType);
+    this.retrievalCandidates.length = 0;
+    this.retrievalCandidates.push(...kept, ...next);
+  }
+
+  selectedRetrievalCandidates(sourceType?: RetrievalCandidate["sourceType"]): RetrievalCandidate[] {
+    return this.retrievalCandidates.filter((item) => {
+      if (sourceType && item.sourceType !== sourceType) {
+        return false;
+      }
+      return item.status === "investigating" || item.status === "promoted";
+    });
+  }
+
+  setRetrievalCandidateStatus(
+    sourceType: RetrievalCandidate["sourceType"],
+    sourceId: string,
+    status: RetrievalCandidate["status"],
+  ): RetrievalCandidate | undefined {
+    const candidate = this.retrievalCandidates.find(
+      (item) => item.sourceType === sourceType && item.sourceId === sourceId,
+    );
+    if (!candidate) {
+      return undefined;
+    }
+    candidate.status = status;
+    return candidate;
   }
 
   addEvidence(evidence: Evidence): Evidence {
@@ -171,6 +232,19 @@ export class InvestigationState {
       })),
       investigatedResources: [...this.investigatedResources],
       remainingSources: remainingEvidenceSources(this),
+      retrievalCandidates: this.retrievalCandidates.map((item) => ({
+        id: item.id,
+        sourceType: item.sourceType,
+        sourceId: item.sourceId,
+        status: item.status,
+        retrievalReason: item.retrievalReason,
+        relevanceSignals: item.relevanceSignals,
+      })),
+      candidateCount: this.retrievalCandidates.length,
+      selectedCount: this.selectedRetrievalCandidates().length,
+      retrievalOutcome: this.retrievalOutcome,
+      retrievalOutcomeReason: this.retrievalOutcomeReason,
+      discoveryTruncated: this.discoveryTruncated,
       retrievalStrategy: this.retrievalStrategy,
       investigationStrategy: this.investigationStrategy,
       lastFailureType: this.lastFailure?.type,
@@ -316,6 +390,10 @@ export function resourceKeyForTool(
       return typeof pullNumber === "number"
         ? resourceKey("commits", String(pullNumber))
         : resourceKey("commits", "repo");
+    case "github_get_commit":
+      return typeof args.sha === "string" && args.sha.trim()
+        ? resourceKey("commit", args.sha.trim())
+        : undefined;
     default:
       return undefined;
   }

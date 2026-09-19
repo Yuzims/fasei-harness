@@ -148,6 +148,10 @@ function resetEvidenceGraph(state: InvestigationState): void {
   state.mergedPrs.clear();
   state.unmergedPrs.clear();
   state.filesByPr.clear();
+  state.retrievalCandidates.length = 0;
+  state.retrievalOutcome = undefined;
+  state.retrievalOutcomeReason = undefined;
+  state.discoveryTruncated = undefined;
   state.claimsRecorded = false;
   state.issueState = undefined;
   state.conclusion = "";

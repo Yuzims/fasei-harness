@@ -62,6 +62,8 @@ function expectedEvidenceKind(tool: string): EvidenceKind | undefined {
       return "file";
     case "github_list_commits":
       return "commit";
+    case "github_get_commit":
+      return "commit";
     default:
       return undefined;
   }
@@ -327,6 +329,7 @@ function collectDiscoveryActions(
     targetRequirementIds: ids,
     objective: "Discover a closing-keyword commit when no pull request number is known.",
   });
+  collectSelectedCommitInvestigations(state, gap, list, ids);
 }
 
 function collectPullActions(
@@ -342,7 +345,7 @@ function collectPullActions(
   }
   const target = targetArgs(state);
   const ids = idsFor(gap, ["resolution_candidate", "resolution_merged"]);
-  for (const pullNumber of state.candidatePrs) {
+  for (const pullNumber of selectedPullNumbers(state)) {
     addIfAvailable(
       state,
       list,
@@ -406,6 +409,50 @@ function collectCodeActions(
       targetRequirementIds: idsFor(gap, ["resolution_candidate", "resolution_code_evidence"]),
       objective: "Inspect repository commits for a direct-commit resolution.",
     });
+    collectSelectedCommitInvestigations(
+      state,
+      gap,
+      list,
+      idsFor(gap, ["resolution_candidate", "resolution_code_evidence"]),
+    );
+  }
+}
+
+function selectedPullNumbers(state: InvestigationState): number[] {
+  const selected = state
+    .selectedRetrievalCandidates("pull_request")
+    .map((item) => Number(item.sourceId))
+    .filter((number) => Number.isInteger(number) && number > 0);
+  if (selected.length > 0) {
+    return [...new Set(selected)];
+  }
+  return [...state.candidatePrs];
+}
+
+function collectSelectedCommitInvestigations(
+  state: InvestigationState,
+  gap: EvidenceGap,
+  list: CandidateInvestigationAction[],
+  targetRequirementIds: string[],
+): void {
+  if (hasTerminalNegativeEvidence(gap)) {
+    return;
+  }
+  const target = targetArgs(state);
+  for (const candidate of state.selectedRetrievalCandidates("commit")) {
+    if (candidate.status === "promoted") {
+      continue;
+    }
+    addIfAvailable(
+      state,
+      list,
+      action({
+        tool: "github_get_commit",
+        arguments: { owner: target.owner, repo: target.repo, sha: candidate.sourceId },
+        targetRequirementIds,
+        objective: `Investigate commit candidate ${candidate.sourceId.slice(0, 12)}.`,
+      }),
+    );
   }
 }
 

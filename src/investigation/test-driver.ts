@@ -292,7 +292,22 @@ function resolutionCandidateAction(state: InvestigationState): DriverAction | un
       reason: "Recovery strategy looks up commit resolution evidence after issue observations.",
     };
   }
+  const selectedCommit = unfetchedSelectedCommit(state);
+  if (selectedCommit) {
+    return {
+      type: "tool_call",
+      name: "github_get_commit",
+      arguments: { owner: target.owner, repo: target.repo, sha: selectedCommit.sourceId },
+      reason: "Recovery investigates a selected commit candidate; listing is not evidence.",
+    };
+  }
   return undefined;
+}
+
+function unfetchedSelectedCommit(state: InvestigationState) {
+  return state.selectedRetrievalCandidates("commit").find((candidate) => {
+    return !state.investigatedResources.has(resourceKey("commit", candidate.sourceId));
+  });
 }
 
 export function nextInvestigationAction(state: InvestigationState): DriverAction {
@@ -419,6 +434,16 @@ export function nextInvestigationAction(state: InvestigationState): DriverAction
       name: "github_list_commits",
       arguments: { owner: target.owner, repo: target.repo },
       reason: "No merged pull request was observed; inspect referenced repository commits from the timeline.",
+    };
+  }
+
+  const selectedCommit = unfetchedSelectedCommit(state);
+  if (selectedCommit) {
+    return {
+      type: "tool_call",
+      name: "github_get_commit",
+      arguments: { owner: target.owner, repo: target.repo, sha: selectedCommit.sourceId },
+      reason: `Investigate selected commit candidate ${selectedCommit.sourceId.slice(0, 12)}; discovery is not evidence.`,
     };
   }
 

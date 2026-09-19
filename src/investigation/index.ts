@@ -87,5 +87,26 @@ export {
   recordAuthoredResolutionAnalysis,
   upsertResolutionAnalysis,
 } from "./resolution-analysis.js";
+export {
+  MAX_INVESTIGATED_CANDIDATES,
+  NO_CANDIDATE_FOUND,
+  applyCandidateSelection,
+  createRetrievalCandidate,
+  discoverCommitCandidates,
+  discoverPullCandidates,
+  discoveryOutcome,
+  lexicalOverlapScore,
+  rankCandidates,
+  rankingScore,
+  retrievalIntentsForGap,
+  selectTopCandidates,
+  temporalProximityScore,
+} from "./retrieval/index.js";
+export type {
+  RetrievalCandidate,
+  RetrievalCandidateSourceType,
+  RetrievalCandidateStatus,
+  RetrievalIntent,
+} from "./retrieval/index.js";
 export { IndependentCompletionVerifier, verifyInvestigationCompletion } from "../verification/independent-completion-verifier.js";
 export type { IndependentVerifyInput } from "../verification/independent-completion-verifier.js";

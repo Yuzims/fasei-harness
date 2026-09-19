@@ -70,6 +70,7 @@ test("Tools：调查工具走 Provider，不直接 fetch", async () => {
     "github_get_pull_request_files",
     "github_get_pull_request_reviews",
     "github_list_commits",
+    "github_get_commit",
   ]);
 });
 

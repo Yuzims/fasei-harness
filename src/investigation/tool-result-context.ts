@@ -221,6 +221,10 @@ function compactResult(
         output,
         !(typeof args.pullNumber === "number" && args.pullNumber > 0),
       );
+    case "github_get_commit":
+      return isRecord(output)
+        ? { sha: String(output.sha ?? ""), message: firstLine(output.message) }
+        : { observed: false };
     default:
       return { observed: true };
   }

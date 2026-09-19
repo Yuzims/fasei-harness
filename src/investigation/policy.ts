@@ -12,7 +12,7 @@ export const INVESTIGATION_SYSTEM_PROMPT = [
   "You receive a repository, issue number, and investigation question.",
   "You decide the next read-only GitHub tool from observations, not from a fixed script.",
   "Tools go through GitHubDataProvider. Never call the GitHub HTTP API yourself. Never write to GitHub.",
-  "Allowed tools: github_get_issue, github_get_issue_comments, github_get_issue_timeline, github_get_pull_request, github_get_pull_request_files, github_get_pull_request_reviews, github_list_commits, record_claim, record_resolution_analysis.",
+  "Allowed tools: github_get_issue, github_get_issue_comments, github_get_issue_timeline, github_get_pull_request, github_get_pull_request_files, github_get_pull_request_reviews, github_list_commits, github_get_commit, record_claim, record_resolution_analysis.",
   "After each observation, choose the next tool based on what you actually saw.",
   "If the timeline names a pull request, inspect that PR. If a PR is merged, inspect files (including any bounded patch) and commits. If there is no PR, check comments, then stop if evidence is still missing.",
   "Issue closed is not the same as resolved. Do not claim resolved only because the issue is closed.",
@@ -35,6 +35,7 @@ export const READ_ONLY_INVESTIGATION_TOOLS = [
   "github_get_pull_request_files",
   "github_get_pull_request_reviews",
   "github_list_commits",
+  "github_get_commit",
   "record_claim",
   "record_resolution_analysis",
 ] as const;

@@ -257,9 +257,11 @@ test("repository-wide discovery does not create hundreds of commit Evidence reco
   };
   const ids = ingestObservation(session, "github_list_commits", { owner: "acme", repo: "box" }, output);
   const commitEvidence = session.state.run.evidence.filter((item) => item.kind === "commit");
-  assert.ok(ids.length <= MAX_REPOSITORY_COMMIT_DISCOVERY);
-  assert.ok(commitEvidence.length <= MAX_REPOSITORY_COMMIT_DISCOVERY);
-  assert.equal(commitEvidence.length, MAX_REPOSITORY_COMMIT_DISCOVERY);
+  assert.equal(ids.length, 0);
+  assert.equal(commitEvidence.length, 0);
+  assert.ok(session.state.retrievalCandidates.length <= MAX_REPOSITORY_COMMIT_DISCOVERY);
+  assert.equal(session.state.retrievalCandidates.length, MAX_REPOSITORY_COMMIT_DISCOVERY);
+  assert.equal(session.state.discoveryTruncated, true);
 });
 
 test("compact Agent context for repository-wide discovery stays inside the window", () => {

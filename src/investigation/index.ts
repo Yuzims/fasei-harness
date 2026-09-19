@@ -71,7 +71,9 @@ export {
   compactInvestigationToolOutput,
   compactRecordClaimOutput,
   compactRecordResolutionAnalysisOutput,
+  exposeCompactPatch,
 } from "./tool-result-context.js";
+export type { CompactInvestigationToolInput, CompactPatchExposure } from "./tool-result-context.js";
 export {
   INSUFFICIENT_CODE_CHANGE_CONTEXT,
   TEST_SUPPORT_NOT_OBSERVED,

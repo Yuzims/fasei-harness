@@ -132,32 +132,37 @@ function compactReviews(output: unknown): Record<string, unknown> {
   };
 }
 
-function compactFiles(output: unknown): Record<string, unknown> {
+export type CompactPatchExposure = "metadata_only" | "patch_enabled";
+
+export function exposeCompactPatch(exposure?: CompactPatchExposure): boolean {
+  return exposure !== "metadata_only";
+}
+
+function compactFiles(output: unknown, exposePatch: boolean): Record<string, unknown> {
   const files = asArray(output);
+  const compactFiles = files.filter(isRecord).map((item) => {
+    const compact: {
+      filename: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      patch?: string;
+      patchTruncated?: boolean;
+    } = {
+      filename: String(item.filename ?? ""),
+      status: String(item.status ?? "modified"),
+      additions: Number(item.additions ?? 0),
+      deletions: Number(item.deletions ?? 0),
+    };
+    if (exposePatch && typeof item.patch === "string" && item.patch.length > 0) {
+      compact.patch = item.patch;
+      compact.patchTruncated = item.patchTruncated === true;
+    }
+    return compact;
+  });
   return {
     count: files.length,
-    files: applyPatchBudget(
-      files.filter(isRecord).map((item) => {
-        const compact: {
-          filename: string;
-          status: string;
-          additions: number;
-          deletions: number;
-          patch?: string;
-          patchTruncated?: boolean;
-        } = {
-          filename: String(item.filename ?? ""),
-          status: String(item.status ?? "modified"),
-          additions: Number(item.additions ?? 0),
-          deletions: Number(item.deletions ?? 0),
-        };
-        if (typeof item.patch === "string" && item.patch.length > 0) {
-          compact.patch = item.patch;
-          compact.patchTruncated = item.patchTruncated === true;
-        }
-        return compact;
-      }),
-    ),
+    files: exposePatch ? applyPatchBudget(compactFiles) : compactFiles,
   };
 }
 
@@ -176,6 +181,7 @@ function compactResult(
   tool: string,
   args: Record<string, unknown>,
   output: unknown,
+  exposePatch: boolean,
 ): Record<string, unknown> {
   const issueNumber = typeof args.issueNumber === "number" ? args.issueNumber : undefined;
   switch (tool) {
@@ -190,7 +196,7 @@ function compactResult(
     case "github_get_pull_request_reviews":
       return compactReviews(output);
     case "github_get_pull_request_files":
-      return compactFiles(output);
+      return compactFiles(output, exposePatch);
     case "github_list_commits":
       return compactCommits(output);
     default:
@@ -204,6 +210,11 @@ export interface CompactInvestigationToolInput {
   output: unknown;
   evidenceIds: string[];
   cached?: boolean;
+  /**
+   * Evaluation/test boundary. Production omits this and keeps patch_enabled.
+   * Evidence.payload is unchanged; this only affects LLM compact output.
+   */
+  patchExposure?: CompactPatchExposure;
 }
 
 /**
@@ -223,7 +234,7 @@ export function compactInvestigationToolOutput(
     trust: UNTRUSTED,
     notice: UNTRUSTED_NOTICE,
     ...(input.cached ? { cached: true } : {}),
-    result: compactResult(input.tool, input.args, input.output),
+    result: compactResult(input.tool, input.args, input.output, exposeCompactPatch(input.patchExposure)),
   };
 }
 

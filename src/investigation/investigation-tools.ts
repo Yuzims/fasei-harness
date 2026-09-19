@@ -31,6 +31,7 @@ import {
   compactInvestigationToolOutput,
   compactRecordClaimOutput,
   compactRecordResolutionAnalysisOutput,
+  type CompactPatchExposure,
 } from "./tool-result-context.js";
 import {
   attachClaimsToResolutionAnalyses,
@@ -49,6 +50,12 @@ export interface InvestigationSession {
   currentAttempt?: number;
   llmRuntime?: LlmRuntimeGuard;
   runtimeFailure?: FailureEvent;
+  /**
+   * Evaluation/test boundary. Production keeps patch_enabled.
+   * Controls whether bounded unified diffs enter LLM compact output and
+   * Agent-visible Resolution Analysis text. Evidence.payload is unchanged.
+   */
+  compactPatchExposure?: CompactPatchExposure;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -468,6 +475,7 @@ function ingestCommits(session: InvestigationSession, output: unknown, pullNumbe
 function syncResolutionAnalyses(session: InvestigationSession): void {
   session.state.run.resolutionAnalyses = buildResolutionAnalyses(session.state.run, {
     preserveCandidateIds: session.state.authoredResolutionCandidates,
+    exposePatch: session.compactPatchExposure !== "metadata_only",
   });
 }
 
@@ -539,6 +547,7 @@ function wrapGithubTool(tool: Tool, session: InvestigationSession): Tool {
           output: cachedPayload(session, key),
           evidenceIds: existing ? [existing.id] : [],
           cached: true,
+          patchExposure: session.compactPatchExposure,
         });
       }
       if (key) {
@@ -559,6 +568,7 @@ function wrapGithubTool(tool: Tool, session: InvestigationSession): Tool {
           args,
           output,
           evidenceIds,
+          patchExposure: session.compactPatchExposure,
         });
       } catch (error) {
         const providerError = error instanceof GitHubProviderError ? error : undefined;

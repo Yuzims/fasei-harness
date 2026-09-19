@@ -27,3 +27,39 @@ export type {
   StrategyEvaluationRun,
   StrategyMetricDifference,
 } from "./strategy-evaluation.js";
+export {
+  RESOLUTION_ANALYSIS_EVALUATION_BASELINE_NOTE,
+  RESOLUTION_ANALYSIS_EVALUATION_VERSION,
+  RESOLUTION_ANALYSIS_GROUNDING_LIMITATION,
+  RESOLUTION_ANALYSIS_INJECTION_MARKERS,
+  RESOLUTION_ANALYSIS_REAL_CASE_IDS,
+  compareResolutionAnalysisEvaluation,
+  createPatchedSnapshotProvider,
+  differenceOfResolutionAnalysis,
+  evaluateAllSyntheticResolutionCases,
+  evaluateRealV1ResolutionCase,
+  evaluateRealV1ResolutionCases,
+  evaluateSyntheticResolutionCase,
+  runResolutionAnalysisEvaluation,
+  syntheticResolutionAnalysisCases,
+  verifierInvariantHolds,
+} from "./resolution-analysis-evaluation.js";
+export type {
+  ResolutionAnalysisCaseConfig,
+  ResolutionAnalysisComparison,
+  ResolutionAnalysisEvaluationMetrics,
+  ResolutionAnalysisEvaluationMode,
+  ResolutionAnalysisEvaluationRun,
+  ResolutionAnalysisFailureClass,
+  ResolutionAnalysisMetricDifference,
+} from "./resolution-analysis-evaluation.js";
+export {
+  analysisCorpus,
+  collectBoundedPatches,
+  evaluateResolutionAnalysisGrounding,
+} from "./resolution-analysis-grounding.js";
+export type {
+  BoundedPatchView,
+  ResolutionAnalysisGrounding,
+  ResolutionAnalysisGroundingInput,
+} from "./resolution-analysis-grounding.js";

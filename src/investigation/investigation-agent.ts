@@ -110,6 +110,13 @@ export interface InvestigateOptions {
    * and before the first AgentLoop attempt. Production live path omits this.
    */
   prepareSession?: (session: InvestigationSession) => void;
+  /**
+   * Test/evaluation boundary only. Production omits this and keeps patch_enabled.
+   * Controls whether bounded unified diffs enter LLM compact tool output and
+   * Agent-visible Resolution Analysis text. Evidence.payload, provider
+   * semantics, and IndependentCompletionVerifier are unchanged.
+   */
+  compactPatchExposure?: "metadata_only" | "patch_enabled";
 }
 
 class InvestigationLoopModel implements Model {
@@ -459,6 +466,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     runId: run.id,
     llmUsage,
     llmRuntime: runtime,
+    compactPatchExposure: options.compactPatchExposure ?? "patch_enabled",
   };
   const tools = createInvestigationToolList(options.provider, session);
   const registry = new ToolRegistry();

@@ -166,7 +166,10 @@ function issueLabel(issue: Evidence): string {
   return issue.summary;
 }
 
-function observedFileFacts(files: Evidence[]): {
+function observedFileFacts(
+  files: Evidence[],
+  exposePatch: boolean,
+): {
   facts: string[];
   patched: Evidence[];
   unpatched: Evidence[];
@@ -184,7 +187,7 @@ function observedFileFacts(files: Evidence[]): {
     if (isTestFilePath(change.filename)) {
       testFiles.push(file);
     }
-    if (change.patch) {
+    if (exposePatch && change.patch) {
       patched.push(file);
       const added = observedAddedLines(change.patch);
       facts.push(
@@ -195,7 +198,10 @@ function observedFileFacts(files: Evidence[]): {
     } else {
       unpatched.push(file);
       facts.push(
-        `${change.filename} ${change.status} +${change.additions}/-${change.deletions}; no bounded patch on this file evidence`,
+        `${change.filename} ${change.status} +${change.additions}/-${change.deletions}; ` +
+          (exposePatch
+            ? "no bounded patch on this file evidence"
+            : "bounded patch not exposed to investigation context"),
       );
     }
   }
@@ -216,11 +222,18 @@ export function buildResolutionAnalysisForCandidate(
     candidate: Evidence;
     issue: Evidence;
     authored?: Partial<Pick<ResolutionAnalysis, "codeRelevance" | "behavioralAlignment" | "testSupport" | "unresolvedQuestions" | "claimIds" | "mergeCommitSha">>;
+    /**
+     * When false, analysis text ignores Evidence.payload.patch.
+     * Evaluation metadata_only uses this so Agent-visible analysis cannot
+     * leak unified diffs that were withheld from compact tool output.
+     */
+    exposePatch?: boolean;
   },
 ): ResolutionAnalysis {
+  const exposePatch = input.exposePatch !== false;
   const pullNumber = pullNumberOf(input.candidate);
   const files = pullNumber ? filesForPull(run, pullNumber) : run.evidence.filter((item) => item.kind === "file");
-  const observed = observedFileFacts(files);
+  const observed = observedFileFacts(files, exposePatch);
   const supporting = existingEvidenceIds(run, [
     input.candidate.id,
     input.issue.id,
@@ -231,8 +244,13 @@ export function buildResolutionAnalysisForCandidate(
   const hasPatch = observed.patched.length > 0;
 
   if (!hasPatch) {
-    questions.push("Current file evidence has no bounded patch; code-change context is insufficient.");
-    questions.push("The current snapshot may lack necessary file diffs.");
+    if (!exposePatch) {
+      questions.push("Bounded unified diff was not exposed to the investigation context; code-change context is insufficient.");
+      questions.push("File metadata alone cannot prove runtime behavior.");
+    } else {
+      questions.push("Current file evidence has no bounded patch; code-change context is insufficient.");
+      questions.push("The current snapshot may lack necessary file diffs.");
+    }
   } else {
     questions.push("The observed diff cannot prove runtime behavior.");
     questions.push("No test execution results were observed.");
@@ -257,7 +275,9 @@ export function buildResolutionAnalysisForCandidate(
     ? input.authored.codeRelevance
     : hasPatch
       ? `Observed facts: ${observed.facts.join(" | ")}. Inference: these observed code changes may relate to the issue evidence. This is a hypothesis, not verification.`
-      : INSUFFICIENT_CODE_CHANGE_CONTEXT;
+      : !exposePatch && observed.facts.length > 0
+        ? `Observed facts: ${observed.facts.join(" | ")}. ${INSUFFICIENT_CODE_CHANGE_CONTEXT}`
+        : INSUFFICIENT_CODE_CHANGE_CONTEXT;
 
   const behavioralAlignment = input.authored?.behavioralAlignment
     ? input.authored.behavioralAlignment
@@ -285,7 +305,7 @@ export function buildResolutionAnalysisForCandidate(
 
 export function buildResolutionAnalyses(
   run: InvestigationRun,
-  options?: { preserveCandidateIds?: Iterable<string> },
+  options?: { preserveCandidateIds?: Iterable<string>; exposePatch?: boolean },
 ): ResolutionAnalysis[] {
   const issue = issueEvidence(run);
   const candidates = pullCandidates(run);
@@ -305,7 +325,11 @@ export function buildResolutionAnalyses(
         };
       }
     }
-    return buildResolutionAnalysisForCandidate(run, { candidate, issue });
+    return buildResolutionAnalysisForCandidate(run, {
+      candidate,
+      issue,
+      exposePatch: options?.exposePatch,
+    });
   });
 }
 

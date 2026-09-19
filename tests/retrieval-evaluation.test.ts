@@ -12,12 +12,16 @@ import { realDatasetGroundTruthPath } from "../src/benchmark/dataset/paths.js";
 import {
   MAX_INVESTIGATED_CANDIDATES,
   applyCandidateSelection,
+  countTraceToolCalls,
   createRetrievalCandidate,
   investigate,
   rankCandidates,
+  type InvestigationAgentReport,
 } from "../src/investigation/index.js";
 import { SnapshotGitHubProvider } from "../src/github/snapshot-provider.js";
 import { githubFixturePath } from "../src/github/snapshot-store.js";
+import { TraceCollector } from "../src/trace/trace-collector.js";
+import { createInvestigationRun, createInvestigationTask, type VerificationStatus } from "../src/domain/index.js";
 import {
   RETRIEVAL_EVALUATION_BASELINE_NOTE,
   RETRIEVAL_EVALUATION_REAL_CASE_IDS,
@@ -277,6 +281,175 @@ test("K — SRE06 investigate honors the investigation budget", async () => {
   });
   assert.ok(run.metrics.investigatedCandidateCount <= MAX_INVESTIGATED_CANDIDATES);
   assert.ok(run.report.retrievalCandidates.filter((item) => item.status === "investigating" || item.status === "promoted").length <= MAX_INVESTIGATED_CANDIDATES);
+});
+
+function verificationReport(
+  status: VerificationStatus,
+  extras?: Partial<InvestigationAgentReport>,
+): InvestigationAgentReport {
+  const task = createInvestigationTask({
+    target: { owner: "acme", repository: "box", issueNumber: 42 },
+  });
+  const run = createInvestigationRun({ task });
+  return {
+    task,
+    run,
+    verification: {
+      status,
+      checks: [],
+      evidenceCoverage: 0,
+      unsupportedClaimIds: [],
+      missingRequirementIds: [],
+      prematureCompletion: false,
+    },
+    claims: [],
+    investigationSteps: extras?.investigationSteps ?? [],
+    toolCallCount: extras?.toolCallCount ?? 0,
+    selectedCandidates: extras?.selectedCandidates ?? [],
+    llmUsage: {
+      llmCalls: 0,
+      totalInputTokens: null,
+      totalOutputTokens: null,
+      totalTokens: null,
+      totalCachedInputTokens: null,
+      overallCacheHitRate: null,
+      averageInputTokensPerCall: null,
+      averageOutputTokensPerCall: null,
+      model: null,
+      calls: [],
+    },
+    ...extras,
+  } as InvestigationAgentReport;
+}
+
+test("A — toolCalls equals real tool_call events, not investigationSteps.length", async () => {
+  const trace = new TraceCollector();
+  const executed = await investigate({
+    task: { owner: "acme", repository: "box", issueNumber: 42 },
+    provider: new SnapshotGitHubProvider(githubFixturePath("resolved")),
+    trace,
+    useTestDriver: true,
+  });
+  const actualToolCalls = countTraceToolCalls(trace.getEvents());
+  assert.ok(actualToolCalls > 0);
+  assert.equal(executed.toolCallCount, actualToolCalls);
+
+  const paddedSteps = [...executed.investigationSteps, ...executed.investigationSteps];
+  assert.notEqual(paddedSteps.length, executed.toolCallCount);
+
+  const metrics = evaluateRetrievalCandidates({
+    caseId: "tool-calls",
+    strategy: "evidence_driven",
+    candidates: executed.retrievalCandidates,
+    groundTruth: { caseId: "tool-calls", expectedResolution: "none", validCandidates: [] },
+    report: { ...executed, investigationSteps: paddedSteps },
+  });
+  assert.equal(metrics.toolCalls, actualToolCalls);
+  assert.notEqual(metrics.toolCalls, paddedSteps.length);
+  assert.notEqual(metrics.toolCalls, metrics.llmCalls);
+});
+
+test("B — topK is the runtime selection, not a re-ranked slice", () => {
+  const a = candidate("pull_request", "1", { issueReference: true, lexicalScore: 10, status: "candidate" });
+  const b = candidate("pull_request", "2", { lexicalScore: 0, status: "candidate" });
+  const c = candidate("pull_request", "3", { lexicalScore: 0, status: "candidate" });
+  const reranked = rankCandidates([a, b, c]);
+  assert.deepEqual(
+    reranked.slice(0, 2).map((item) => item.sourceId),
+    ["1", "2"],
+  );
+
+  const metrics = evaluateRetrievalCandidates({
+    caseId: "actual-topk",
+    strategy: "evidence_driven",
+    candidates: [a, b, c],
+    selectedCandidates: [b, c],
+    groundTruth: {
+      caseId: "actual-topk",
+      expectedResolution: "candidate",
+      validCandidates: [{ sourceType: "pull_request", sourceId: "2" }],
+    },
+  });
+  assert.deepEqual(
+    metrics.topK.map((item) => item.sourceId),
+    ["2", "3"],
+  );
+  assert.equal(metrics.topKFound, true);
+});
+
+test("C — investigation success is selected/investigated, not promoted", () => {
+  const gt = candidate("pull_request", "7", { status: "investigating" });
+  assert.notEqual(gt.status, "promoted");
+  const metrics = evaluateRetrievalCandidates({
+    caseId: "investigated-not-promoted",
+    strategy: "evidence_driven",
+    candidates: [gt, candidate("pull_request", "8", { status: "rejected" })],
+    groundTruth: {
+      caseId: "investigated-not-promoted",
+      expectedResolution: "candidate",
+      validCandidates: [{ sourceType: "pull_request", sourceId: "7" }],
+    },
+  });
+  assert.equal(metrics.discoveryFound, true);
+  assert.equal(metrics.topKFound, true);
+  assert.equal(metrics.investigationSuccess, true);
+  assert.equal(metrics.promotedCandidateCount, 0);
+});
+
+test("D — discovered but not in actual Top-K is ranked_out_of_top_k", () => {
+  const gt = candidate("pull_request", "99", { lexicalScore: 1, status: "rejected" });
+  const selected = [
+    candidate("pull_request", "101", { issueReference: true, status: "investigating" }),
+    candidate("pull_request", "102", { issueReference: true, status: "investigating" }),
+  ];
+  const metrics = evaluateRetrievalCandidates({
+    caseId: "ranked-out-actual",
+    strategy: "evidence_driven",
+    candidates: [...selected, gt],
+    selectedCandidates: selected,
+    groundTruth: {
+      caseId: "ranked-out-actual",
+      expectedResolution: "candidate",
+      validCandidates: [{ sourceType: "pull_request", sourceId: "99" }],
+    },
+  });
+  assert.equal(metrics.discoveryFound, true);
+  assert.equal(metrics.topKFound, false);
+  assert.equal(metrics.diagnosis, "ranked_out_of_top_k");
+});
+
+test("E — GT missing from discovered candidates is discovery_failure", () => {
+  const metrics = evaluateRetrievalCandidates({
+    caseId: "not-discovered",
+    strategy: "evidence_driven",
+    candidates: [candidate("pull_request", "21", { status: "investigating" })],
+    groundTruth: {
+      caseId: "not-discovered",
+      expectedResolution: "candidate",
+      validCandidates: [{ sourceType: "commit", sourceId: "deadbeef0123456789abcdef0123456789abcdef" }],
+    },
+  });
+  assert.equal(metrics.discoveryFound, false);
+  assert.equal(metrics.diagnosis, "discovery_failure");
+});
+
+test("F — investigated GT with insufficient_evidence is evidence_insufficient", () => {
+  const gt = candidate("pull_request", "7", { status: "investigating" });
+  const metrics = evaluateRetrievalCandidates({
+    caseId: "insufficient",
+    strategy: "evidence_driven",
+    candidates: [gt],
+    selectedCandidates: [gt],
+    groundTruth: {
+      caseId: "insufficient",
+      expectedResolution: "candidate",
+      validCandidates: [{ sourceType: "pull_request", sourceId: "7" }],
+    },
+    report: verificationReport("insufficient_evidence"),
+  });
+  assert.equal(metrics.investigationSuccess, true);
+  assert.equal(metrics.verificationResult, "insufficient_evidence");
+  assert.equal(metrics.diagnosis, "evidence_insufficient");
 });
 
 test("diagnoses distinguish discovery, ranking, investigation, and insufficient evidence", () => {

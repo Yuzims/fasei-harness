@@ -49,6 +49,7 @@ export {
   deriveInvestigationStatus,
   toAgentReport,
   buildInvestigationReport,
+  countTraceToolCalls,
 } from "./investigation-report.js";
 export type {
   InvestigationActor,
@@ -91,6 +92,7 @@ export {
   MAX_INVESTIGATED_CANDIDATES,
   NO_CANDIDATE_FOUND,
   applyCandidateSelection,
+  candidateSelectionResult,
   createRetrievalCandidate,
   discoverCommitCandidates,
   discoverPullCandidates,
@@ -105,6 +107,7 @@ export {
 } from "./retrieval/index.js";
 export type {
   RetrievalCandidate,
+  RetrievalCandidateSelectionResult,
   RetrievalCandidateSourceType,
   RetrievalCandidateStatus,
   RetrievalIntent,

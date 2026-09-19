@@ -28,8 +28,10 @@ export type { IssueRetrievalContext, RankableRecord } from "./ranking.js";
 export {
   MAX_INVESTIGATED_CANDIDATES,
   applyCandidateSelection,
+  candidateSelectionResult,
   selectTopCandidates,
 } from "./selection.js";
+export type { RetrievalCandidateSelectionResult } from "./selection.js";
 export {
   NO_CANDIDATE_FOUND,
   NO_CANDIDATE_IN_WINDOW,

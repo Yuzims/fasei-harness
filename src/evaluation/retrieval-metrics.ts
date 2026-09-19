@@ -109,12 +109,26 @@ export function topKFound(
   return recallAtK(topK, validCandidates, k) === 1;
 }
 
+export function inInvestigationBudget(candidate: RetrievalCandidateView): boolean {
+  return candidate.status === "investigating" || candidate.status === "promoted";
+}
+
+export function selectedTopK(
+  candidates: readonly RetrievalCandidateView[],
+): RetrievalCandidateView[] {
+  return candidates.filter(inInvestigationBudget);
+}
+
+/**
+ * Investigation success = GT candidate was actually selected/investigated.
+ * Promotion is a later lifecycle step, not the investigation-success signal.
+ */
 export function investigationSucceeded(
   candidates: readonly RetrievalCandidateView[],
   validCandidates: readonly ExpectedResolutionCandidate[],
 ): boolean {
   return candidates.some(
-    (item) => item.status === "promoted" && isRelevantCandidate(item, validCandidates),
+    (item) => inInvestigationBudget(item) && isRelevantCandidate(item, validCandidates),
   );
 }
 

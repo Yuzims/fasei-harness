@@ -400,6 +400,7 @@ function unconfiguredReport(
     status: "unconfigured",
     llmUsage,
     runtimeBudget,
+    traceEvents: [],
   });
   report.report.conclusion =
     "Investigation Agent is unconfigured: no OpenAI-compatible API key. Not running WorkspaceAgentModel / keyword classifier. SnapshotInvestigationDriver is a test fixture only (pass useTestDriver: true).";
@@ -673,6 +674,7 @@ async function runInvestigationAttempts(input: {
       verification: lastVerification,
       llmUsage: llmUsage.aggregate(),
       runtimeBudget: runtime.budget,
+      traceEvents: trace.getEvents(),
     });
 
     if (lastVerification.status === "verified_complete" && !session.runtimeFailure) {
@@ -866,6 +868,7 @@ async function runInvestigationAttempts(input: {
     verification: lastVerification,
     llmUsage: llmUsage.aggregate(),
     runtimeBudget: runtime.budget,
+    traceEvents: trace.getEvents(),
   });
 
   trace.record(run.id, state.currentStep, "investigation_completed", {

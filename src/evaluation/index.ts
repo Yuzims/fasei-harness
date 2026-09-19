@@ -100,6 +100,7 @@ export {
   isRelevantCandidate,
   precisionAtK,
   recallAtK,
+  selectedTopK,
   topKFound,
 } from "./retrieval-metrics.js";
 export type {

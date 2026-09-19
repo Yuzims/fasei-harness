@@ -47,6 +47,24 @@ export interface InvestigationAgentReport {
   llmUsage: LlmUsageAggregate;
   runtimeBudget?: LlmRuntimeBudget;
   retrievalCandidates: RetrievalCandidate[];
+  /**
+   * Actual AgentLoop tool_call events. Not investigationSteps.length.
+   * investigationSteps is tool history / observations, which can differ.
+   */
+  toolCallCount: number;
+  /** Runtime Top-K: candidates that entered the investigation budget. */
+  selectedCandidates: RetrievalCandidate[];
+}
+
+export function countTraceToolCalls(events: readonly { type: string }[]): number {
+  return events.filter((event) => event.type === "tool_call").length;
+}
+
+function cloneCandidates(candidates: readonly RetrievalCandidate[]): RetrievalCandidate[] {
+  return candidates.map((candidate) => ({
+    ...candidate,
+    relevanceSignals: { ...candidate.relevanceSignals },
+  }));
 }
 
 export function stepsFromHistory(history: ToolHistoryEntry[]): InvestigationStep[] {
@@ -134,6 +152,7 @@ export function toAgentReport(input: {
   verification?: VerificationResult;
   llmUsage?: LlmUsageAggregate;
   runtimeBudget?: LlmRuntimeBudget;
+  traceEvents?: readonly { type: string }[];
 }): InvestigationAgentReport {
   const status = input.status ?? deriveInvestigationStatus(input.state);
   const report = buildInvestigationReport(input.state, status);
@@ -153,9 +172,8 @@ export function toAgentReport(input: {
     verification: input.verification,
     llmUsage: input.llmUsage ?? aggregateLlmUsage([]),
     runtimeBudget: input.runtimeBudget,
-    retrievalCandidates: input.state.retrievalCandidates.map((candidate) => ({
-      ...candidate,
-      relevanceSignals: { ...candidate.relevanceSignals },
-    })),
+    retrievalCandidates: cloneCandidates(input.state.retrievalCandidates),
+    toolCallCount: countTraceToolCalls(input.traceEvents ?? []),
+    selectedCandidates: cloneCandidates(input.state.selectedRetrievalCandidates()),
   };
 }

@@ -7,6 +7,20 @@ import { rankCandidates } from "./ranking.js";
  */
 export const MAX_INVESTIGATED_CANDIDATES = 5;
 
+export interface RetrievalCandidateSelectionResult {
+  selected: RetrievalCandidate[];
+}
+
+export function candidateSelectionResult(
+  candidates: readonly RetrievalCandidate[],
+): RetrievalCandidateSelectionResult {
+  return {
+    selected: candidates.filter(
+      (item) => item.status === "investigating" || item.status === "promoted",
+    ),
+  };
+}
+
 export function selectTopCandidates(
   candidates: readonly RetrievalCandidate[],
   limit = MAX_INVESTIGATED_CANDIDATES,

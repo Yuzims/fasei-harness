@@ -35,7 +35,6 @@ import {
 import {
   MAX_INVESTIGATED_CANDIDATES,
   investigate,
-  rankCandidates,
   withCandidateStatus,
   type InvestigateOptions,
   type InvestigationAgentReport,
@@ -52,6 +51,7 @@ import {
   meanDefined,
   precisionAtK,
   recallAtK,
+  selectedTopK,
   type ExpectedResolutionCandidate,
   type RetrievalCandidateView,
   type RetrievalDiagnosis,
@@ -257,14 +257,14 @@ export const REAL_V1_RETRIEVAL_GROUND_TRUTH: Record<string, RetrievalGroundTruth
   },
 };
 
-function orderedCandidates(
+function runtimeTopK(
   candidates: readonly RetrievalCandidate[],
-  strategy: RetrievalEvaluationStrategy,
-): RetrievalCandidate[] {
-  if (strategy === "evidence_driven") {
-    return rankCandidates(candidates);
+  selected?: readonly RetrievalCandidate[],
+): RetrievalCandidateView[] {
+  if (selected) {
+    return selected.map(asCandidateView);
   }
-  return [...candidates];
+  return selectedTopK(candidates.map(asCandidateView));
 }
 
 function verificationStatusOf(report: InvestigationAgentReport): VerificationStatus {
@@ -327,6 +327,8 @@ export function evaluateRetrievalCandidates(input: {
   candidates: readonly RetrievalCandidate[];
   groundTruth: RetrievalGroundTruth;
   report?: InvestigationAgentReport;
+  /** Runtime Top-K. Evaluation must not re-run ranking/selection to derive this. */
+  selectedCandidates?: readonly RetrievalCandidate[];
   llmCalls?: number;
   estimatedInputTokens?: number | null;
   runtimeMs?: number;
@@ -334,8 +336,10 @@ export function evaluateRetrievalCandidates(input: {
   const resolutionExpected = input.groundTruth.expectedResolution === "candidate";
   const valid = resolutionExpected ? input.groundTruth.validCandidates : [];
   const discovered = input.candidates.map(asCandidateView);
-  const ordered = orderedCandidates(input.candidates, input.strategy).map(asCandidateView);
-  const topK = ordered.slice(0, MAX_INVESTIGATED_CANDIDATES);
+  const topK = runtimeTopK(
+    input.candidates,
+    input.selectedCandidates ?? input.report?.selectedCandidates,
+  );
   const investigated = discovered.filter(
     (item) => item.status === "investigating" || item.status === "promoted",
   );
@@ -372,7 +376,7 @@ export function evaluateRetrievalCandidates(input: {
     investigatedCandidateCount: investigated.length,
     rejectedCandidateCount: discovered.filter((item) => item.status === "rejected").length,
     promotedCandidateCount: discovered.filter((item) => item.status === "promoted").length,
-    toolCalls: input.report?.investigationSteps.length ?? 0,
+    toolCalls: input.report?.toolCallCount ?? 0,
     llmCalls: input.llmCalls ?? 0,
     inputTokens: input.estimatedInputTokens ?? null,
     outputTokens: input.report?.llmUsage.totalOutputTokens ?? null,
@@ -476,6 +480,7 @@ export async function runRetrievalEvaluation(input: {
       candidates: report.retrievalCandidates,
       groundTruth: input.groundTruth,
       report,
+      selectedCandidates: report.selectedCandidates,
       llmCalls: collector.llmCalls,
       estimatedInputTokens: collector.estimatedInputTokens,
       runtimeMs: Date.now() - started,

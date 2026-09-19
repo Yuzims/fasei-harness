@@ -42,6 +42,7 @@ import {
 import {
   MAX_INVESTIGATED_CANDIDATES,
   applyCandidateSelection,
+  candidateSelectionResult,
   discoverCommitCandidates,
   discoverPullCandidates,
   discoveryOutcome,
@@ -158,18 +159,16 @@ function applyGroupSelection(
   const group = session.state.retrievalCandidates.filter((item) => item.sourceType === sourceType);
   const selector = session.candidateSelection ?? applyCandidateSelection;
   const selected = selector(group, MAX_INVESTIGATED_CANDIDATES);
-  const inBudget = selected.filter(
-    (item) => item.status === "investigating" || item.status === "promoted",
-  ).length;
-  if (inBudget > MAX_INVESTIGATED_CANDIDATES) {
+  const { selected: inBudgetCandidates } = candidateSelectionResult(selected);
+  if (inBudgetCandidates.length > MAX_INVESTIGATED_CANDIDATES) {
     throw new Error(
-      `retrieval investigation budget exceeded: ${inBudget} > ${MAX_INVESTIGATED_CANDIDATES}`,
+      `retrieval investigation budget exceeded: ${inBudgetCandidates.length} > ${MAX_INVESTIGATED_CANDIDATES}`,
     );
   }
   session.state.replaceRetrievalGroup(sourceType, selected);
   selected.forEach((candidate, rank) => {
     recordCandidateRanked(session, candidate, rank);
-    if (candidate.status === "investigating") {
+    if (candidate.status === "investigating" || candidate.status === "promoted") {
       recordCandidateSelected(session, candidate);
     } else if (candidate.status === "rejected") {
       recordCandidateRejected(session, candidate);

@@ -5,6 +5,11 @@
  * This module never calls an LLM and never truncates AgentLoop history.
  */
 
+import {
+  MAX_REPOSITORY_COMMIT_DISCOVERY,
+  REPOSITORY_COMMIT_DISCOVERY_TRUNCATED_NOTICE,
+  unwrapCommitList,
+} from "../github/commit-bounds.js";
 import { extractMentionedNumbers } from "../github/normalize.js";
 import { applyPatchBudget } from "../github/patch-bounds.js";
 import { extractSemanticReferences, mentionedIssueNumbers } from "../github/semantic-references.js";
@@ -166,10 +171,24 @@ function compactFiles(output: unknown, exposePatch: boolean): Record<string, unk
   };
 }
 
-function compactCommits(output: unknown): Record<string, unknown> {
-  const commits = asArray(output);
+function compactCommits(output: unknown, repositoryWide: boolean): Record<string, unknown> {
+  const { commits: raw, truncated } = unwrapCommitList(output);
+  if (!repositoryWide) {
+    return {
+      count: raw.length,
+      commits: raw.filter(isRecord).map((item) => ({
+        sha: String(item.sha ?? ""),
+        message: firstLine(item.message),
+      })),
+    };
+  }
+  const commits = raw.slice(0, MAX_REPOSITORY_COMMIT_DISCOVERY);
+  const windowTruncated = truncated === true || raw.length > MAX_REPOSITORY_COMMIT_DISCOVERY;
   return {
     count: commits.length,
+    truncated: windowTruncated,
+    discoveryBound: MAX_REPOSITORY_COMMIT_DISCOVERY,
+    ...(windowTruncated ? { notice: REPOSITORY_COMMIT_DISCOVERY_TRUNCATED_NOTICE } : {}),
     commits: commits.filter(isRecord).map((item) => ({
       sha: String(item.sha ?? ""),
       message: firstLine(item.message),
@@ -198,7 +217,10 @@ function compactResult(
     case "github_get_pull_request_files":
       return compactFiles(output, exposePatch);
     case "github_list_commits":
-      return compactCommits(output);
+      return compactCommits(
+        output,
+        !(typeof args.pullNumber === "number" && args.pullNumber > 0),
+      );
     default:
       return { observed: true };
   }

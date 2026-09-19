@@ -25,6 +25,15 @@ export {
   MAX_TOTAL_PATCH_CHARS,
 } from "./patch-bounds.js";
 export {
+  attachCommitDiscoveryTruncation,
+  boundRepositoryCommitDiscovery,
+  commitDiscoveryTruncated,
+  MAX_REPOSITORY_COMMIT_DISCOVERY,
+  REPOSITORY_COMMIT_DISCOVERY_TRUNCATED_NOTICE,
+  unwrapCommitList,
+} from "./commit-bounds.js";
+export type { BoundedCommitDiscovery } from "./commit-bounds.js";
+export {
   extractSemanticReferences,
   mentionedIssueNumbers,
   SEMANTIC_REFERENCE_KINDS,
@@ -42,4 +51,5 @@ export type {
   RepositorySnapshot,
   ReviewSnapshot,
   TimelineEventSnapshot,
+  ListedCommits,
 } from "./types.js";

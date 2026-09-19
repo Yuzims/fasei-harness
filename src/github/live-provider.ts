@@ -1,3 +1,4 @@
+import { attachCommitDiscoveryTruncation, MAX_REPOSITORY_COMMIT_DISCOVERY } from "./commit-bounds.js";
 import { GitHubProviderError } from "./errors.js";
 import { daysAgoIso, encodeRepo, GithubHttpClient, type GithubHttpOptions } from "./http.js";
 import {
@@ -24,6 +25,7 @@ import type {
   IssueRef,
   IssueSnapshot,
   ListCommitsQuery,
+  ListedCommits,
   PullRef,
   PullRequestSnapshot,
   ReadmeSnapshot,
@@ -122,17 +124,28 @@ export class LiveGitHubProvider implements GitHubDataProvider {
     );
   }
 
-  async listCommits(query: ListCommitsQuery): Promise<CommitSnapshot[]> {
+  async listCommits(query: ListCommitsQuery): Promise<ListedCommits> {
     const { owner, repo } = requireId(query.owner, query.repo, "listCommits");
-    const path =
-      query.pullNumber && query.pullNumber > 0
-        ? `/repos/${encodeRepo(owner, repo)}/pulls/${query.pullNumber}/commits?per_page=100`
-        : `/repos/${encodeRepo(owner, repo)}/commits?per_page=30${
-            query.sha ? `&sha=${encodeURIComponent(query.sha)}` : ""
-          }`;
-    const raw = await this.http.getJsonPages("listCommits", path);
+    if (query.pullNumber && query.pullNumber > 0) {
+      const raw = await this.http.getJsonPages(
+        "listCommits",
+        `/repos/${encodeRepo(owner, repo)}/pulls/${query.pullNumber}/commits?per_page=100`,
+      );
+      const retrievedAt = this.http.retrievedAt();
+      return raw.map((item) => normalizeCommit(item, owner, repo, retrievedAt));
+    }
+    const perPage = Math.min(MAX_REPOSITORY_COMMIT_DISCOVERY, 100);
+    const shaQuery = query.sha ? `&sha=${encodeURIComponent(query.sha)}` : "";
+    const { items: raw, truncated } = await this.http.getJsonPagesBounded(
+      "listCommits",
+      `/repos/${encodeRepo(owner, repo)}/commits?per_page=${perPage}${shaQuery}`,
+      MAX_REPOSITORY_COMMIT_DISCOVERY,
+    );
     const retrievedAt = this.http.retrievedAt();
-    return raw.map((item) => normalizeCommit(item, owner, repo, retrievedAt));
+    return attachCommitDiscoveryTruncation(
+      raw.map((item) => normalizeCommit(item, owner, repo, retrievedAt)),
+      truncated,
+    );
   }
 
   async getCommit(ref: CommitRef): Promise<CommitSnapshot> {

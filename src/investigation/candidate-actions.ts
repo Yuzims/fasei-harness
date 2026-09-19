@@ -323,17 +323,10 @@ function collectDiscoveryActions(
       exploratory: true,
     }),
   );
-  addIfAvailable(
-    state,
-    list,
-    action({
-      tool: "github_list_commits",
-      arguments: { owner: target.owner, repo: target.repo },
-      targetRequirementIds: ids,
-      objective: "Discover a closing-keyword commit when no pull request number is known.",
-      exploratory: true,
-    }),
-  );
+  addRepositoryCommitDiscovery(state, gap, list, {
+    targetRequirementIds: ids,
+    objective: "Discover a closing-keyword commit when no pull request number is known.",
+  });
 }
 
 function collectPullActions(
@@ -409,18 +402,34 @@ function collectCodeActions(
     );
   }
   if (pulls.length === 0 && (codeMissing || isMissing(gap, "resolution_candidate"))) {
-    addIfAvailable(
-      state,
-      list,
-      action({
-        tool: "github_list_commits",
-        arguments: { owner: target.owner, repo: target.repo },
-        targetRequirementIds: idsFor(gap, ["resolution_candidate", "resolution_code_evidence"]),
-        objective: "Inspect repository commits for a direct-commit resolution.",
-        exploratory: true,
-      }),
-    );
+    addRepositoryCommitDiscovery(state, gap, list, {
+      targetRequirementIds: idsFor(gap, ["resolution_candidate", "resolution_code_evidence"]),
+      objective: "Inspect repository commits for a direct-commit resolution.",
+    });
   }
+}
+
+function addRepositoryCommitDiscovery(
+  state: InvestigationState,
+  gap: EvidenceGap,
+  list: CandidateInvestigationAction[],
+  input: { targetRequirementIds: string[]; objective: string },
+): void {
+  if (hasTerminalNegativeEvidence(gap)) {
+    return;
+  }
+  const target = targetArgs(state);
+  addIfAvailable(
+    state,
+    list,
+    action({
+      tool: "github_list_commits",
+      arguments: { owner: target.owner, repo: target.repo },
+      targetRequirementIds: input.targetRequirementIds,
+      objective: input.objective,
+      exploratory: true,
+    }),
+  );
 }
 
 function collectClaimAction(

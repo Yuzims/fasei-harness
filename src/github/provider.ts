@@ -6,6 +6,7 @@ import type {
   IssueRef,
   IssueSnapshot,
   ListCommitsQuery,
+  ListedCommits,
   PullRef,
   PullRequestSnapshot,
   ReadmeSnapshot,
@@ -25,7 +26,7 @@ export interface GitHubDataProvider {
   getPullRequest(ref: PullRef): Promise<PullRequestSnapshot>;
   getPullRequestReviews(ref: PullRef): Promise<ReviewSnapshot[]>;
   getPullRequestFiles(ref: PullRef): Promise<FileChangeSnapshot[]>;
-  listCommits(query: ListCommitsQuery): Promise<CommitSnapshot[]>;
+  listCommits(query: ListCommitsQuery): Promise<ListedCommits>;
   getCommit(ref: CommitRef): Promise<CommitSnapshot>;
   searchRepositories(query: SearchRepositoriesQuery): Promise<{
     query: string;

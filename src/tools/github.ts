@@ -294,12 +294,19 @@ export function createGithubListCommitsTool(options: GithubToolOptions = {}): To
           ? undefined
           : requirePositiveInt(args, "pullNumber", "github_list_commits");
       const sha = typeof args.sha === "string" ? args.sha.trim() : undefined;
-      return provider.listCommits({
+      const commits = await provider.listCommits({
         owner: requireString(args, "owner", "github_list_commits"),
         repo: requireString(args, "repo", "github_list_commits"),
         pullNumber,
         sha,
       });
+      if (pullNumber !== undefined) {
+        return commits;
+      }
+      return {
+        commits: [...commits],
+        truncated: commits.truncated === true,
+      };
     },
   };
 }

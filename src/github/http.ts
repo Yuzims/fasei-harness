@@ -48,12 +48,46 @@ export class GithubHttpClient {
     return parseJsonBody(operation, status, text);
   }
 
-  async getJsonPages(operation: string, path: string): Promise<unknown[]> {
+  async getJsonPages(
+    operation: string,
+    path: string,
+    options?: { maxItems?: number },
+  ): Promise<unknown[]> {
+    return (await this.collectJsonPages(operation, path, options)).items;
+  }
+
+  /**
+   * Paginate until `maxItems` is reached, then stop without fetching further pages.
+   * truncated=true means the budget was hit (or a page was sliced). It is not a
+   * claim that the remaining items are irrelevant.
+   */
+  async getJsonPagesBounded(
+    operation: string,
+    path: string,
+    maxItems: number,
+  ): Promise<{ items: unknown[]; truncated: boolean }> {
+    return this.collectJsonPages(operation, path, { maxItems });
+  }
+
+  private async collectJsonPages(
+    operation: string,
+    path: string,
+    options?: { maxItems?: number },
+  ): Promise<{ items: unknown[]; truncated: boolean }> {
     const items: unknown[] = [];
     let next: string | null = path;
     const seen = new Set<string>();
+    const maxItems = options?.maxItems;
+    let truncated = false;
     while (next) {
       if (seen.has(next) || seen.size >= 20) {
+        if (maxItems !== undefined && next && !seen.has(next) && seen.size >= 20) {
+          truncated = true;
+        }
+        break;
+      }
+      if (maxItems !== undefined && items.length >= maxItems) {
+        truncated = true;
         break;
       }
       seen.add(next);
@@ -68,10 +102,26 @@ export class GithubHttpClient {
           retryable: false,
         });
       }
+      const nextPath = nextLinkPath(headers.get("link"));
+      if (maxItems !== undefined) {
+        const room = maxItems - items.length;
+        if (parsed.length > room) {
+          items.push(...parsed.slice(0, room));
+          truncated = true;
+          break;
+        }
+        items.push(...parsed);
+        if (items.length >= maxItems && nextPath) {
+          truncated = true;
+          break;
+        }
+        next = nextPath;
+        continue;
+      }
       items.push(...parsed);
-      next = nextLinkPath(headers.get("link"));
+      next = nextPath;
     }
-    return items;
+    return { items, truncated };
   }
 
   async getText(operation: string, path: string, accept: string): Promise<string> {

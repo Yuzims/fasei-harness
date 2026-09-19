@@ -138,6 +138,19 @@ export interface ListCommitsQuery extends RepoRef {
   sha?: string;
 }
 
+/**
+ * listCommits return. Repository-wide discovery may set `truncated`.
+ * PR-specific retrieval keeps the historical unbounded array (no truncated).
+ */
+export type ListedCommits = CommitSnapshot[] & {
+  /**
+   * Present for repository-wide discovery only.
+   * true: the discovery window was reached; more commits were not fetched.
+   * false: every observed repository commit fit in the window.
+   */
+  truncated?: boolean;
+};
+
 export interface SearchRepositoriesQuery {
   query: string;
   sort?: "stars" | "updated";

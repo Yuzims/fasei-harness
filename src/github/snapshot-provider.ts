@@ -1,3 +1,4 @@
+import { attachCommitDiscoveryTruncation, boundRepositoryCommitDiscovery } from "./commit-bounds.js";
 import { GitHubProviderError } from "./errors.js";
 import type { GitHubDataProvider } from "./provider.js";
 import { loadSnapshot } from "./snapshot-store.js";
@@ -10,6 +11,7 @@ import type {
   IssueRef,
   IssueSnapshot,
   ListCommitsQuery,
+  ListedCommits,
   PullRef,
   PullRequestSnapshot,
   ReadmeSnapshot,
@@ -94,7 +96,7 @@ export class SnapshotGitHubProvider implements GitHubDataProvider {
     return this.snapshot.files[String(ref.pullNumber)] ?? [];
   }
 
-  async listCommits(query: ListCommitsQuery): Promise<CommitSnapshot[]> {
+  async listCommits(query: ListCommitsQuery): Promise<ListedCommits> {
     this.requireRepo("listCommits", query.owner, query.repo);
     if (query.pullNumber && query.pullNumber > 0) {
       await this.getPullRequest({
@@ -104,7 +106,8 @@ export class SnapshotGitHubProvider implements GitHubDataProvider {
       });
       return this.snapshot.commits[`pr:${query.pullNumber}`] ?? [];
     }
-    return this.snapshot.commits.repo ?? [];
+    const bounded = boundRepositoryCommitDiscovery(this.snapshot.commits.repo ?? []);
+    return attachCommitDiscoveryTruncation(bounded.items, bounded.truncated);
   }
 
   async getCommit(ref: CommitRef): Promise<CommitSnapshot> {

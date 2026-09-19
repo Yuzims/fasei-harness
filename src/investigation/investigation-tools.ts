@@ -20,6 +20,7 @@ import type { LlmRuntimeGuard } from "../agent/llm-runtime.js";
 import { TraceCollector } from "../trace/trace-collector.js";
 import { UNTRUSTED_NOTICE } from "./policy.js";
 import { GitHubProviderError } from "../github/errors.js";
+import { MAX_REPOSITORY_COMMIT_DISCOVERY, unwrapCommitList } from "../github/commit-bounds.js";
 import { extractMentionedNumbers } from "../github/normalize.js";
 import {
   InvestigationState,
@@ -419,7 +420,9 @@ function ingestFiles(session: InvestigationSession, output: unknown, pullNumber:
 }
 
 function ingestCommits(session: InvestigationSession, output: unknown, pullNumber: number | undefined): string[] {
-  const commits = asArray(output);
+  const { commits: raw } = unwrapCommitList(output);
+  const repositoryWide = !(pullNumber && pullNumber > 0);
+  const commits = repositoryWide ? raw.slice(0, MAX_REPOSITORY_COMMIT_DISCOVERY) : raw;
   const ids: string[] = [];
   if (pullNumber && pullNumber > 0) {
     session.state.investigatedResources.add(resourceKey("commits", String(pullNumber)));

@@ -19,21 +19,34 @@ export function selectTopCandidates(
 
 /**
  * Apply Top-K selection to one source-type group.
- * Selected candidates become investigating; the rest are rejected.
- * Rejection here is a retrieval-lifecycle status, not a verifier verdict.
+ *
+ * Re-ranks the full current group every time. Promoted candidates stay
+ * promoted and consume investigation budget. Remaining slots go to the
+ * current Top-K of not-yet-promoted candidates. Previous investigating
+ * status cannot keep a candidate in budget if it is no longer Top-K.
+ *
+ * rejected means "not in the current Top-K". It is not a verifier verdict.
  */
 export function applyCandidateSelection(
   candidates: readonly RetrievalCandidate[],
   limit = MAX_INVESTIGATED_CANDIDATES,
 ): RetrievalCandidate[] {
+  const cap = Math.max(0, limit);
   const ranked = rankCandidates(candidates);
-  const selectedIds = new Set(selectTopCandidates(ranked, limit).map((item) => item.id));
+  const promotedCount = ranked.filter((item) => item.status === "promoted").length;
+  const remainingCapacity = Math.max(0, cap - promotedCount);
+  const investigatingIds = new Set(
+    ranked
+      .filter((item) => item.status !== "promoted")
+      .slice(0, remainingCapacity)
+      .map((item) => item.id),
+  );
   return ranked.map((candidate) => {
-    if (selectedIds.has(candidate.id)) {
-      return withCandidateStatus(candidate, "investigating");
+    if (candidate.status === "promoted") {
+      return withCandidateStatus(candidate, "promoted");
     }
-    if (candidate.status === "promoted" || candidate.status === "investigating") {
-      return candidate;
+    if (investigatingIds.has(candidate.id)) {
+      return withCandidateStatus(candidate, "investigating");
     }
     return withCandidateStatus(candidate, "rejected");
   });

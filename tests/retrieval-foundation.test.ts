@@ -22,6 +22,7 @@ import {
   ingestObservation,
   planInvestigationStrategy,
   proposeCandidateActions,
+  applyCandidateSelection,
   rankCandidates,
   selectTopCandidates,
   type InvestigationSession,
@@ -276,5 +277,120 @@ test("TEST 10 — empty discovery is no_candidate_found, not verification or res
   assert.equal(
     gap.items.some((item) => item.condition === "resolution_candidate" && item.outcome === "missing"),
     true,
+  );
+});
+
+function pullCandidate(sourceId: string, lexicalScore: number, status?: "candidate" | "investigating" | "rejected" | "promoted") {
+  return createRetrievalCandidate({
+    sourceType: "pull_request",
+    sourceId,
+    retrievalReason: "synthetic pull candidate",
+    relevanceSignals: { lexicalScore },
+    status,
+  });
+}
+
+function countStatus(
+  candidates: Array<{ status: string }>,
+  status: string,
+): number {
+  return candidates.filter((item) => item.status === status).length;
+}
+
+test("Test A — first batch of 6 PR candidates keeps investigating at Top-K", () => {
+  const first = Array.from({ length: 6 }, (_, index) => pullCandidate(String(index + 1), index + 1));
+  const selected = applyCandidateSelection(first, 5);
+  assert.equal(countStatus(selected, "investigating"), 5);
+  assert.equal(countStatus(selected, "rejected"), 1);
+  assert.ok(selected.every((item) => item.status !== "investigating" || item.relevanceSignals.lexicalScore !== 1));
+});
+
+test("Test B — later higher-scoring PRs re-rank and investigating stays <= 5", () => {
+  const first = applyCandidateSelection(
+    Array.from({ length: 6 }, (_, index) => pullCandidate(String(index + 1), index + 1)),
+    5,
+  );
+  assert.equal(countStatus(first, "investigating"), 5);
+  const next = applyCandidateSelection(
+    [
+      ...first,
+      pullCandidate("100", 50),
+      pullCandidate("101", 51),
+      pullCandidate("102", 52),
+    ],
+    5,
+  );
+  assert.ok(countStatus(next, "investigating") <= 5);
+  assert.equal(countStatus(next, "investigating"), 5);
+  assert.deepEqual(
+    next.filter((item) => item.status === "investigating").map((item) => item.sourceId).sort(),
+    ["100", "101", "102", "5", "6"],
+  );
+});
+
+test("Test C — promoted candidates consume investigation budget", () => {
+  const first = applyCandidateSelection(
+    Array.from({ length: 6 }, (_, index) => pullCandidate(String(index + 1), index + 1)),
+    5,
+  );
+  const withPromoted = first.map((item) =>
+    item.sourceId === "5" || item.sourceId === "6" ? { ...item, status: "promoted" as const } : item,
+  );
+  const next = applyCandidateSelection(
+    [...withPromoted, pullCandidate("100", 50), pullCandidate("101", 51), pullCandidate("102", 52)],
+    5,
+  );
+  assert.equal(countStatus(next, "promoted"), 2);
+  assert.ok(countStatus(next, "investigating") <= 3);
+  assert.equal(countStatus(next, "investigating"), 3);
+  assert.deepEqual(
+    next.filter((item) => item.status === "promoted").map((item) => item.sourceId).sort(),
+    ["5", "6"],
+  );
+});
+
+test("Test D — repeated registerPullCandidates / applyCandidateSelection never exceeds budget", () => {
+  const session = makeSession(10, "budget overflow");
+  ingestObservation(session, "github_get_issue", { owner: "facebook", repo: "react", issueNumber: 10 }, {
+    number: 10,
+    state: "open",
+    title: "budget overflow",
+    body: "#1 #2 #3 #4 #5 #6",
+    repository: "facebook/react",
+    retrievedAt: RETRIEVED_AT,
+  });
+  assert.ok(countStatus(session.state.retrievalCandidates, "investigating") <= MAX_INVESTIGATED_CANDIDATES);
+
+  ingestObservation(session, "github_get_issue_timeline", { owner: "facebook", repo: "react", issueNumber: 10 }, [
+    { event: "cross-referenced", pullRequestNumber: 20, body: "see #21" },
+    { event: "cross-referenced", pullRequestNumber: 22, body: "" },
+    { event: "commented", body: "also #23 #24" },
+  ]);
+  assert.ok(countStatus(session.state.retrievalCandidates, "investigating") <= MAX_INVESTIGATED_CANDIDATES);
+
+  ingestObservation(session, "github_get_issue_comments", { owner: "facebook", repo: "react", issueNumber: 10 }, [
+    { body: "try #30 #31 #32" },
+    { body: "or #33 #34" },
+  ]);
+  assert.ok(countStatus(session.state.retrievalCandidates, "investigating") <= MAX_INVESTIGATED_CANDIDATES);
+
+  let group = session.state.retrievalCandidates.filter((item) => item.sourceType === "pull_request");
+  for (let round = 0; round < 4; round += 1) {
+    group = applyCandidateSelection(
+      [...group, pullCandidate(String(200 + round), 80 + round)],
+      MAX_INVESTIGATED_CANDIDATES,
+    );
+    assert.ok(countStatus(group, "investigating") <= MAX_INVESTIGATED_CANDIDATES);
+  }
+});
+
+test("Test E — C08 direct-commit path still verifies after budget enforcement", async () => {
+  const dataset = loadDataset(realDatasetManifestPath());
+  const executed = await executeDatasetCase(dataset, "C08");
+  assert.equal(executed.observed.verificationStatus, "verified_complete");
+  assert.ok(
+    executed.report.evidence.some(
+      (item) => item.kind === "commit" && /e70118a/i.test(JSON.stringify(item.payload ?? item.summary)),
+    ),
   );
 });

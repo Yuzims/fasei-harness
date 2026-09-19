@@ -270,6 +270,7 @@ export interface InvestigationAttemptDTO {
   recoveryAction?: string;
   recoveryReason?: string;
   recoveryNextStep?: string;
+  recoveryNextRequirementIds?: string[];
   evidenceIds: string[];
   claimIds: string[];
 }
@@ -290,6 +291,8 @@ export interface InvestigationSessionDTO {
   };
   issue: InvestigationIssueDTO;
   agentOutput: string;
+  /** Original AgentResult.output when present. Presentation only; never a verification verdict. */
+  rawAgentOutput?: string;
   verification?: {
     status: string;
     evidenceCoverage: number;

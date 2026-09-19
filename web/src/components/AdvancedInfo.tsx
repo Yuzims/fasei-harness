@@ -1,5 +1,12 @@
 import type { InvestigationSessionDTO } from "@dto";
-import { actorLabel, issueRef, investigationMode, investigationModeLabel } from "../lib/workbench";
+import { buildInvestigationResultView } from "../lib/investigation-presentation";
+import {
+  actorLabel,
+  evidenceCoverageLabel,
+  issueRef,
+  investigationMode,
+  investigationModeLabel,
+} from "../lib/workbench";
 import { AttemptPanel } from "./AttemptPanel";
 import { ClaimPanel } from "./ClaimPanel";
 import { LlmProfilingPanel } from "./LlmProfilingPanel";
@@ -8,10 +15,12 @@ import { TraceTimeline } from "./TraceTimeline";
 export function AdvancedInfo({ session }: { session: InvestigationSessionDTO }) {
   const mode = investigationMode(session);
   const checks = session.verification?.checks ?? [];
+  const coverage = evidenceCoverageLabel(session);
+  const view = buildInvestigationResultView(session);
 
   return (
     <details className="fold" data-testid="advanced-fold">
-      <summary>高级信息</summary>
+      <summary>▶ 高级信息</summary>
       <p className="muted">以下内容保留给开发与演示，不参与最终结论。</p>
 
       <details className="inner-fold" open>
@@ -24,6 +33,14 @@ export function AdvancedInfo({ session }: { session: InvestigationSessionDTO }) 
           <div>执行者：{actorLabel(session.actor)}</div>
           <div>运行状态：{session.runStatus}</div>
           <div>调查状态：{session.status}</div>
+          {coverage ? <div>{coverage}</div> : null}
+          {view.agent.originalConclusion ? (
+            <div>原始 InvestigationReport 结论：{view.agent.originalConclusion}</div>
+          ) : null}
+          <div>
+            IndependentCompletionVerifier 根据证据独立产生 VerificationResult，不采用 Agent
+            结论作为验证依据。
+          </div>
           {session.runtimeBudget ? (
             <div>
               runtimeBudget: maxLlmCalls={session.runtimeBudget.maxLlmCalls} · maxWallClockMs=

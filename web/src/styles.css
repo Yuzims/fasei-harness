@@ -609,8 +609,83 @@ a {
   font-size: 13px;
 }
 
-.failure-panel {
+.failure-panel,
+.incident-panel.insufficient {
   border-left: 4px solid var(--insufficient);
+}
+
+.incident-panel.process {
+  border-left: 4px solid var(--not-verified);
+  background: var(--not-verified-bg);
+}
+
+.finding-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.finding-list li {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 8px;
+  padding: 5px 0;
+}
+
+.finding-list li.pass {
+  color: var(--verified);
+}
+
+.finding-list li.warn {
+  color: var(--insufficient);
+}
+
+.finding-list li.fail {
+  color: var(--not-verified);
+}
+
+.analysis-card {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+
+.analysis-field {
+  margin-top: 10px;
+}
+
+.analysis-split {
+  display: grid;
+  gap: 8px;
+}
+
+.observation,
+.inference {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+}
+
+.observation {
+  background: var(--verified-bg);
+  border-left: 3px solid var(--verified);
+}
+
+.inference {
+  background: var(--insufficient-bg);
+  border-left: 3px solid var(--insufficient);
+}
+
+.analysis-tag {
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .fold,

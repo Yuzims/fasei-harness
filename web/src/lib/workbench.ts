@@ -61,10 +61,10 @@ const CHECK_LABELS: Record<string, string> = {
   "eligible closure": "关闭语义",
   "resolution-candidate": "解决候选",
   "resolution candidate": "解决候选",
-  "pr-merged": "PR 已合并",
-  "resolution landed": "PR 已合并",
-  "code-commit": "代码变更",
-  "resolution code evidence": "代码变更",
+  "pr-merged": "已合并 Pull Request",
+  "resolution landed": "已合并 Pull Request",
+  "code-commit": "代码 / Commit 证据",
+  "resolution code evidence": "代码 / Commit 证据",
   "resolution-effect": "解决效果",
   "resolution effect alignment": "解决效果",
   "claims-supported": "关键 Claim",
@@ -223,7 +223,7 @@ export function investigationModeDetail(mode: "live" | "snapshot"): string {
 
 export function verificationLabel(status?: string): string {
   if (status === "verified_complete") {
-    return "已验证完成";
+    return "已验证解决";
   }
   if (status === "not_verified") {
     return "未验证完成";
@@ -249,13 +249,13 @@ export function verificationTone(status?: string): VerificationTone {
 
 export function verificationSubtitle(status?: string): string {
   if (status === "verified_complete") {
-    return "目前已有足够证据确认该 Issue 的解决链路。";
+    return "当前证据可以证明这个 Issue 已经解决。";
   }
   if (status === "not_verified") {
-    return "现有证据无法确认该 Issue 已经解决。";
+    return "当前没有足够证据证明这个 Issue 已经解决。";
   }
   if (status === "insufficient_evidence") {
-    return "目前证据不足，无法确认该 Issue 是否已经解决。";
+    return "当前调查没有获得能够完成验证所需的证据。";
   }
   return "Harness 尚未给出独立验证结果。";
 }
@@ -361,7 +361,7 @@ export function requirementLabel(id: string): string {
 
 export function failureTypeLabel(type?: string): string {
   if (!type) {
-    return "调查失败";
+    return "调查过程中遇到问题";
   }
   return FAILURE_LABELS[type] ?? type.replaceAll("_", " ");
 }

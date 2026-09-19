@@ -25,9 +25,22 @@ import {
   verificationSubtitle,
   verificationTone,
 } from "../web/src/lib/workbench.ts";
+import {
+  buildInvestigationFindings,
+  buildInvestigationResultView,
+  incidentIsInvestigationFailure,
+  investigationIncident,
+  isEvidenceInsufficiency,
+  isProcessFailure,
+  presentAgentConclusion,
+  presentAgentJudgment,
+  presentResolutionAnalyses,
+  presentUnresolvedQuestions,
+  rawAgentOutputText,
+} from "../web/src/lib/investigation-presentation.ts";
 
 test("UI：verification status 使用中文，不把 insufficient 显示成 FAILED", () => {
-  assert.equal(verificationLabel("verified_complete"), "已验证完成");
+  assert.equal(verificationLabel("verified_complete"), "已验证解决");
   assert.equal(verificationLabel("not_verified"), "未验证完成");
   assert.equal(verificationLabel("insufficient_evidence"), "证据不足");
   assert.notEqual(verificationLabel("insufficient_evidence"), "FAILED");
@@ -136,9 +149,9 @@ test("UI：trace / recovery chain 来自 session 数据", () => {
   assert.equal(recoveredFrom(second, current.attempts)?.attempt, 1);
 });
 
-test("UI：unknown issue 文案不编造已验证完成", () => {
+test("UI：unknown issue 文案不编造已验证解决", () => {
   assert.equal(investigationErrorTitle({ status: 404 }), "未找到这次调查");
-  assert.notEqual(verificationLabel(undefined), "已验证完成");
+  assert.notEqual(verificationLabel(undefined), "已验证解决");
 });
 
 test("UI：example labels 来自 repository / issue，不从 identifier 推导 verification", () => {
@@ -149,7 +162,7 @@ test("UI：example labels 来自 repository / issue，不从 identifier 推导 v
   assert.equal(exampleHeading({ repository: "pytest", issueNumber: 14524 }), "Pytest #14524");
   assert.doesNotMatch(
     exampleHeading({ repository: "vscode", issueNumber: 258694 }),
-    /已验证完成|未验证完成|证据不足|VERIFIED|NOT VERIFIED|INSUFFICIENT/i,
+    /已验证解决|已验证完成|未验证完成|证据不足|VERIFIED|NOT VERIFIED|INSUFFICIENT/i,
   );
   assert.deepEqual(
     featuredExamples([{ id: "C01" }, { id: "C02" }, { id: "C03" }, { id: "C04" }]).map((item) => item.id),
@@ -179,7 +192,7 @@ test("UI：example labels 来自 repository / issue，不从 identifier 推导 v
     }),
     { scenarioId: "tool-failure", mode: "snapshot" },
   );
-  assert.equal(verificationSubtitle("verified_complete"), "目前已有足够证据确认该 Issue 的解决链路。");
+  assert.equal(verificationSubtitle("verified_complete"), "当前证据可以证明这个 Issue 已经解决。");
   assert.equal(verificationLabel("insufficient_evidence"), "证据不足");
   assert.equal(investigationMode({ mode: "live" }), "live");
   assert.equal(investigationMode({ dataSource: "snapshot" }), "snapshot");
@@ -189,10 +202,10 @@ test("UI：example labels 来自 repository / issue，不从 identifier 推导 v
 
 test("UI：C01 / C05 / C08 / C09 / C10 结果文案来自 verifier status", () => {
   const cases = [
-    ["C01", "verified_complete", "已验证完成"],
+    ["C01", "verified_complete", "已验证解决"],
     ["C05", "not_verified", "未验证完成"],
-    ["C08", "verified_complete", "已验证完成"],
-    ["C09", "verified_complete", "已验证完成"],
+    ["C08", "verified_complete", "已验证解决"],
+    ["C09", "verified_complete", "已验证解决"],
     ["C10", "insufficient_evidence", "证据不足"],
   ] as const;
   for (const [id, status, label] of cases) {
@@ -205,7 +218,8 @@ test("UI：内部 requirement id 不作为默认展示", () => {
   assert.equal(requirementLabel("req-pr"), "已合并的 Pull Request");
   assert.equal(requirementLabel("req-commit"), "代码 / Commit 证据");
   assert.equal(checkLabel({ id: "issue-identity", name: "issue identity" }), "Issue 身份");
-  assert.equal(checkLabel({ id: "pr-merged", name: "resolution landed" }), "PR 已合并");
+  assert.equal(checkLabel({ id: "pr-merged", name: "resolution landed" }), "已合并 Pull Request");
+  assert.equal(checkLabel({ id: "code-commit", name: "resolution code evidence" }), "代码 / Commit 证据");
   assert.equal(toolStepLabel("github_get_issue_timeline"), "查看 Issue Timeline");
   assert.equal(toolStepLabel("get_issue"), "获取 Issue");
 });
@@ -259,4 +273,388 @@ test("UI：最终结果来自 verifier，不由 Agent conclusion 决定差异展
   assert.equal(agentHarnessDisagree(disagreed), true);
   assert.equal(evidenceCoverageLabel(disagreed), "证据覆盖率：33%");
   assert.equal(verificationLabel(disagreed.verification?.status), "证据不足");
+});
+
+test("UI：内部 enum 映射为中文，不把 runtime 术语直接给用户", () => {
+  assert.equal(verificationLabel("verified_complete"), "已验证解决");
+  assert.equal(verificationLabel("not_verified"), "未验证完成");
+  assert.equal(verificationLabel("insufficient_evidence"), "证据不足");
+  assert.equal(isProcessFailure("tool_failure"), true);
+  assert.equal(isProcessFailure("retrieval_failure"), true);
+  assert.equal(isProcessFailure("premature_completion"), true);
+  assert.equal(isProcessFailure("loop_failure"), true);
+  assert.equal(isEvidenceInsufficiency("insufficient_evidence"), true);
+  assert.equal(isProcessFailure("insufficient_evidence"), false);
+  assert.equal(requirementLabel("req-pr"), "已合并的 Pull Request");
+  assert.notEqual(requirementLabel("req-pr"), "nextRequirementIds");
+});
+
+test("UI：verified_complete 展示已验证解决，不把 Agent 结论当成验证", () => {
+  const current = session({
+    issue: { owner: "acme", repository: "box", number: 42, title: "Null pointer", state: "closed" },
+    evidence: [
+      { id: "ev-issue", kind: "issue", summary: "Issue #42 is closed", trust: "external_untrusted" },
+      {
+        id: "ev-pr",
+        kind: "pull_request",
+        summary: "PR #7 merged=true",
+        trust: "external_untrusted",
+        resource: "pull/7",
+      },
+      { id: "ev-commit", kind: "commit", summary: "Commit abcdef: fix npe", trust: "external_untrusted" },
+    ],
+    relations: [{ fromEvidenceId: "ev-pr", toEvidenceId: "ev-issue", type: "fixes" }],
+    report: { conclusion: "Looks resolved.", polarity: "resolved", uncertainty: "", openQuestions: [] },
+    verification: {
+      status: "verified_complete",
+      evidenceCoverage: 1,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [
+        { id: "issue-identity", name: "issue identity", status: "pass", message: "ok" },
+        { id: "pr-merged", name: "resolution landed", status: "pass", message: "ok" },
+        { id: "code-commit", name: "resolution code evidence", status: "pass", message: "ok" },
+      ],
+    },
+    attempts: [
+      {
+        id: "attempt-1",
+        attempt: 1,
+        verificationStatus: "verified_complete",
+        checks: [],
+        evidenceIds: ["ev-issue", "ev-pr"],
+        claimIds: ["c1"],
+      },
+    ],
+  });
+  const view = buildInvestigationResultView(current);
+  assert.equal(view.result.statusLabel, "已验证解决");
+  assert.equal(view.result.subtitle, "当前证据可以证明这个 Issue 已经解决。");
+  assert.match(view.agent.conclusion, /已合并的 Pull Request|代码 \/ Commit/);
+  assert.equal(view.agent.judgment, "目前认为该 Issue 已经解决。");
+  assert.equal(view.harness.statusLabel, "已验证解决");
+  assert.equal(view.harness.satisfiedLabel, "满足 3 / 3 项证据要求");
+  assert.equal(view.incident, undefined);
+  assert.equal(view.agent.disagreesWithHarness, false);
+});
+
+test("UI：not_verified 不显示为调查失败", () => {
+  const current = session({
+    issue: { owner: "cli", repository: "cli", number: 13070, title: "closed not planned", state: "closed" },
+    status: "insufficient_evidence",
+    runStatus: "not_verified",
+    evidence: [
+      { id: "ev-issue", kind: "issue", summary: "Issue #13070 is closed", trust: "external_untrusted" },
+    ],
+    report: {
+      conclusion: "Insufficient evidence to explain how issue #13070 was resolved.",
+      polarity: "unknown",
+      uncertainty: "IndependentCompletionVerifier decides VerificationResult",
+      openQuestions: ["No merged pull request, commit, or other resolution evidence was found."],
+    },
+    verification: {
+      status: "not_verified",
+      evidenceCoverage: 0.33,
+      prematureCompletion: false,
+      missingRequirementIds: ["req-pr", "req-commit"],
+      unsupportedClaimIds: [],
+      checks: [
+        { id: "issue-identity", name: "issue identity", status: "pass", message: "ok" },
+        { id: "pr-merged", name: "resolution landed", status: "fail", message: "missing" },
+        { id: "code-commit", name: "resolution code evidence", status: "fail", message: "missing" },
+      ],
+    },
+    attempts: [
+      {
+        id: "attempt-1",
+        attempt: 1,
+        verificationStatus: "not_verified",
+        checks: [],
+        evidenceIds: ["ev-issue"],
+        claimIds: [],
+      },
+    ],
+  });
+  const view = buildInvestigationResultView(current);
+  assert.equal(view.result.statusLabel, "未验证完成");
+  assert.notEqual(view.result.statusLabel, "调查失败");
+  assert.match(view.agent.conclusion, /已关闭/);
+  assert.match(view.agent.conclusion, /没有发现能够证明问题已通过代码修改解决的证据/);
+  assert.equal(view.incident, undefined);
+  assert.equal(incidentIsInvestigationFailure(view.incident), false);
+  assert.equal(JSON.stringify(view).includes("调查失败"), false);
+});
+
+test("UI：INSUFFICIENT_EVIDENCE 显示证据不足，不是 Tool Failure", () => {
+  const current = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, title: "open issue", state: "open" },
+    status: "insufficient_evidence",
+    runStatus: "insufficient_evidence",
+    evidence: [
+      { id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" },
+    ],
+    report: {
+      conclusion: "Insufficient evidence to explain how issue #37395 was resolved.",
+      polarity: "unknown",
+      uncertainty: "IndependentCompletionVerifier decides VerificationResult",
+      openQuestions: ["No merged pull request, commit, or other resolution evidence was found."],
+    },
+    verification: {
+      status: "insufficient_evidence",
+      evidenceCoverage: 0.333,
+      prematureCompletion: false,
+      missingRequirementIds: ["req-pr", "req-commit"],
+      unsupportedClaimIds: [],
+      checks: [
+        { id: "issue-identity", name: "issue identity", status: "pass", message: "ok" },
+        { id: "pr-merged", name: "resolution landed", status: "fail", message: "missing" },
+        { id: "code-commit", name: "resolution code evidence", status: "fail", message: "missing" },
+      ],
+    },
+    attempts: [
+      {
+        id: "attempt-1",
+        attempt: 1,
+        verificationStatus: "insufficient_evidence",
+        checks: [],
+        failureType: "insufficient_evidence",
+        failureReason: "Required evidence is missing; the harness cannot prove completion.",
+        recoveryAction: "stop",
+        recoveryReason: "Required evidence is missing and no further useful evidence source remains.",
+        missingRequirementIds: ["req-pr", "req-commit"],
+        recoveryNextRequirementIds: ["req-pr", "req-commit"],
+        evidenceIds: ["ev-issue"],
+        claimIds: [],
+      },
+    ],
+  });
+  const view = buildInvestigationResultView(current);
+  assert.equal(view.result.statusLabel, "证据不足");
+  assert.equal(view.incident?.kind, "insufficient");
+  assert.equal(view.incident?.title, "证据不足");
+  assert.equal(incidentIsInvestigationFailure(view.incident), false);
+  assert.notEqual(view.incident?.kind, "process");
+  assert.equal(view.incident?.rawFailureType, "insufficient_evidence");
+  assert.match(view.agent.conclusion, /没有发现能够证明该问题已经解决的证据/);
+  assert.deepEqual(view.agent.unresolvedQuestions, ["是否存在尚未关联到 Issue 的修复？"]);
+  assert.equal(view.harness.satisfiedLabel, "满足 1 / 3 项证据要求");
+  assert.deepEqual(view.incident?.nextEvidence, ["已合并的 Pull Request", "代码 / Commit 证据"]);
+  assert.equal(view.incident?.recoverySummary, "调查已停止，避免重复执行相同的检索。");
+  assert.equal(JSON.stringify(view.incident).includes("调查失败"), false);
+  assert.equal(JSON.stringify(view.harness).includes("33.3%"), false);
+  assert.equal(evidenceCoverageLabel(current), "证据覆盖率：33.3%");
+});
+
+test("UI：真正的 tool failure 才显示调查过程中遇到问题", () => {
+  const current = session({
+    runStatus: "insufficient_evidence",
+    verification: {
+      status: "insufficient_evidence",
+      evidenceCoverage: 0,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [],
+    },
+    attempts: [
+      {
+        id: "attempt-1",
+        attempt: 1,
+        verificationStatus: "insufficient_evidence",
+        checks: [],
+        failureType: "tool_failure",
+        failureReason: "getIssue timed out",
+        failureTool: "github_get_issue",
+        recoveryAction: "retry_with_backoff",
+        recoveryReason: "Retryable GitHub tool failure (timeout / 429 / 5xx / network). Bounded backoff, keep existing evidence.",
+        evidenceIds: [],
+        claimIds: [],
+      },
+    ],
+  });
+  const incident = investigationIncident(current);
+  assert.equal(incident?.kind, "process");
+  assert.equal(incident?.title, "调查过程中遇到问题");
+  assert.match(incident?.summary ?? "", /工具调用未成功/);
+  assert.equal(incidentIsInvestigationFailure(incident), true);
+  assert.notEqual(incident?.title, "证据不足");
+  assert.notEqual(incident?.title, "调查失败");
+});
+
+test("UI：recovery stop 展示停止说明，不展示 Attempt budget 原文", () => {
+  const current = session({
+    verification: {
+      status: "not_verified",
+      evidenceCoverage: 0.2,
+      prematureCompletion: false,
+      missingRequirementIds: ["req-pr"],
+      unsupportedClaimIds: [],
+      checks: [],
+    },
+    attempts: [
+      {
+        id: "attempt-1",
+        attempt: 1,
+        checks: [],
+        recoveryAction: "stop",
+        recoveryReason: "Attempt budget reached; stopping.",
+        missingRequirementIds: ["req-pr"],
+        evidenceIds: [],
+        claimIds: [],
+      },
+    ],
+  });
+  const incident = investigationIncident(current);
+  assert.equal(incident?.title, "调查已停止");
+  assert.equal(incident?.summary, "调查已停止，避免重复执行相同的检索。");
+  assert.equal(incident?.recoverySummary, "调查已停止，避免重复执行相同的检索。");
+  assert.equal(incident?.rawRecoveryReason, "Attempt budget reached; stopping.");
+  assert.notEqual(incident?.summary, "Attempt budget reached; stopping.");
+});
+
+test("UI：resolution analysis 存在时区分观察事实与 Agent 推断", () => {
+  const analyses = presentResolutionAnalyses([
+    {
+      candidateEvidenceId: "ev-pr",
+      issueEvidenceId: "ev-issue",
+      mergeCommitSha: "abc123def",
+      codeRelevance:
+        "Observed facts: src/cart.ts modified +12/-3; bounded patch observed. Inference: these observed code changes may relate to the issue evidence. This is a hypothesis, not verification.",
+      behavioralAlignment:
+        'Observed facts: issue evidence summary is "empty cart". Inference: the observed diff may correspond to the described problem. Runtime behavior remains unproven.',
+      testSupport: "insufficient code-change context",
+      unresolvedQuestions: ["The observed diff cannot prove runtime behavior."],
+      supportingEvidenceIds: ["ev-pr"],
+      claimIds: [],
+    },
+  ]);
+  assert.equal(analyses.length, 1);
+  assert.match(analyses[0]?.codeRelevance.observed ?? "", /src\/cart\.ts/);
+  assert.match(analyses[0]?.codeRelevance.inference ?? "", /hypothesis|may relate/i);
+  assert.equal(analyses[0]?.testSupport.observed, "当前没有足够的代码变更上下文。");
+  assert.deepEqual(analyses[0]?.unresolvedQuestions, ["观察到的代码差异能否在运行时证明问题已修复？"]);
+});
+
+test("UI：没有 resolution analysis 时不显示空模块", () => {
+  const current = session({ resolutionAnalyses: [] });
+  const view = buildInvestigationResultView(current);
+  assert.deepEqual(view.agent.resolutionAnalyses, []);
+});
+
+test("UI：有 unresolved questions 才显示尚未确认", () => {
+  const present = presentUnresolvedQuestions([
+    "No merged pull request, commit, or other resolution evidence was found.",
+  ]);
+  assert.deepEqual(present, ["是否存在尚未关联到 Issue 的修复？"]);
+  assert.deepEqual(presentUnresolvedQuestions([]), []);
+  assert.deepEqual(presentUnresolvedQuestions(undefined), []);
+});
+
+test("UI：证据 / 原始 Agent 输出 / 高级信息默认折叠，且不把百分比作为主结果", () => {
+  const current = session({
+    rawAgentOutput: "model raw output",
+    verification: {
+      status: "insufficient_evidence",
+      evidenceCoverage: 0.333,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [
+        { id: "issue-identity", name: "issue identity", status: "pass", message: "ok" },
+        { id: "pr-merged", name: "resolution landed", status: "fail", message: "missing" },
+        { id: "code-commit", name: "resolution code evidence", status: "fail", message: "missing" },
+      ],
+    },
+  });
+  const view = buildInvestigationResultView(current);
+  assert.equal(rawAgentOutputText(current), "model raw output");
+  assert.equal(view.harness.satisfiedLabel, "满足 1 / 3 项证据要求");
+  assert.equal(evidenceCoverageLabel(current), "证据覆盖率：33.3%");
+  assert.equal(view.rawAgentOutput, "model raw output");
+});
+
+test("UI：没有 investigation step 时不编造 step，也不把 verifier checks 当成步骤", () => {
+  const current = session({
+    steps: [],
+    verification: {
+      status: "not_verified",
+      evidenceCoverage: 0,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [
+        { id: "issue-identity", name: "issue identity", status: "pass", message: "ok" },
+        { id: "pr-merged", name: "resolution landed", status: "fail", message: "missing" },
+      ],
+    },
+  });
+  const view = buildInvestigationResultView(current);
+  assert.deepEqual(view.process.steps, []);
+  assert.equal(view.process.emptyMessage, "当前版本未记录该步骤的详细过程。");
+  assert.equal(view.process.steps.some((item) => item.label.includes("Issue 身份")), false);
+});
+
+test("UI：Agent 调查结论与 Harness 验证分开，即使两者不一致也同时保留", () => {
+  const current = session({
+    report: { conclusion: "I think a PR exists.", polarity: "resolved", uncertainty: "", openQuestions: [] },
+    verification: {
+      status: "insufficient_evidence",
+      evidenceCoverage: 0.33,
+      prematureCompletion: false,
+      missingRequirementIds: ["req-pr"],
+      unsupportedClaimIds: [],
+      checks: [{ id: "pr-merged", name: "resolution landed", status: "fail", message: "missing" }],
+    },
+    attempts: [
+      {
+        id: "attempt-1",
+        attempt: 1,
+        checks: [],
+        failureType: "insufficient_evidence",
+        evidenceIds: [],
+        claimIds: [],
+      },
+    ],
+  });
+  const view = buildInvestigationResultView(current);
+  assert.equal(view.agent.judgment, "目前认为该 Issue 已经解决。");
+  assert.equal(view.harness.statusLabel, "证据不足");
+  assert.equal(view.agent.disagreesWithHarness, true);
+  assert.notEqual(view.agent.judgment, view.harness.statusLabel);
+  assert.equal(view.incident?.kind, "insufficient");
+});
+
+test("UI：调查发现来自已有 evidence，不把没有证据写成绝对事实", () => {
+  const current = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+  });
+  const findings = buildInvestigationFindings(current);
+  assert.equal(findings.find((item) => item.id === "issue-state")?.text, "Issue 当前状态：打开");
+  assert.equal(findings.find((item) => item.id === "pr-absent")?.text, "未发现关联 Pull Request");
+  assert.equal(
+    findings.find((item) => item.id === "commit-absent")?.text,
+    "当前调查没有找到能够证明问题已修复的 Commit。",
+  );
+  assert.equal(JSON.stringify(findings).includes("没有人修复过这个问题"), false);
+});
+
+test("UI：英文 Agent 结论只做 presentation fallback，不伪造新的 LLM 结论", () => {
+  const current = session({
+    issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
+    evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
+    report: {
+      conclusion: "Insufficient evidence to explain how issue #37395 was resolved.",
+      polarity: "unknown",
+      uncertainty: "",
+      openQuestions: [],
+    },
+  });
+  const conclusion = presentAgentConclusion(current);
+  assert.notEqual(conclusion, "Insufficient evidence to explain how issue #37395 was resolved.");
+  assert.match(conclusion, /没有发现能够证明该问题已经解决的证据/);
+  const view = buildInvestigationResultView(current);
+  assert.equal(view.agent.originalConclusion, "Insufficient evidence to explain how issue #37395 was resolved.");
+  assert.equal(presentAgentJudgment(current), "目前无法确认该 Issue 已经解决。");
 });

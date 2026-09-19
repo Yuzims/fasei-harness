@@ -173,9 +173,25 @@ function slimAttempt(attempt: InvestigationAttempt) {
     recoveryAction: attempt.recovery?.action,
     recoveryReason: attempt.recovery?.reason,
     recoveryNextStep: attempt.recovery?.nextStep,
+    recoveryNextRequirementIds: attempt.recovery?.nextRequirementIds,
     evidenceIds: attempt.evidenceIds,
     claimIds: attempt.claimIds,
   };
+}
+
+function rawAgentOutputFrom(report: InvestigationAgentReport): string | undefined {
+  const output = report.agentResult?.output;
+  if (output == null) {
+    return undefined;
+  }
+  if (typeof output === "string") {
+    return output;
+  }
+  try {
+    return JSON.stringify(output, null, 2);
+  } catch {
+    return String(output);
+  }
 }
 
 function issueFromReport(report: InvestigationAgentReport): InvestigationIssueDTO {
@@ -284,6 +300,7 @@ export function toInvestigationSessionDTO(
     },
     issue: issueFromReport(report),
     agentOutput: report.report.conclusion,
+    rawAgentOutput: rawAgentOutputFrom(report),
     verification: report.verification
       ? {
           status: report.verification.status,

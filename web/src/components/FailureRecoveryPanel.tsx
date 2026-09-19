@@ -1,45 +1,40 @@
 import type { InvestigationSessionDTO } from "@dto";
-import {
-  failureTypeLabel,
-  latestFailure,
-  nextEvidenceTargets,
-  recoveryActionLabel,
-} from "../lib/workbench";
+import { investigationIncident } from "../lib/investigation-presentation";
 
 export function FailureRecoveryPanel({ session }: { session: InvestigationSessionDTO }) {
-  const failure = latestFailure(session);
-  if (!failure) {
+  const incident = investigationIncident(session);
+  if (!incident) {
     return null;
   }
 
-  const nextTargets = nextEvidenceTargets(failure.missingRequirementIds);
-
   return (
-    <section className="panel failure-panel" data-testid="failure-panel">
-      <h2 className="section-heading">⚠ 调查失败</h2>
-      <p className="lane-lead">{failureTypeLabel(failure.failureType)}</p>
-      {failure.failureReason ? <p className="muted">{failure.failureReason}</p> : null}
+    <section
+      className={`panel incident-panel ${incident.kind}`}
+      data-testid="incident-panel"
+      data-incident-kind={incident.kind}
+    >
+      <h2 className="section-heading">
+        {incident.kind === "process" ? "⚠️ 调查过程中遇到问题" : `⚠️ ${incident.title}`}
+      </h2>
+      <p>{incident.summary}</p>
 
-      {failure.recoveryAction ? (
+      {incident.recoverySummary ? (
         <div className="lane-block">
-          <p className="kicker">恢复策略</p>
-          <p>{recoveryActionLabel(failure.recoveryAction)}</p>
-          {failure.recoveryReason ? <p className="muted">{failure.recoveryReason}</p> : null}
+          <p className="kicker">{incident.recoveryTitle ?? "恢复策略"}</p>
+          <p>{incident.recoverySummary}</p>
         </div>
       ) : null}
 
-      {nextTargets.length > 0 ? (
+      {incident.nextEvidence.length > 0 ? (
         <div className="lane-block">
           <p className="kicker">下一步需要确认的证据</p>
           <ul className="empty-list">
-            {nextTargets.map((item) => (
+            {incident.nextEvidence.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
         </div>
       ) : null}
-
-      {failure.recoveryNextStep ? <p className="muted">{failure.recoveryNextStep}</p> : null}
     </section>
   );
 }

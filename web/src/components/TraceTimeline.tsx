@@ -6,9 +6,9 @@ export function TraceTimeline({ session }: { session: InvestigationSessionDTO })
 
   return (
     <section className="panel">
-      <h2>Investigation Trace</h2>
+      <h2>Trace</h2>
       {items.length === 0 ? (
-        <p className="empty">No trace events in this session.</p>
+        <p className="empty">这次调查没有追踪事件。</p>
       ) : (
         <ol className="trace">
           {items.map((item) => (

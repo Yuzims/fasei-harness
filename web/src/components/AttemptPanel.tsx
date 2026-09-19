@@ -1,5 +1,11 @@
 import type { InvestigationSessionDTO } from "@dto";
-import { recoveredFrom, verificationLabel, verificationTone } from "../lib/workbench";
+import {
+  failureTypeLabel,
+  recoveredFrom,
+  recoveryActionLabel,
+  verificationLabel,
+  verificationTone,
+} from "../lib/workbench";
 
 export function AttemptPanel({ session }: { session: InvestigationSessionDTO }) {
   if (session.attempts.length === 0) {
@@ -8,7 +14,7 @@ export function AttemptPanel({ session }: { session: InvestigationSessionDTO }) 
 
   return (
     <section className="panel">
-      <h2>Attempts / Failure / Recovery</h2>
+      <h2>Attempts</h2>
       {session.attempts.map((attempt, index) => {
         const parent = recoveredFrom(attempt, session.attempts);
         return (
@@ -16,18 +22,16 @@ export function AttemptPanel({ session }: { session: InvestigationSessionDTO }) 
             {index > 0 ? <div className="attempt-arrow">↓</div> : null}
             <article className="attempt">
               <div className="evidence-head">
-                <strong>Attempt {attempt.attempt}</strong>
+                <strong>第 {attempt.attempt} 轮</strong>
                 <span className={`status-text ${verificationTone(attempt.verificationStatus)}`}>
                   {attempt.status ?? attempt.verificationStatus ?? "unknown"}
                 </span>
               </div>
-              {parent ? (
-                <p className="muted">Recovered from Attempt {parent.attempt}</p>
-              ) : null}
+              {parent ? <p className="muted">恢复自第 {parent.attempt} 轮</p> : null}
               {attempt.strategy ? <p className="muted">strategy: {attempt.strategy}</p> : null}
               {attempt.verificationStatus ? (
                 <p className={`status-text ${verificationTone(attempt.verificationStatus)}`}>
-                  Verification: {verificationLabel(attempt.verificationStatus)}
+                  验证：{verificationLabel(attempt.verificationStatus)}
                 </p>
               ) : null}
               {attempt.failureType ? (
@@ -35,7 +39,7 @@ export function AttemptPanel({ session }: { session: InvestigationSessionDTO }) 
                   <p className="kicker" style={{ marginTop: 8 }}>
                     Failure
                   </p>
-                  <p className="status-text not_verified">{attempt.failureType}</p>
+                  <p className="status-text not_verified">{failureTypeLabel(attempt.failureType)}</p>
                   {attempt.failureReason ? <p>{attempt.failureReason}</p> : null}
                   {attempt.failureTool ? <p className="muted">tool: {attempt.failureTool}</p> : null}
                   {attempt.failureErrorCode ? (
@@ -43,7 +47,7 @@ export function AttemptPanel({ session }: { session: InvestigationSessionDTO }) 
                   ) : null}
                   {attempt.missingRequirementIds && attempt.missingRequirementIds.length > 0 ? (
                     <p className="muted">
-                      evidence gap: {attempt.missingRequirementIds.join(", ")}
+                      missingRequirementIds: {attempt.missingRequirementIds.join(", ")}
                     </p>
                   ) : null}
                 </div>
@@ -51,9 +55,9 @@ export function AttemptPanel({ session }: { session: InvestigationSessionDTO }) 
               {attempt.recoveryAction ? (
                 <div>
                   <p className="kicker" style={{ marginTop: 8 }}>
-                    Recovery
+                    Recovery Plan
                   </p>
-                  <p>Recovery Plan: {attempt.recoveryAction}</p>
+                  <p>{recoveryActionLabel(attempt.recoveryAction)}</p>
                   {attempt.recoveryReason ? <p className="muted">{attempt.recoveryReason}</p> : null}
                   {attempt.recoveryNextStep ? (
                     <p className="muted">next: {attempt.recoveryNextStep}</p>

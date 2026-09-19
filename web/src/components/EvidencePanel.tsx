@@ -4,6 +4,8 @@ import {
   evidenceIdentifier,
   filterEvidence,
   kindLabel,
+  sourceLabel,
+  trustLabel,
   uniqueEvidenceKinds,
 } from "../lib/workbench";
 
@@ -27,14 +29,18 @@ function EvidenceCard({
       <div className="evidence-head">
         <strong>{kindLabel(item.kind)}</strong>
         <span className={`badge ${item.trust === "external_untrusted" ? "untrusted" : ""}`}>
-          {item.trust}
+          {trustLabel(item.trust)}
         </span>
       </div>
-      <div className="mono">{evidenceIdentifier(item)}</div>
+      <p className="muted">
+        来源 {sourceLabel(item.source)} · 类型 {kindLabel(item.kind)}
+      </p>
       <p style={{ margin: "6px 0 0" }}>{item.summary}</p>
-      {item.source ? <p className="muted">Source: {item.source}</p> : null}
       {open ? (
         <div className="detail">
+          <div>摘要：{item.summary}</div>
+          <div>可信状态：{trustLabel(item.trust)}</div>
+          <div className="mono">{evidenceIdentifier(item)}</div>
           <div>id: {item.id}</div>
           {item.operation ? <div>operation: {item.operation}</div> : null}
           {item.resource ? <div>resource: {item.resource}</div> : null}
@@ -51,7 +57,7 @@ function EvidenceCard({
           ) : null}
         </div>
       ) : (
-        <p className="muted">Show details</p>
+        <p className="muted">展开详情</p>
       )}
     </button>
   );
@@ -67,15 +73,15 @@ export function EvidencePanel({ session }: { session: InvestigationSessionDTO })
   );
 
   return (
-    <section className="panel">
-      <h2>Evidence</h2>
+    <details className="fold" data-testid="evidence-fold">
+      <summary>📎 证据（{session.evidence.length}）</summary>
       <div className="filters">
         <button
           type="button"
           className={filter === "all" ? "chip active" : "chip"}
           onClick={() => setFilter("all")}
         >
-          All
+          全部
         </button>
         {kinds.map((kind) => (
           <button
@@ -89,7 +95,7 @@ export function EvidencePanel({ session }: { session: InvestigationSessionDTO })
         ))}
       </div>
       {items.length === 0 ? (
-        <p className="empty">No evidence in this session.</p>
+        <p className="empty">这次调查没有证据。</p>
       ) : (
         <div className="evidence-list">
           {items.map((item) => (
@@ -103,6 +109,6 @@ export function EvidencePanel({ session }: { session: InvestigationSessionDTO })
           ))}
         </div>
       )}
-    </section>
+    </details>
   );
 }

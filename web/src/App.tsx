@@ -4,8 +4,8 @@ import { InvestigationView } from "./views/InvestigationView";
 import { navigate, parseHash, type Route } from "./lib/route";
 
 const NAV: Array<{ view: Route["view"]; label: string }> = [
-  { view: "investigate", label: "Investigations" },
-  { view: "benchmarks", label: "Benchmarks" },
+  { view: "investigate", label: "调查" },
+  { view: "benchmarks", label: "评测" },
 ];
 
 export function App() {
@@ -22,7 +22,7 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">FASEI</span>
-          <span className="brand-sub">Investigation Workbench</span>
+          <span className="brand-sub">调查工作台</span>
         </div>
         <nav className="nav">
           {NAV.map((item) => (

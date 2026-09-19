@@ -1,12 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, fetchInvestigationCatalog, runInvestigation } from "../api/client";
+import { AdvancedInfo } from "../components/AdvancedInfo";
 import { AgentOutput } from "../components/AgentOutput";
-import { AttemptPanel } from "../components/AttemptPanel";
-import { ClaimPanel } from "../components/ClaimPanel";
 import { EvidencePanel } from "../components/EvidencePanel";
-import { LlmProfilingPanel } from "../components/LlmProfilingPanel";
-import { TraceTimeline } from "../components/TraceTimeline";
-import { VerificationChecks, VerificationSummary } from "../components/VerificationPanel";
+import { FailureRecoveryPanel } from "../components/FailureRecoveryPanel";
+import { AgentHarnessCompare, VerificationChecks, VerificationSummary } from "../components/VerificationPanel";
 import {
   catalogRunRequest,
   exampleHeading,
@@ -27,15 +25,9 @@ import type {
   InvestigationSessionDTO,
 } from "@dto";
 
-const WORKFLOW_STEPS = ["Issue", "Investigation", "Evidence", "Independent Verification", "Result"] as const;
+const WORKFLOW_STEPS = ["Issue", "调查", "证据", "独立验证", "结果"] as const;
 const OUTCOMES = ["verified_complete", "not_verified", "insufficient_evidence"] as const;
-const EMPTY_RESULT_ITEMS = [
-  "Verification result",
-  "Evidence",
-  "Investigation trace",
-  "Claims",
-  "Failure / recovery history when applicable",
-] as const;
+const EMPTY_RESULT_ITEMS = ["调查结果（来自 Harness 独立验证）", "Agent 调查结论与过程", "Harness 独立验证"] as const;
 
 function catalogIssue(item: Pick<InvestigationCatalogItemDTO, "owner" | "repository" | "issueNumber">) {
   return issueRef(item);
@@ -119,35 +111,34 @@ export function InvestigationView() {
 
   const featured = catalog ? featuredExamples(catalog.snapshots) : [];
   const showOnboarding = !session && phase !== "running";
-  const issueTitle = session?.issue.title || session?.issue.summary;
 
   return (
     <div className="page">
       <section className="panel">
         <div className="hero-head">
-          <h2>Investigate a GitHub Issue</h2>
+          <h2 className="page-title">GitHub Issue 调查</h2>
           <span className={`mode-badge ${mode}`} title={investigationModeDetail(mode)}>
             <span className="mode-dot" />
             {investigationModeLabel(mode)}
           </span>
         </div>
-        <p className="hero-copy">
-          Verify whether an Agent actually resolved a GitHub Issue using independent evidence.
-        </p>
-        <p className="muted snapshot-note">{investigationModeDetail(mode)}</p>
+        <p className="hero-copy">让 Agent 调查 Issue，并由 Harness 独立验证结果。</p>
         <form className="issue-form" onSubmit={onSubmit}>
+          <label className="field-label" htmlFor="issue-url">
+            GitHub Issue 地址
+          </label>
           <div className="issue-row">
             <input
+              id="issue-url"
               value={issue}
               onChange={(event) => setIssue(event.target.value)}
-              placeholder="https://github.com/owner/repo/issues/123"
-              aria-label="GitHub issue"
+              placeholder="例如：https://github.com/microsoft/vscode/issues/258694"
+              aria-label="GitHub Issue 地址"
             />
             <button className="primary" type="submit" disabled={phase === "running" || !issue.trim()}>
-              {phase === "running" ? "Investigating..." : "Investigate"}
+              {phase === "running" ? "调查中…" : "开始调查"}
             </button>
           </div>
-          <p className="muted snapshot-note">Or enter owner/repo#123</p>
         </form>
         {error ? (
           <div className="error-block" role="alert">
@@ -161,11 +152,8 @@ export function InvestigationView() {
 
       {catalog ? (
         <section className="panel">
-          <h2>Try an example</h2>
-          <p className="muted">
-            Snapshot examples use recorded GitHub data for deterministic evaluation. Completion is decided by
-            independent verification.
-          </p>
+          <h2 className="section-heading">试试示例</h2>
+          <p className="muted">以下示例使用已录制的 GitHub 数据，便于复现。最终是否完成由独立验证决定。</p>
           <div className="example-grid">
             {featured.map((item) => (
               <ExampleCard
@@ -177,7 +165,7 @@ export function InvestigationView() {
             ))}
           </div>
           <details className="catalog-details">
-            <summary>Show all examples</summary>
+            <summary>显示全部示例</summary>
             <div className="example-grid example-grid-compact">
               {catalog.snapshots.map((item) => (
                 <ExampleCard
@@ -190,9 +178,9 @@ export function InvestigationView() {
             </div>
           </details>
           <details className="catalog-details">
-            <summary className="muted">Developer scenarios</summary>
+            <summary className="muted">开发者场景</summary>
             <p className="kicker" style={{ marginTop: 14 }}>
-              Fixtures
+              夹具
             </p>
             <div className="catalog">
               {catalog.fixtures.map((item) => (
@@ -209,7 +197,7 @@ export function InvestigationView() {
               ))}
             </div>
             <p className="kicker" style={{ marginTop: 14 }}>
-              Recovery scenarios
+              恢复场景
             </p>
             <div className="catalog">
               {catalog.recovery.map((item) => (
@@ -230,72 +218,54 @@ export function InvestigationView() {
       ) : null}
 
       {showOnboarding ? (
-        <>
-          <section className="panel">
-            <h2>How FASEI works</h2>
-            <ol className="workflow">
-              {WORKFLOW_STEPS.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ol>
-            <div className="outcome-legend">
-              {OUTCOMES.map((status) => (
-                <div key={status} className={`outcome-item ${status}`}>
-                  <strong>{verificationLabel(status)}</strong>
-                  <span className="muted">{verificationSubtitle(status)}</span>
-                </div>
-              ))}
-            </div>
-            <p className="muted proof-note">The Agent's conclusion is not used as proof of completion.</p>
-            {phase !== "failed" ? (
-              <div className="empty-state">
-                <p className="empty-lead">Enter a GitHub Issue to start an investigation.</p>
-                <p className="muted">After you investigate, this page will show:</p>
-                <ul className="empty-list">
-                  {EMPTY_RESULT_ITEMS.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
+        <section className="panel">
+          <h2 className="section-heading">怎么看结果</h2>
+          <ol className="workflow">
+            {WORKFLOW_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <div className="outcome-legend">
+            {OUTCOMES.map((status) => (
+              <div key={status} className={`outcome-item ${status}`}>
+                <strong>{verificationLabel(status)}</strong>
+                <span className="muted">{verificationSubtitle(status)}</span>
               </div>
-            ) : null}
-          </section>
-        </>
+            ))}
+          </div>
+          <p className="muted proof-note">Agent 的结论不会作为完成证明。</p>
+          {phase !== "failed" ? (
+            <div className="empty-state">
+              <p className="empty-lead">输入 GitHub Issue 地址后开始调查。</p>
+              <p className="muted">调查结束后将显示：</p>
+              <ul className="empty-list">
+                {EMPTY_RESULT_ITEMS.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
       ) : null}
 
       {phase === "running" ? (
         <section className="panel" aria-live="polite">
-          <p className="empty-lead">Investigating GitHub Issue…</p>
-          <p className="muted">Fetching evidence and verifying resolution…</p>
+          <p className="empty-lead">正在调查 GitHub Issue…</p>
+          <p className="muted">正在获取证据，并由 Harness 独立验证。</p>
         </section>
       ) : null}
 
       {session ? (
         <>
-          <section className="panel" data-testid="issue-panel">
-            <h2>Issue</h2>
-            <p className="mono">
-              {session.issue.owner}/{session.issue.repository}#{session.issue.number}
-            </p>
-            {issueTitle ? <p>{issueTitle}</p> : null}
-            {session.issue.state ? <p className="muted">State: {session.issue.state}</p> : null}
-            {session.issue.url ? (
-              <p className="muted mono">{session.issue.url}</p>
-            ) : null}
-          </section>
-          <p className="muted mono">
-            {issueRef(session.task)} · {session.mode}
-            {session.catalogId ? ` · ${session.catalogId}` : ""} · actor={session.actor}
-          </p>
           <VerificationSummary session={session} />
-          <div className="split">
+          <AgentHarnessCompare session={session} />
+          <div className="split lanes">
+            <AgentOutput session={session} />
             <VerificationChecks session={session} />
-            <TraceTimeline session={session} />
           </div>
+          <FailureRecoveryPanel session={session} />
           <EvidencePanel session={session} />
-          <ClaimPanel session={session} />
-          <AttemptPanel session={session} />
-          <LlmProfilingPanel session={session} />
-          <AgentOutput session={session} />
+          <AdvancedInfo session={session} />
         </>
       ) : null}
     </div>

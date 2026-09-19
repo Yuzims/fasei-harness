@@ -237,3 +237,14 @@ export function compactRecordClaimOutput(claimIds: string[]): Record<string, unk
     result: { recorded: claimIds.length },
   };
 }
+
+export function compactRecordResolutionAnalysisOutput(analysisIds: string[]): Record<string, unknown> {
+  return {
+    tool: "record_resolution_analysis",
+    status: "success",
+    evidenceIds: [],
+    resolutionAnalysisIds: [...analysisIds],
+    notice: "Resolution Analysis is an investigation hypothesis. It is not VERIFIED_COMPLETE.",
+    result: { recorded: analysisIds.length },
+  };
+}

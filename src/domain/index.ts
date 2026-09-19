@@ -29,6 +29,7 @@ export type {
   RecoveryAction,
   RecoveryPlan,
   RequirementSeverity,
+  ResolutionAnalysis,
   VerificationCheck,
   VerificationResult,
   VerificationStatus,
@@ -42,6 +43,7 @@ export {
   createInvestigationRun,
   createInvestigationTask,
   createRelation,
+  createResolutionAnalysis,
   createTarget,
   defaultResolutionRequirements,
 } from "./factories.js";

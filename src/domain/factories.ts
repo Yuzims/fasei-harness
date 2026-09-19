@@ -9,6 +9,7 @@ import type {
   InvestigationRun,
   InvestigationTask,
   InvestigationTarget,
+  ResolutionAnalysis,
 } from "./types.js";
 
 function requireText(value: string, field: string): string {
@@ -131,6 +132,23 @@ export function bindClaimEvidence(input: ClaimEvidence): ClaimEvidence {
   };
 }
 
+export function createResolutionAnalysis(
+  input: Omit<ResolutionAnalysis, "id"> & { id?: string },
+): ResolutionAnalysis {
+  return {
+    id: input.id?.trim() || randomUUID(),
+    candidateEvidenceId: requireText(input.candidateEvidenceId, "candidateEvidenceId"),
+    issueEvidenceId: requireText(input.issueEvidenceId, "issueEvidenceId"),
+    mergeCommitSha: input.mergeCommitSha?.trim() || undefined,
+    codeRelevance: requireText(input.codeRelevance, "codeRelevance"),
+    behavioralAlignment: requireText(input.behavioralAlignment, "behavioralAlignment"),
+    testSupport: requireText(input.testSupport, "testSupport"),
+    unresolvedQuestions: [...input.unresolvedQuestions],
+    supportingEvidenceIds: [...input.supportingEvidenceIds],
+    claimIds: [...input.claimIds],
+  };
+}
+
 export function createInvestigationRun(input: {
   id?: string;
   task: InvestigationTask;
@@ -146,6 +164,7 @@ export function createInvestigationRun(input: {
     relations: [],
     claims: [],
     claimEvidence: [],
+    resolutionAnalyses: [],
   };
 }
 

@@ -227,6 +227,18 @@ export interface InvestigationClaimEvidenceDTO {
   role: string;
 }
 
+export interface ResolutionAnalysisDTO {
+  candidateEvidenceId: string;
+  issueEvidenceId: string;
+  mergeCommitSha?: string;
+  codeRelevance: string;
+  behavioralAlignment: string;
+  testSupport: string;
+  unresolvedQuestions: string[];
+  supportingEvidenceIds: string[];
+  claimIds: string[];
+}
+
 export interface InvestigationStepDTO {
   step: number;
   tool: string;
@@ -290,6 +302,7 @@ export interface InvestigationSessionDTO {
   relations: InvestigationRelationDTO[];
   claims: InvestigationClaimDTO[];
   claimEvidence: InvestigationClaimEvidenceDTO[];
+  resolutionAnalyses?: ResolutionAnalysisDTO[];
   steps: InvestigationStepDTO[];
   attempts: InvestigationAttemptDTO[];
   report: {

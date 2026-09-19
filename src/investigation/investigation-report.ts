@@ -7,7 +7,7 @@ import type {
 import type { AgentResult } from "../core/types.js";
 import { aggregateLlmUsage, type LlmUsageAggregate } from "../agent/llm-usage.js";
 import type { LlmRuntimeBudget } from "../agent/llm-runtime.js";
-import type { InvestigationRun } from "../domain/index.js";
+import type { InvestigationRun, ResolutionAnalysis } from "../domain/index.js";
 import type { InvestigationState, ToolHistoryEntry } from "./state.js";
 
 export type InvestigationActor = "llm" | "test_driver" | "unconfigured";
@@ -36,6 +36,7 @@ export interface InvestigationAgentReport {
   claims: InvestigationRun["claims"];
   evidence: InvestigationRun["evidence"];
   claimEvidence: InvestigationRun["claimEvidence"];
+  resolutionAnalyses: ResolutionAnalysis[];
   unresolvedQuestions: string[];
   investigationSteps: InvestigationStep[];
   actor: InvestigationActor;
@@ -142,6 +143,7 @@ export function toAgentReport(input: {
     claims: input.state.run.claims,
     evidence: input.state.run.evidence,
     claimEvidence: input.state.run.claimEvidence,
+    resolutionAnalyses: input.state.run.resolutionAnalyses ?? [],
     unresolvedQuestions: report.openQuestions,
     investigationSteps: stepsFromHistory(input.state.toolHistory),
     actor: input.actor,

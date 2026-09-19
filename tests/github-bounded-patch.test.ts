@@ -303,6 +303,8 @@ test("Evidence：patch 仍是 external_untrusted，不改变 completion semantic
 test("Investigation prompt / tool description：可以观察 bounded patch，但不能当 completion authority", () => {
   assert.match(INVESTIGATION_SYSTEM_PROMPT, /bounded patch/i);
   assert.match(INVESTIGATION_SYSTEM_PROMPT, /hypothesis/i);
+  assert.match(INVESTIGATION_SYSTEM_PROMPT, /Resolution Analysis/i);
+  assert.match(INVESTIGATION_SYSTEM_PROMPT, /observed facts/i);
   assert.match(INVESTIGATION_SYSTEM_PROMPT, /VERIFIED_COMPLETE/);
   const tool = createGithubGetPullRequestFilesTool({
     provider: new SnapshotGitHubProvider(githubFixturePath("resolved")),

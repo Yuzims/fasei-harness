@@ -61,11 +61,29 @@ export {
   nextInvestigationAction,
   TEST_DRIVER_NOTICE,
 } from "./test-driver.js";
-export { createInvestigationToolList, ingestObservation } from "./investigation-tools.js";
+export {
+  createInvestigationToolList,
+  createRecordResolutionAnalysisTool,
+  ingestObservation,
+} from "./investigation-tools.js";
 export type { InvestigationSession } from "./investigation-tools.js";
 export {
   compactInvestigationToolOutput,
   compactRecordClaimOutput,
+  compactRecordResolutionAnalysisOutput,
 } from "./tool-result-context.js";
+export {
+  INSUFFICIENT_CODE_CHANGE_CONTEXT,
+  TEST_SUPPORT_NOT_OBSERVED,
+  attachClaimsToResolutionAnalyses,
+  buildResolutionAnalyses,
+  buildResolutionAnalysisForCandidate,
+  existingEvidenceIds,
+  fileChangeFromEvidence,
+  hasBoundedPatch,
+  isTestFilePath,
+  recordAuthoredResolutionAnalysis,
+  upsertResolutionAnalysis,
+} from "./resolution-analysis.js";
 export { IndependentCompletionVerifier, verifyInvestigationCompletion } from "../verification/independent-completion-verifier.js";
 export type { IndependentVerifyInput } from "../verification/independent-completion-verifier.js";

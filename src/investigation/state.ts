@@ -9,6 +9,7 @@ import type {
   InvestigationStrategy,
   InvestigationTask,
   RecoveryPlan,
+  ResolutionAnalysis,
 } from "../domain/index.js";
 
 export type RetrievalStrategy = "default" | "timeline" | "comments" | "linked_pr" | "broaden";
@@ -51,6 +52,7 @@ export class InvestigationState {
   readonly invalidEvidenceIds = new Set<string>();
   lastFailure?: FailureEvent;
   lastRecovery?: RecoveryPlan;
+  readonly authoredResolutionCandidates = new Set<string>();
 
   constructor(
     readonly task: InvestigationTask,
@@ -100,6 +102,17 @@ export class InvestigationState {
     this.run.claimEvidence.push(link);
   }
 
+  addResolutionAnalysis(analysis: ResolutionAnalysis): ResolutionAnalysis {
+    const list = this.run.resolutionAnalyses ?? (this.run.resolutionAnalyses = []);
+    const index = list.findIndex((item) => item.candidateEvidenceId === analysis.candidateEvidenceId);
+    if (index >= 0) {
+      list[index] = analysis;
+    } else {
+      list.push(analysis);
+    }
+    return analysis;
+  }
+
   addRelation(relation: EvidenceRelation): void {
     const exists = this.run.relations.some(
       (item) =>
@@ -145,6 +158,17 @@ export class InvestigationState {
       mergedPrs: [...this.mergedPrs],
       unmergedPrs: [...this.unmergedPrs],
       unresolvedQuestions: [...this.unresolvedQuestions],
+      resolutionAnalyses: (this.run.resolutionAnalyses ?? []).map((item) => ({
+        candidateEvidenceId: item.candidateEvidenceId,
+        issueEvidenceId: item.issueEvidenceId,
+        mergeCommitSha: item.mergeCommitSha,
+        codeRelevance: item.codeRelevance,
+        behavioralAlignment: item.behavioralAlignment,
+        testSupport: item.testSupport,
+        unresolvedQuestions: [...item.unresolvedQuestions],
+        supportingEvidenceIds: [...item.supportingEvidenceIds],
+        claimIds: [...item.claimIds],
+      })),
       investigatedResources: [...this.investigatedResources],
       remainingSources: remainingEvidenceSources(this),
       retrievalStrategy: this.retrievalStrategy,

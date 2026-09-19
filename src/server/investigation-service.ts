@@ -322,6 +322,17 @@ export function toInvestigationSessionDTO(
       evidenceId: item.evidenceId,
       role: item.role,
     })),
+    resolutionAnalyses: (report.resolutionAnalyses ?? []).map((item) => ({
+      candidateEvidenceId: item.candidateEvidenceId,
+      issueEvidenceId: item.issueEvidenceId,
+      mergeCommitSha: item.mergeCommitSha,
+      codeRelevance: item.codeRelevance,
+      behavioralAlignment: item.behavioralAlignment,
+      testSupport: item.testSupport,
+      unresolvedQuestions: [...item.unresolvedQuestions],
+      supportingEvidenceIds: [...item.supportingEvidenceIds],
+      claimIds: [...item.claimIds],
+    })),
     steps: report.investigationSteps.map((step) => ({
       step: step.step,
       tool: step.tool,

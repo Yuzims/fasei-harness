@@ -104,6 +104,15 @@ function discardEvidence(state: InvestigationState, id: string): void {
   const existing = state.run.evidence.find((item) => item.id === id);
   state.run.evidence = state.run.evidence.filter((item) => item.id !== id);
   state.run.claimEvidence = state.run.claimEvidence.filter((link) => link.evidenceId !== id);
+  if (state.run.resolutionAnalyses) {
+    state.run.resolutionAnalyses = state.run.resolutionAnalyses.filter(
+      (item) =>
+        item.candidateEvidenceId !== id &&
+        item.issueEvidenceId !== id &&
+        !item.supportingEvidenceIds.includes(id),
+    );
+    state.authoredResolutionCandidates.delete(id);
+  }
   state.run.relations = state.run.relations.filter(
     (relation) => relation.fromEvidenceId !== id && relation.toEvidenceId !== id,
   );
@@ -130,6 +139,10 @@ function resetEvidenceGraph(state: InvestigationState): void {
   state.run.relations.length = 0;
   state.run.claims.length = 0;
   state.run.claimEvidence.length = 0;
+  if (state.run.resolutionAnalyses) {
+    state.run.resolutionAnalyses.length = 0;
+  }
+  state.authoredResolutionCandidates.clear();
   state.investigatedResources.clear();
   state.candidatePrs.clear();
   state.mergedPrs.clear();

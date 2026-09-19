@@ -206,6 +206,23 @@ export interface ClaimEvidence {
   role: ClaimEvidenceRole;
 }
 
+/**
+ * Agent-side investigation artifact. Hypothesis about whether observed
+ * code changes may address the issue. Never a completion verdict.
+ */
+export interface ResolutionAnalysis {
+  id: string;
+  candidateEvidenceId: string;
+  issueEvidenceId: string;
+  mergeCommitSha?: string;
+  codeRelevance: string;
+  behavioralAlignment: string;
+  testSupport: string;
+  unresolvedQuestions: string[];
+  supportingEvidenceIds: string[];
+  claimIds: string[];
+}
+
 export interface VerificationCheck {
   id: string;
   name: string;
@@ -298,4 +315,6 @@ export interface InvestigationRun {
   relations: EvidenceRelation[];
   claims: Claim[];
   claimEvidence: ClaimEvidence[];
+  /** Runtime investigation artifact. Not a snapshot field and not a verifier input. */
+  resolutionAnalyses: ResolutionAnalysis[];
 }

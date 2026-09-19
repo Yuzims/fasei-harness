@@ -30,7 +30,13 @@ import {
 import {
   compactInvestigationToolOutput,
   compactRecordClaimOutput,
+  compactRecordResolutionAnalysisOutput,
 } from "./tool-result-context.js";
+import {
+  attachClaimsToResolutionAnalyses,
+  buildResolutionAnalyses,
+  recordAuthoredResolutionAnalysis,
+} from "./resolution-analysis.js";
 
 const POLARITIES: ClaimPolarity[] = ["resolved", "unresolved", "partial", "unknown"];
 const ROLES: ClaimEvidenceRole[] = ["supports", "contradicts", "contextual"];
@@ -459,34 +465,50 @@ function ingestCommits(session: InvestigationSession, output: unknown, pullNumbe
   return ids;
 }
 
+function syncResolutionAnalyses(session: InvestigationSession): void {
+  session.state.run.resolutionAnalyses = buildResolutionAnalyses(session.state.run, {
+    preserveCandidateIds: session.state.authoredResolutionCandidates,
+  });
+}
+
 export function ingestObservation(
   session: InvestigationSession,
   toolName: string,
   args: Record<string, unknown>,
   output: unknown,
 ): string[] {
+  let ids: string[];
   switch (toolName) {
     case "github_get_issue":
-      return ingestIssue(session, output);
+      ids = ingestIssue(session, output);
+      break;
     case "github_get_issue_comments":
-      return ingestComments(session, output);
+      ids = ingestComments(session, output);
+      break;
     case "github_get_issue_timeline":
-      return ingestTimeline(session, output);
+      ids = ingestTimeline(session, output);
+      break;
     case "github_get_pull_request":
-      return ingestPullRequest(session, output);
+      ids = ingestPullRequest(session, output);
+      break;
     case "github_get_pull_request_reviews":
-      return ingestReviews(session, output, Number(args.pullNumber));
+      ids = ingestReviews(session, output, Number(args.pullNumber));
+      break;
     case "github_get_pull_request_files":
-      return ingestFiles(session, output, Number(args.pullNumber));
+      ids = ingestFiles(session, output, Number(args.pullNumber));
+      break;
     case "github_list_commits":
-      return ingestCommits(
+      ids = ingestCommits(
         session,
         output,
         typeof args.pullNumber === "number" ? args.pullNumber : undefined,
       );
+      break;
     default:
       return [];
   }
+  syncResolutionAnalyses(session);
+  return ids;
 }
 
 function cachedPayload(session: InvestigationSession, key: string): unknown {
@@ -667,6 +689,7 @@ export function createRecordClaimTool(session: InvestigationSession): Tool {
         session.state.polarity = parsePolarity(args.polarity);
       }
       session.state.claimsRecorded = created.length > 0 || session.state.run.claims.length > 0;
+      attachClaimsToResolutionAnalyses(session.state.run);
       session.state.recordTool({
         tool: "record_claim",
         arguments: { claimCount: created.length },
@@ -679,6 +702,72 @@ export function createRecordClaimTool(session: InvestigationSession): Tool {
   };
 }
 
+export function createRecordResolutionAnalysisTool(session: InvestigationSession): Tool {
+  return {
+    name: "record_resolution_analysis",
+    description:
+      "Record a structured Resolution Analysis linked to existing Evidence IDs. Separate observed facts from inference. This is a hypothesis and cannot set VERIFIED_COMPLETE.",
+    parameters: {
+      type: "object",
+      properties: {
+        candidateEvidenceId: { type: "string" },
+        issueEvidenceId: { type: "string" },
+        mergeCommitSha: { type: "string" },
+        codeRelevance: { type: "string" },
+        behavioralAlignment: { type: "string" },
+        testSupport: { type: "string" },
+        unresolvedQuestions: { type: "array", items: { type: "string" } },
+        supportingEvidenceIds: { type: "array", items: { type: "string" } },
+        claimIds: { type: "array", items: { type: "string" } },
+      },
+      required: [
+        "candidateEvidenceId",
+        "issueEvidenceId",
+        "codeRelevance",
+        "behavioralAlignment",
+        "testSupport",
+      ],
+    },
+    async execute(args) {
+      const recorded = recordAuthoredResolutionAnalysis(session.state.run, {
+        candidateEvidenceId: String(args.candidateEvidenceId ?? ""),
+        issueEvidenceId: String(args.issueEvidenceId ?? ""),
+        mergeCommitSha: typeof args.mergeCommitSha === "string" ? args.mergeCommitSha : undefined,
+        codeRelevance: String(args.codeRelevance ?? ""),
+        behavioralAlignment: String(args.behavioralAlignment ?? ""),
+        testSupport: String(args.testSupport ?? ""),
+        unresolvedQuestions: Array.isArray(args.unresolvedQuestions)
+          ? args.unresolvedQuestions.filter((item): item is string => typeof item === "string")
+          : [],
+        supportingEvidenceIds: Array.isArray(args.supportingEvidenceIds)
+          ? args.supportingEvidenceIds.filter((item): item is string => typeof item === "string")
+          : [],
+        claimIds: Array.isArray(args.claimIds)
+          ? args.claimIds.filter((item): item is string => typeof item === "string")
+          : [],
+      });
+      for (const question of recorded.unresolvedQuestions) {
+        session.state.addQuestion(question);
+      }
+      const ids: string[] = [];
+      if (recorded.analysis) {
+        session.state.addResolutionAnalysis(recorded.analysis);
+        session.state.authoredResolutionCandidates.add(recorded.analysis.candidateEvidenceId);
+        attachClaimsToResolutionAnalyses(session.state.run);
+        ids.push(recorded.analysis.id);
+      }
+      session.state.recordTool({
+        tool: "record_resolution_analysis",
+        arguments: { recorded: ids.length },
+        success: true,
+        evidenceIds: recorded.analysis?.supportingEvidenceIds ?? [],
+        reason: session.state.lastDecisionReason,
+      });
+      return compactRecordResolutionAnalysisOutput(ids);
+    },
+  };
+}
+
 export function createInvestigationToolList(
   provider: GitHubDataProvider,
   session: InvestigationSession,
@@ -686,7 +775,7 @@ export function createInvestigationToolList(
   const github = createInvestigationGithubTools({ provider }).map((tool) =>
     wrapGithubTool(tool, session),
   );
-  return [...github, createRecordClaimTool(session)];
+  return [...github, createRecordClaimTool(session), createRecordResolutionAnalysisTool(session)];
 }
 
 export function evidenceKindFromTool(toolName: string): EvidenceKind | undefined {

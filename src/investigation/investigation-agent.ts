@@ -582,6 +582,7 @@ async function runInvestigationAttempts(input: {
       `Investigate ${task.target.owner}/${task.target.repository}#${task.target.issueNumber}.`,
       task.description,
       "Use read-only GitHub investigation tools, then record_claim.",
+      "If a bounded patch is available, form a Resolution Analysis that separates observed facts, inference, and uncertainty.",
       "Do not declare VERIFIED_COMPLETE.",
     ].join(" "),
   };

@@ -10,6 +10,13 @@ import type { LlmRuntimeBudget } from "../agent/llm-runtime.js";
 import type { InvestigationRun, ResolutionAnalysis } from "../domain/index.js";
 import type { InvestigationState, ToolHistoryEntry } from "./state.js";
 import type { RetrievalCandidate } from "./retrieval/candidate.js";
+import {
+  RETRIEVAL_TOP_K,
+  investigatedCandidatesFromEvents,
+  investigationCandidatesOf,
+  promotedCandidatesOf,
+  retrievalTopKOf,
+} from "./retrieval/selection.js";
 
 export type InvestigationActor = "llm" | "test_driver" | "unconfigured";
 
@@ -52,8 +59,20 @@ export interface InvestigationAgentReport {
    * investigationSteps is tool history / observations, which can differ.
    */
   toolCallCount: number;
-  /** Runtime Top-K: candidates that entered the investigation budget. */
-  selectedCandidates: RetrievalCandidate[];
+  /**
+   * Combined retrieval Top-K used for Recall@K / Precision@K.
+   * Not inferred from promoted. Not the per-source-type investigation budget.
+   */
+  retrievalTopKCandidates: RetrievalCandidate[];
+  /** Candidates admitted into the per-source-type investigation budget. */
+  investigationCandidates: RetrievalCandidate[];
+  /**
+   * Candidates that actually entered investigation (`retrieval_investigation_started`).
+   * Distinct from budget admission and from promotion.
+   */
+  investigatedCandidates: RetrievalCandidate[];
+  /** Candidates promoted by the existing candidate lifecycle. */
+  promotedCandidates: RetrievalCandidate[];
 }
 
 export function countTraceToolCalls(events: readonly { type: string }[]): number {
@@ -152,10 +171,12 @@ export function toAgentReport(input: {
   verification?: VerificationResult;
   llmUsage?: LlmUsageAggregate;
   runtimeBudget?: LlmRuntimeBudget;
-  traceEvents?: readonly { type: string }[];
+  traceEvents?: readonly { type: string; data?: Record<string, unknown> }[];
 }): InvestigationAgentReport {
   const status = input.status ?? deriveInvestigationStatus(input.state);
   const report = buildInvestigationReport(input.state, status);
+  const discovered = cloneCandidates(input.state.retrievalCandidates);
+  const investigation = cloneCandidates(investigationCandidatesOf(input.state.retrievalCandidates));
   return {
     task: input.state.task,
     status,
@@ -172,8 +193,13 @@ export function toAgentReport(input: {
     verification: input.verification,
     llmUsage: input.llmUsage ?? aggregateLlmUsage([]),
     runtimeBudget: input.runtimeBudget,
-    retrievalCandidates: cloneCandidates(input.state.retrievalCandidates),
+    retrievalCandidates: discovered,
     toolCallCount: countTraceToolCalls(input.traceEvents ?? []),
-    selectedCandidates: cloneCandidates(input.state.selectedRetrievalCandidates()),
+    retrievalTopKCandidates: cloneCandidates(retrievalTopKOf(input.state.retrievalCandidates, RETRIEVAL_TOP_K)),
+    investigationCandidates: investigation,
+    investigatedCandidates: cloneCandidates(
+      investigatedCandidatesFromEvents(input.state.retrievalCandidates, input.traceEvents ?? []),
+    ),
+    promotedCandidates: cloneCandidates(promotedCandidatesOf(input.state.retrievalCandidates)),
   };
 }

@@ -13,6 +13,13 @@ export interface RetrievalRelevanceSignals {
   lexicalScore?: number;
   temporalScore?: number;
   structuralScore?: number;
+  /** Metadata ranking signals. Absent unless metadata enrichment ran. */
+  issueReferenceStrength?: number;
+  pathOverlapScore?: number;
+  messageOrTitleAlignment?: number;
+  resolutionKeywordSignal?: number;
+  mergeStateSignal?: number;
+  structuralChangeSignal?: number;
 }
 
 export interface RetrievalCandidate {

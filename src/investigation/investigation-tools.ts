@@ -169,6 +169,7 @@ function applyGroupSelection(
   selected.forEach((candidate, rank) => {
     recordCandidateRanked(session, candidate, rank);
     if (candidate.status === "investigating" || candidate.status === "promoted") {
+      // Investigation-budget admission for this source type. Not combined retrieval Top-K.
       recordCandidateSelected(session, candidate);
     } else if (candidate.status === "rejected") {
       recordCandidateRejected(session, candidate);

@@ -113,15 +113,40 @@ export function inInvestigationBudget(candidate: RetrievalCandidateView): boolea
   return candidate.status === "investigating" || candidate.status === "promoted";
 }
 
-export function selectedTopK(
+export function isPromoted(candidate: RetrievalCandidateView): boolean {
+  return candidate.status === "promoted";
+}
+
+/** Budget admissions. Not retrieval Top-K and not promotion. */
+export function investigationCandidatesOfViews(
   candidates: readonly RetrievalCandidateView[],
 ): RetrievalCandidateView[] {
   return candidates.filter(inInvestigationBudget);
 }
 
+/** Investigation-budget list. Not combined retrieval Top-K. */
+export function selectedTopK(
+  candidates: readonly RetrievalCandidateView[],
+): RetrievalCandidateView[] {
+  return investigationCandidatesOfViews(candidates);
+}
+
+export function retrievalTopKOfViews(
+  candidates: readonly RetrievalCandidateView[],
+  k: number,
+): RetrievalCandidateView[] {
+  return investigationCandidatesOfViews(candidates).slice(0, Math.max(0, k));
+}
+
+export function promotedCandidatesOfViews(
+  candidates: readonly RetrievalCandidateView[],
+): RetrievalCandidateView[] {
+  return candidates.filter(isPromoted);
+}
+
 /**
- * Investigation success = GT candidate was actually selected/investigated.
- * Promotion is a later lifecycle step, not the investigation-success signal.
+ * Investigation success = GT entered the investigation budget
+ * (`investigating` or `promoted`). Promotion is a later lifecycle step.
  */
 export function investigationSucceeded(
   candidates: readonly RetrievalCandidateView[],

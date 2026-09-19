@@ -34,11 +34,16 @@ import {
 } from "../github/index.js";
 import {
   MAX_INVESTIGATED_CANDIDATES,
+  RETRIEVAL_TOP_K,
+  applyMetadataEnrichedSelection,
+  candidateMetadataFromSnapshot,
   investigate,
   withCandidateStatus,
+  type CandidateMetadataCatalog,
   type InvestigateOptions,
   type InvestigationAgentReport,
   type InvestigationSession,
+  type IssueRetrievalContext,
   type RetrievalCandidate,
   type RetrievalCandidateSelection,
 } from "../investigation/index.js";
@@ -47,23 +52,29 @@ import {
   asCandidateView,
   diagnoseRetrieval,
   discoveryFound,
+  investigationCandidatesOfViews,
   investigationSucceeded,
+  isRelevantCandidate,
   meanDefined,
   precisionAtK,
+  promotedCandidatesOfViews,
   recallAtK,
-  selectedTopK,
+  retrievalTopKOfViews,
   type ExpectedResolutionCandidate,
   type RetrievalCandidateView,
   type RetrievalDiagnosis,
 } from "./retrieval-metrics.js";
 import { REAL_CASE_IDS, createStrategyEvaluationModel } from "./strategy-evaluation.js";
 
-export const RETRIEVAL_EVALUATION_VERSION = "8.9.x";
+export const RETRIEVAL_EVALUATION_VERSION = "8.9.x-contract";
 
 export const RETRIEVAL_EVALUATION_BASELINE_NOTE =
   "baseline is a controlled baseline: the same Investigation Agent, Fake Model policy, snapshot, discovery source, and candidate investigation budget (MAX_INVESTIGATED_CANDIDATES) run with discovery-order bounded selection instead of Evidence-driven Candidate Ranking / Top-K. It is not a historical replay of a previous harness version or a live production retrieval system. controlled baseline ≠ historical production system.";
 
-export type RetrievalEvaluationStrategy = "baseline" | "evidence_driven";
+export type RetrievalEvaluationStrategy = "baseline" | "evidence_driven" | "metadata_enriched";
+
+export const RETRIEVAL_METADATA_ENRICHED_NOTE =
+  "metadata_enriched is the existing evidence-driven ranking plus metadata signals extracted from already-available snapshot/candidate metadata. Discovery, investigation budget, RETRIEVAL_TOP_K, Fake Model, verifier, and Ground Truth are unchanged. The only variable versus evidence_driven is metadata-enriched ranking.";
 
 export interface RetrievalGroundTruth {
   caseId: string;
@@ -78,10 +89,22 @@ export interface RetrievalEvaluationCase {
   resolutionExpected: boolean;
   groundTruth: ExpectedResolutionCandidate[];
   discovered: RetrievalCandidateView[];
-  topK: RetrievalCandidateView[];
-  investigated: RetrievalCandidateView[];
+  /** Combined retrieval Top-K used for Recall@K / Precision@K. */
+  retrievalTopKCandidates: RetrievalCandidateView[];
+  /** Candidates admitted into the per-source-type investigation budget. */
+  investigationCandidates: RetrievalCandidateView[];
+  /**
+   * Candidates that actually entered investigation.
+   * Empty when the evaluator has no investigation-started events.
+   */
+  investigatedCandidates: RetrievalCandidateView[];
+  promotedCandidates: RetrievalCandidateView[];
   discoveryFound: boolean | null;
+  /** Expected candidate is in retrievalTopKCandidates. Not inferred from promoted. */
   topKFound: boolean | null;
+  inInvestigationBudget: boolean | null;
+  actuallyInvestigated: boolean | null;
+  promotedFound: boolean | null;
   recallAt1: number | null;
   recallAt3: number | null;
   recallAt5: number | null;
@@ -90,6 +113,8 @@ export interface RetrievalEvaluationCase {
   precisionAt5: number | null;
   diagnosis: RetrievalDiagnosis;
   candidateCount: number;
+  retrievalTopKCandidateCount: number;
+  investigationCandidateCount: number;
   investigatedCandidateCount: number;
   rejectedCandidateCount: number;
   promotedCandidateCount: number;
@@ -152,6 +177,7 @@ export interface RetrievalEvaluationComparison {
   baselineNote: string;
   baseline: RetrievalEvaluationCase;
   evidenceDriven: RetrievalEvaluationCase;
+  metadataEnriched: RetrievalEvaluationCase;
 }
 
 export interface RetrievalEvaluationCaseConfig {
@@ -195,11 +221,46 @@ export function applyDiscoveryOrderSelection(
   });
 }
 
+function snapshotFromProvider(provider: GitHubDataProvider): InvestigationSnapshot | undefined {
+  if (provider instanceof SnapshotGitHubProvider) {
+    return provider.getSnapshot();
+  }
+  return undefined;
+}
+
+export function metadataSelectionOptions(provider: GitHubDataProvider): {
+  catalog: CandidateMetadataCatalog;
+  context: IssueRetrievalContext;
+} {
+  const snapshot = snapshotFromProvider(provider);
+  if (!snapshot) {
+    return { catalog: {}, context: { issueNumber: 0 } };
+  }
+  return {
+    catalog: candidateMetadataFromSnapshot(snapshot),
+    context: {
+      issueNumber: snapshot.issueNumber,
+      issueTitle: snapshot.issue.title,
+      issueBody: snapshot.issue.body,
+    },
+  };
+}
+
 export function selectorForStrategy(
   strategy: RetrievalEvaluationStrategy,
+  options?: {
+    catalog?: CandidateMetadataCatalog;
+    context?: IssueRetrievalContext;
+  },
 ): RetrievalCandidateSelection | undefined {
   if (strategy === "baseline") {
     return applyDiscoveryOrderSelection;
+  }
+  if (strategy === "metadata_enriched") {
+    const catalog = options?.catalog ?? {};
+    const context = options?.context ?? { issueNumber: 0 };
+    return (candidates, limit) =>
+      applyMetadataEnrichedSelection(candidates, { catalog, context, limit });
   }
   return undefined;
 }
@@ -257,14 +318,48 @@ export const REAL_V1_RETRIEVAL_GROUND_TRUTH: Record<string, RetrievalGroundTruth
   },
 };
 
-function runtimeTopK(
-  candidates: readonly RetrievalCandidate[],
-  selected?: readonly RetrievalCandidate[],
-): RetrievalCandidateView[] {
-  if (selected) {
-    return selected.map(asCandidateView);
-  }
-  return selectedTopK(candidates.map(asCandidateView));
+function asViews(candidates: readonly RetrievalCandidate[]): RetrievalCandidateView[] {
+  return candidates.map(asCandidateView);
+}
+
+function runtimeMeasurementLists(input: {
+  candidates: readonly RetrievalCandidate[];
+  report?: InvestigationAgentReport;
+  retrievalTopKCandidates?: readonly RetrievalCandidate[];
+  investigationCandidates?: readonly RetrievalCandidate[];
+  investigatedCandidates?: readonly RetrievalCandidate[];
+  promotedCandidates?: readonly RetrievalCandidate[];
+  selectedCandidates?: readonly RetrievalCandidate[];
+}): {
+  retrievalTopK: RetrievalCandidateView[];
+  investigation: RetrievalCandidateView[];
+  investigated: RetrievalCandidateView[];
+  promoted: RetrievalCandidateView[];
+} {
+  const discovered = asViews(input.candidates);
+  const investigation = input.investigationCandidates
+    ? asViews(input.investigationCandidates)
+    : input.report?.investigationCandidates
+      ? asViews(input.report.investigationCandidates)
+      : input.selectedCandidates
+        ? asViews(input.selectedCandidates)
+        : investigationCandidatesOfViews(discovered);
+  const retrievalTopK = input.retrievalTopKCandidates
+    ? asViews(input.retrievalTopKCandidates)
+    : input.report?.retrievalTopKCandidates
+      ? asViews(input.report.retrievalTopKCandidates)
+      : retrievalTopKOfViews(investigation, RETRIEVAL_TOP_K);
+  const investigated = input.investigatedCandidates
+    ? asViews(input.investigatedCandidates)
+    : input.report?.investigatedCandidates
+      ? asViews(input.report.investigatedCandidates)
+      : [];
+  const promoted = input.promotedCandidates
+    ? asViews(input.promotedCandidates)
+    : input.report?.promotedCandidates
+      ? asViews(input.report.promotedCandidates)
+      : promotedCandidatesOfViews(discovered);
+  return { retrievalTopK, investigation, investigated, promoted };
 }
 
 function verificationStatusOf(report: InvestigationAgentReport): VerificationStatus {
@@ -327,7 +422,13 @@ export function evaluateRetrievalCandidates(input: {
   candidates: readonly RetrievalCandidate[];
   groundTruth: RetrievalGroundTruth;
   report?: InvestigationAgentReport;
-  /** Runtime Top-K. Evaluation must not re-run ranking/selection to derive this. */
+  /** Explicit combined retrieval Top-K. Evaluation must not re-rank to derive this. */
+  retrievalTopKCandidates?: readonly RetrievalCandidate[];
+  /** Runtime investigation-budget admissions. Not retrieval Top-K. */
+  investigationCandidates?: readonly RetrievalCandidate[];
+  investigatedCandidates?: readonly RetrievalCandidate[];
+  promotedCandidates?: readonly RetrievalCandidate[];
+  /** Investigation-budget fallback for older call sites. Not retrieval Top-K. */
   selectedCandidates?: readonly RetrievalCandidate[];
   llmCalls?: number;
   estimatedInputTokens?: number | null;
@@ -336,16 +437,19 @@ export function evaluateRetrievalCandidates(input: {
   const resolutionExpected = input.groundTruth.expectedResolution === "candidate";
   const valid = resolutionExpected ? input.groundTruth.validCandidates : [];
   const discovered = input.candidates.map(asCandidateView);
-  const topK = runtimeTopK(
-    input.candidates,
-    input.selectedCandidates ?? input.report?.selectedCandidates,
-  );
-  const investigated = discovered.filter(
-    (item) => item.status === "investigating" || item.status === "promoted",
-  );
+  const lists = runtimeMeasurementLists(input);
   const foundDiscovery = resolutionExpected ? discoveryFound(discovered, valid) : null;
-  const foundTopK = resolutionExpected ? recallAtK(topK, valid, MAX_INVESTIGATED_CANDIDATES) === 1 : null;
-  const investigationSuccess = resolutionExpected ? investigationSucceeded(discovered, valid) : null;
+  const foundTopK = resolutionExpected ? recallAtK(lists.retrievalTopK, valid, RETRIEVAL_TOP_K) === 1 : null;
+  const inBudget = resolutionExpected ? investigationSucceeded(lists.investigation, valid) : null;
+  const actuallyInvestigated = resolutionExpected
+    ? lists.investigated.length > 0
+      ? lists.investigated.some((item) => isRelevantCandidate(item, valid))
+      : null
+    : null;
+  const promotedFound = resolutionExpected
+    ? lists.promoted.some((item) => isRelevantCandidate(item, valid))
+    : null;
+  const investigationSuccess = inBudget;
   const verification = input.report ? verificationStatusOf(input.report) : "not_verified";
   const claimed = input.report ? agentClaimedComplete(input.report) : false;
   const expectedStatus = input.groundTruth.expectedOutcome?.verificationStatus;
@@ -355,16 +459,21 @@ export function evaluateRetrievalCandidates(input: {
     resolutionExpected,
     groundTruth: [...valid],
     discovered,
-    topK,
-    investigated,
+    retrievalTopKCandidates: lists.retrievalTopK,
+    investigationCandidates: lists.investigation,
+    investigatedCandidates: lists.investigated,
+    promotedCandidates: lists.promoted,
     discoveryFound: foundDiscovery,
     topKFound: foundTopK,
-    recallAt1: recallAtK(topK, valid, 1),
-    recallAt3: recallAtK(topK, valid, 3),
-    recallAt5: recallAtK(topK, valid, 5),
-    precisionAt1: precisionAtK(topK, valid, 1),
-    precisionAt3: precisionAtK(topK, valid, 3),
-    precisionAt5: precisionAtK(topK, valid, 5),
+    inInvestigationBudget: inBudget,
+    actuallyInvestigated,
+    promotedFound,
+    recallAt1: recallAtK(lists.retrievalTopK, valid, 1),
+    recallAt3: recallAtK(lists.retrievalTopK, valid, 3),
+    recallAt5: recallAtK(lists.retrievalTopK, valid, 5),
+    precisionAt1: precisionAtK(lists.retrievalTopK, valid, 1),
+    precisionAt3: precisionAtK(lists.retrievalTopK, valid, 3),
+    precisionAt5: precisionAtK(lists.retrievalTopK, valid, 5),
     diagnosis: diagnoseRetrieval({
       resolutionExpected,
       discoveryFound: foundDiscovery === true,
@@ -373,9 +482,11 @@ export function evaluateRetrievalCandidates(input: {
       verificationInsufficient: verification === "insufficient_evidence",
     }),
     candidateCount: discovered.length,
-    investigatedCandidateCount: investigated.length,
+    retrievalTopKCandidateCount: lists.retrievalTopK.length,
+    investigationCandidateCount: lists.investigation.length,
+    investigatedCandidateCount: lists.investigation.length,
     rejectedCandidateCount: discovered.filter((item) => item.status === "rejected").length,
-    promotedCandidateCount: discovered.filter((item) => item.status === "promoted").length,
+    promotedCandidateCount: lists.promoted.length,
     toolCalls: input.report?.toolCallCount ?? 0,
     llmCalls: input.llmCalls ?? 0,
     inputTokens: input.estimatedInputTokens ?? null,
@@ -468,7 +579,7 @@ export async function runRetrievalEvaluation(input: {
       maxLlmCalls: input.maxLlmCalls ?? DEFAULT_LLM_RUNTIME_BUDGET.maxLlmCalls,
       maxWallClockMs: input.maxWallClockMs ?? DEFAULT_LLM_RUNTIME_BUDGET.maxWallClockMs,
     },
-    candidateSelection: selectorForStrategy(input.strategy),
+    candidateSelection: selectorForStrategy(input.strategy, metadataSelectionOptions(input.provider)),
     modelFactory: (session) => wrapEvaluationModel(session, collector),
   });
   return {
@@ -480,7 +591,10 @@ export async function runRetrievalEvaluation(input: {
       candidates: report.retrievalCandidates,
       groundTruth: input.groundTruth,
       report,
-      selectedCandidates: report.selectedCandidates,
+      retrievalTopKCandidates: report.retrievalTopKCandidates,
+      investigationCandidates: report.investigationCandidates,
+      investigatedCandidates: report.investigatedCandidates,
+      promotedCandidates: report.promotedCandidates,
       llmCalls: collector.llmCalls,
       estimatedInputTokens: collector.estimatedInputTokens,
       runtimeMs: Date.now() - started,
@@ -518,11 +632,17 @@ export async function compareRetrievalEvaluation(input: {
     strategy: "evidence_driven",
     provider: input.providerFactory(),
   });
+  const metadataEnriched = await runRetrievalEvaluation({
+    ...shared,
+    strategy: "metadata_enriched",
+    provider: input.providerFactory(),
+  });
   return {
     caseId: input.caseId,
     baselineNote: RETRIEVAL_EVALUATION_BASELINE_NOTE,
     baseline: baseline.metrics,
     evidenceDriven: evidenceDriven.metrics,
+    metadataEnriched: metadataEnriched.metrics,
   };
 }
 
@@ -833,6 +953,7 @@ export async function evaluateRealV1RetrievalCases(
 export function realV1RetrievalReports(comparisons: readonly RetrievalEvaluationComparison[]): {
   baseline: RetrievalEvaluationReport;
   evidenceDriven: RetrievalEvaluationReport;
+  metadataEnriched: RetrievalEvaluationReport;
 } {
   return {
     baseline: buildRetrievalEvaluationReport({
@@ -844,6 +965,11 @@ export function realV1RetrievalReports(comparisons: readonly RetrievalEvaluation
       datasetId: "real-v1",
       strategy: "evidence_driven",
       cases: comparisons.map((item) => item.evidenceDriven),
+    }),
+    metadataEnriched: buildRetrievalEvaluationReport({
+      datasetId: "real-v1",
+      strategy: "metadata_enriched",
+      cases: comparisons.map((item) => item.metadataEnriched),
     }),
   };
 }

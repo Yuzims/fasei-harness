@@ -16,6 +16,7 @@ export {
   MAX_TEMPORAL_POINTS,
   STRUCTURAL_POINTS,
   computeRelevanceSignals,
+  existingRankingScore,
   lexicalOverlapScore,
   mentionsIssueNumber,
   rankCandidates,
@@ -26,12 +27,40 @@ export {
 } from "./ranking.js";
 export type { IssueRetrievalContext, RankableRecord } from "./ranking.js";
 export {
+  MAX_ISSUE_REFERENCE_STRENGTH,
+  MAX_MERGE_STATE_POINTS,
+  MAX_MESSAGE_TITLE_ALIGNMENT,
+  MAX_PATH_OVERLAP_POINTS,
+  MAX_RESOLUTION_KEYWORD_POINTS,
+  MAX_STRUCTURAL_CHANGE_POINTS,
+  calculateIssueReferenceStrength,
+  calculateMergeStateSignal,
+  calculateMessageOrTitleAlignment,
+  calculatePathOverlapScore,
+  calculateResolutionKeywordSignal,
+  calculateStructuralChangeSignal,
+  candidateMetadataFromSnapshot,
+  candidateMetadataKey,
+  enrichCandidateWithMetadata,
+  enrichCandidatesWithMetadata,
+  extractMetadataSignals,
+  lookupCandidateMetadata,
+  metadataScore,
+} from "./metadata-signals.js";
+export type { CandidateChangedFile, CandidateMetadata, CandidateMetadataCatalog } from "./metadata-signals.js";
+export {
   MAX_INVESTIGATED_CANDIDATES,
+  RETRIEVAL_TOP_K,
   applyCandidateSelection,
+  applyMetadataEnrichedSelection,
   candidateSelectionResult,
+  investigatedCandidatesFromEvents,
+  investigationCandidatesOf,
+  promotedCandidatesOf,
+  retrievalTopKOf,
   selectTopCandidates,
 } from "./selection.js";
-export type { RetrievalCandidateSelectionResult } from "./selection.js";
+export type { MetadataEnrichedSelectionInput, RetrievalCandidateSelectionResult } from "./selection.js";
 export {
   NO_CANDIDATE_FOUND,
   NO_CANDIDATE_IN_WINDOW,

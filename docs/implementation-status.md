@@ -905,6 +905,25 @@ Harness verification → Harness lane
 
 Finding `source` is internal: `investigation_step` | `tool_result` | `agent_report`. No new runtime events, evidence types, LLM calls, or GitHub calls.
 
+## Phase 8.x — Retrieval Measurement Contract — DONE
+
+Instrumentation only. Ranking, discovery, investigation budget, verifier, and recovery are unchanged.
+
+`RETRIEVAL_TOP_K = 5` (combined Recall@K / Precision@K list) is independent of `MAX_INVESTIGATED_CANDIDATES = 5` (per source type). `promoted` is a later lifecycle state and is not investigation success.
+
+```text
+Discovery
+  → Ranking
+  → Retrieval Top-K          retrievalTopKCandidates
+  → Investigation Budget     investigationCandidates
+  → Investigation            investigatedCandidates
+  → Promotion                promotedCandidates
+  → Evidence
+  → Verification
+```
+
+Investigation success remains: expected candidate entered the budget (`investigating` or `promoted`). Combined Recall@K can miss a candidate that is still inside the per-type budget (C08).
+
 ## Not started
 
 Later phases wait for a new task.

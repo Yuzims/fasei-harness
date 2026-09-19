@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { realDatasetGroundTruthPath } from "../src/benchmark/dataset/paths.js";
 import {
   MAX_INVESTIGATED_CANDIDATES,
+  RETRIEVAL_TOP_K,
   applyCandidateSelection,
   countTraceToolCalls,
   createRetrievalCandidate,
@@ -69,7 +70,7 @@ function sourceFiles(dir: string): string[] {
 }
 
 test("controlled baseline is not a historical production system", () => {
-  assert.equal(RETRIEVAL_EVALUATION_VERSION, "8.9.x");
+  assert.equal(RETRIEVAL_EVALUATION_VERSION, "8.9.x-contract");
   assert.match(RETRIEVAL_EVALUATION_BASELINE_NOTE, /controlled baseline/);
   assert.match(RETRIEVAL_EVALUATION_BASELINE_NOTE, /not a historical/);
   assert.match(RETRIEVAL_EVALUATION_BASELINE_NOTE, /controlled baseline ≠ historical production system/);
@@ -305,7 +306,6 @@ function verificationReport(
     claims: [],
     investigationSteps: extras?.investigationSteps ?? [],
     toolCallCount: extras?.toolCallCount ?? 0,
-    selectedCandidates: extras?.selectedCandidates ?? [],
     llmUsage: {
       llmCalls: 0,
       totalInputTokens: null,
@@ -363,7 +363,8 @@ test("B — topK is the runtime selection, not a re-ranked slice", () => {
     caseId: "actual-topk",
     strategy: "evidence_driven",
     candidates: [a, b, c],
-    selectedCandidates: [b, c],
+    retrievalTopKCandidates: [b, c],
+    investigationCandidates: [b, c],
     groundTruth: {
       caseId: "actual-topk",
       expectedResolution: "candidate",
@@ -371,7 +372,7 @@ test("B — topK is the runtime selection, not a re-ranked slice", () => {
     },
   });
   assert.deepEqual(
-    metrics.topK.map((item) => item.sourceId),
+    metrics.retrievalTopKCandidates.map((item) => item.sourceId),
     ["2", "3"],
   );
   assert.equal(metrics.topKFound, true);
@@ -392,8 +393,11 @@ test("C — investigation success is selected/investigated, not promoted", () =>
   });
   assert.equal(metrics.discoveryFound, true);
   assert.equal(metrics.topKFound, true);
+  assert.equal(metrics.inInvestigationBudget, true);
   assert.equal(metrics.investigationSuccess, true);
+  assert.equal(metrics.promotedFound, false);
   assert.equal(metrics.promotedCandidateCount, 0);
+  assert.equal(metrics.promotedCandidates.length, 0);
 });
 
 test("D — discovered but not in actual Top-K is ranked_out_of_top_k", () => {
@@ -406,7 +410,7 @@ test("D — discovered but not in actual Top-K is ranked_out_of_top_k", () => {
     caseId: "ranked-out-actual",
     strategy: "evidence_driven",
     candidates: [...selected, gt],
-    selectedCandidates: selected,
+    investigationCandidates: selected,
     groundTruth: {
       caseId: "ranked-out-actual",
       expectedResolution: "candidate",
@@ -439,7 +443,7 @@ test("F — investigated GT with insufficient_evidence is evidence_insufficient"
     caseId: "insufficient",
     strategy: "evidence_driven",
     candidates: [gt],
-    selectedCandidates: [gt],
+    investigationCandidates: [gt],
     groundTruth: {
       caseId: "insufficient",
       expectedResolution: "candidate",
@@ -511,7 +515,7 @@ test("synthetic SRE01/SRE02/SRE05/SRE07 cover strong PR, commit, none, and disco
   const sre01 = await evaluateSyntheticRetrievalCase("SRE01");
   assert.equal(sre01.evidenceDriven.discoveryFound, true);
   assert.equal(sre01.evidenceDriven.topKFound, true);
-  assert.ok(sre01.evidenceDriven.topK.some((item) => item.sourceId === "7"));
+  assert.ok(sre01.evidenceDriven.retrievalTopKCandidates.some((item) => item.sourceId === "7"));
 
   const sre02 = await evaluateSyntheticRetrievalCase("SRE02");
   assert.equal(sre02.evidenceDriven.resolutionExpected, true);
@@ -585,4 +589,97 @@ test("production investigate() still uses evidence-driven selection by default",
   });
   assert.equal(result.verification?.status, "verified_complete");
   assert.equal(Array.isArray(result.retrievalCandidates), true);
+  assert.equal(Array.isArray(result.retrievalTopKCandidates), true);
+  assert.equal(Array.isArray(result.investigationCandidates), true);
+  assert.equal(Array.isArray(result.investigatedCandidates), true);
+  assert.equal(Array.isArray(result.promotedCandidates), true);
+});
+
+test("retrieval Top-K is independent of the per-type investigation budget", () => {
+  assert.equal(MAX_INVESTIGATED_CANDIDATES, 5);
+  assert.equal(RETRIEVAL_TOP_K, 5);
+  const selected = [
+    candidate("pull_request", "1", { status: "investigating" }),
+    candidate("pull_request", "2", { status: "investigating" }),
+    candidate("pull_request", "3", { status: "investigating" }),
+    candidate("commit", "aaa1111", { status: "promoted" }),
+    candidate("commit", "bbb2222", { status: "investigating" }),
+    candidate("commit", "e70118a2a11aa239472336f6a961784f04c63c9d", { status: "investigating" }),
+  ];
+  const metrics = evaluateRetrievalCandidates({
+    caseId: "combined-vs-budget",
+    strategy: "evidence_driven",
+    candidates: selected,
+    investigationCandidates: selected,
+    groundTruth: {
+      caseId: "combined-vs-budget",
+      expectedResolution: "candidate",
+      validCandidates: [{ sourceType: "commit", sourceId: "e70118a2a11aa239472336f6a961784f04c63c9d" }],
+    },
+  });
+  assert.equal(metrics.retrievalTopKCandidates.length, RETRIEVAL_TOP_K);
+  assert.equal(metrics.investigationCandidates.length, 6);
+  assert.equal(metrics.discoveryFound, true);
+  assert.equal(metrics.topKFound, false);
+  assert.equal(metrics.recallAt5, 0);
+  assert.equal(metrics.inInvestigationBudget, true);
+  assert.equal(metrics.investigationSuccess, true);
+  assert.equal(metrics.promotedFound, false);
+  assert.equal(metrics.diagnosis, "ranked_out_of_top_k");
+  assert.equal(
+    metrics.retrievalTopKCandidates.some((item) => item.sourceId.startsWith("e70118a")),
+    false,
+  );
+  assert.equal(
+    metrics.investigationCandidates.some((item) => item.sourceId.startsWith("e70118a")),
+    true,
+  );
+});
+
+test("promoted is not the definition of investigation or retrieval Top-K", () => {
+  const investigating = candidate("pull_request", "7", { status: "investigating" });
+  const promotedNoise = candidate("pull_request", "8", { status: "promoted" });
+  const metrics = evaluateRetrievalCandidates({
+    caseId: "promoted-is-later",
+    strategy: "evidence_driven",
+    candidates: [investigating, promotedNoise],
+    investigationCandidates: [investigating, promotedNoise],
+    promotedCandidates: [promotedNoise],
+    groundTruth: {
+      caseId: "promoted-is-later",
+      expectedResolution: "candidate",
+      validCandidates: [{ sourceType: "pull_request", sourceId: "7" }],
+    },
+  });
+  assert.equal(metrics.topKFound, true);
+  assert.equal(metrics.inInvestigationBudget, true);
+  assert.equal(metrics.investigationSuccess, true);
+  assert.equal(metrics.promotedFound, false);
+  assert.deepEqual(
+    metrics.promotedCandidates.map((item) => item.sourceId),
+    ["8"],
+  );
+});
+
+test("C08 evidence-driven can investigate outside combined retrieval Top-K", async () => {
+  const comparison = await evaluateRealV1RetrievalCase("C08");
+  const arm = comparison.evidenceDriven;
+  assert.equal(arm.discoveryFound, true);
+  assert.equal(arm.inInvestigationBudget, true);
+  assert.equal(arm.investigationSuccess, true);
+  assert.equal(arm.recallAt5, arm.topKFound ? 1 : 0);
+  if (arm.investigationCandidates.length > RETRIEVAL_TOP_K) {
+    assert.ok(arm.retrievalTopKCandidates.length <= RETRIEVAL_TOP_K);
+    assert.ok(arm.investigationCandidates.length > arm.retrievalTopKCandidates.length);
+  }
+  const expected = arm.groundTruth[0];
+  assert.ok(expected);
+  const inTopK = arm.retrievalTopKCandidates.some(
+    (item) => item.sourceType === expected.sourceType && item.sourceId.toLowerCase().startsWith("e70118a"),
+  );
+  const inBudget = arm.investigationCandidates.some(
+    (item) => item.sourceType === expected.sourceType && item.sourceId.toLowerCase().startsWith("e70118a"),
+  );
+  assert.equal(inBudget, true);
+  assert.equal(arm.topKFound, inTopK);
 });

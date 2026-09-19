@@ -127,10 +127,9 @@ export function computeRelevanceSignals(
 }
 
 /**
- * Ranking score controls investigation order only.
- * It is not a probability of resolution correctness.
+ * Existing evidence-driven score. Unchanged when metadata signals are absent.
  */
-export function rankingScore(candidate: RetrievalCandidate): number {
+export function existingRankingScore(candidate: RetrievalCandidate): number {
   const signals = candidate.relevanceSignals;
   return (
     (signals.issueReference ? ISSUE_REFERENCE_POINTS : 0) +
@@ -138,6 +137,26 @@ export function rankingScore(candidate: RetrievalCandidate): number {
     (signals.lexicalScore ?? 0) +
     (signals.temporalScore ?? 0)
   );
+}
+
+function metadataRankingScore(signals: RetrievalRelevanceSignals): number {
+  return (
+    (signals.issueReferenceStrength ?? 0) +
+    (signals.pathOverlapScore ?? 0) +
+    (signals.messageOrTitleAlignment ?? 0) +
+    (signals.resolutionKeywordSignal ?? 0) +
+    (signals.mergeStateSignal ?? 0) +
+    (signals.structuralChangeSignal ?? 0)
+  );
+}
+
+/**
+ * Ranking score controls investigation order only.
+ * It is not a probability of resolution correctness.
+ * metadataScore is 0 unless metadata enrichment populated those signals.
+ */
+export function rankingScore(candidate: RetrievalCandidate): number {
+  return existingRankingScore(candidate) + metadataRankingScore(candidate.relevanceSignals);
 }
 
 export function rankingReason(candidate: RetrievalCandidate): string {
@@ -154,6 +173,24 @@ export function rankingReason(candidate: RetrievalCandidate): string {
   }
   if ((signals.temporalScore ?? 0) > 0) {
     parts.push("temporal");
+  }
+  if ((signals.issueReferenceStrength ?? 0) > 0) {
+    parts.push("issue_reference_strength");
+  }
+  if ((signals.pathOverlapScore ?? 0) > 0) {
+    parts.push("path_overlap");
+  }
+  if ((signals.messageOrTitleAlignment ?? 0) > 0) {
+    parts.push("title_alignment");
+  }
+  if ((signals.resolutionKeywordSignal ?? 0) > 0) {
+    parts.push("resolution_keyword");
+  }
+  if ((signals.mergeStateSignal ?? 0) > 0) {
+    parts.push("merge_state");
+  }
+  if ((signals.structuralChangeSignal ?? 0) > 0) {
+    parts.push("structural_change");
   }
   return parts.length > 0 ? parts.join("+") : "default_order";
 }

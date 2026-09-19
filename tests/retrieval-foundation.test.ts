@@ -14,6 +14,7 @@ import { MAX_REPOSITORY_COMMIT_DISCOVERY } from "../src/github/index.js";
 import {
   MAX_INVESTIGATED_CANDIDATES,
   NO_CANDIDATE_FOUND,
+  RETRIEVAL_TOP_K,
   computeEvidenceGap,
   createRetrievalCandidate,
   discoverCommitCandidates,
@@ -23,7 +24,10 @@ import {
   planInvestigationStrategy,
   proposeCandidateActions,
   applyCandidateSelection,
+  investigationCandidatesOf,
+  promotedCandidatesOf,
   rankCandidates,
+  retrievalTopKOf,
   selectTopCandidates,
   type InvestigationSession,
 } from "../src/investigation/index.js";
@@ -156,6 +160,34 @@ test("TEST 5 — Top-K selects only the investigation budget", () => {
   assert.equal(selected.length, 3);
   assert.equal(selected.every((item) => item.status === "investigating"), true);
   assert.equal(MAX_INVESTIGATED_CANDIDATES, 5);
+  assert.equal(RETRIEVAL_TOP_K, 5);
+});
+
+test("combined retrieval Top-K is not the per-type investigation budget", () => {
+  const pulls = Array.from({ length: 3 }, (_, index) =>
+    createRetrievalCandidate({
+      sourceType: "pull_request",
+      sourceId: String(index + 1),
+      retrievalReason: "synthetic",
+      status: "investigating",
+    }),
+  );
+  const commits = Array.from({ length: 3 }, (_, index) =>
+    createRetrievalCandidate({
+      sourceType: "commit",
+      sourceId: `sha-${index}`,
+      retrievalReason: "synthetic",
+      status: index === 0 ? "promoted" : "investigating",
+    }),
+  );
+  const combined = [...pulls, ...commits];
+  const investigation = investigationCandidatesOf(combined);
+  const topK = retrievalTopKOf(combined, RETRIEVAL_TOP_K);
+  assert.equal(investigation.length, 6);
+  assert.equal(topK.length, RETRIEVAL_TOP_K);
+  assert.equal(promotedCandidatesOf(combined).length, 1);
+  assert.equal(topK.some((item) => item.sourceId === "sha-2"), false);
+  assert.equal(investigation.some((item) => item.sourceId === "sha-2"), true);
 });
 
 test("TEST 6 — Discovery creates candidates, not Evidence", () => {

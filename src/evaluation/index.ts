@@ -63,10 +63,12 @@ export type {
   ResolutionAnalysisGrounding,
   ResolutionAnalysisGroundingInput,
 } from "./resolution-analysis-grounding.js";
+export { RETRIEVAL_TOP_K } from "../investigation/index.js";
 export {
   RETRIEVAL_EVALUATION_BASELINE_NOTE,
   RETRIEVAL_EVALUATION_REAL_CASE_IDS,
   RETRIEVAL_EVALUATION_VERSION,
+  RETRIEVAL_METADATA_ENRICHED_NOTE,
   REAL_V1_RETRIEVAL_GROUND_TRUTH,
   aggregateRetrievalCases,
   applyDiscoveryOrderSelection,
@@ -77,6 +79,7 @@ export {
   evaluateRealV1RetrievalCases,
   evaluateRetrievalCandidates,
   evaluateSyntheticRetrievalCase,
+  metadataSelectionOptions,
   realV1RetrievalReports,
   runRetrievalEvaluation,
   selectorForStrategy,
@@ -96,10 +99,13 @@ export {
   candidateIdsMatch,
   diagnoseRetrieval,
   discoveryFound,
+  investigationCandidatesOfViews,
   investigationSucceeded,
   isRelevantCandidate,
   precisionAtK,
+  promotedCandidatesOfViews,
   recallAtK,
+  retrievalTopKOfViews,
   selectedTopK,
   topKFound,
 } from "./retrieval-metrics.js";

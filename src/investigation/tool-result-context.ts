@@ -6,6 +6,7 @@
  */
 
 import { extractMentionedNumbers } from "../github/normalize.js";
+import { applyPatchBudget } from "../github/patch-bounds.js";
 import { extractSemanticReferences, mentionedIssueNumbers } from "../github/semantic-references.js";
 import { UNTRUSTED } from "../github/types.js";
 import { UNTRUSTED_NOTICE } from "./policy.js";
@@ -135,12 +136,28 @@ function compactFiles(output: unknown): Record<string, unknown> {
   const files = asArray(output);
   return {
     count: files.length,
-    files: files.filter(isRecord).map((item) => ({
-      filename: String(item.filename ?? ""),
-      status: String(item.status ?? "modified"),
-      additions: Number(item.additions ?? 0),
-      deletions: Number(item.deletions ?? 0),
-    })),
+    files: applyPatchBudget(
+      files.filter(isRecord).map((item) => {
+        const compact: {
+          filename: string;
+          status: string;
+          additions: number;
+          deletions: number;
+          patch?: string;
+          patchTruncated?: boolean;
+        } = {
+          filename: String(item.filename ?? ""),
+          status: String(item.status ?? "modified"),
+          additions: Number(item.additions ?? 0),
+          deletions: Number(item.deletions ?? 0),
+        };
+        if (typeof item.patch === "string" && item.patch.length > 0) {
+          compact.patch = item.patch;
+          compact.patchTruncated = item.patchTruncated === true;
+        }
+        return compact;
+      }),
+    ),
   };
 }
 
@@ -191,7 +208,8 @@ export interface CompactInvestigationToolInput {
 
 /**
  * Structured tool observation for LLM history.
- * Bodies, patches, and other raw GitHub text stay on Evidence.payload.
+ * Issue/comment bodies stay on Evidence.payload.
+ * File patches are included only after the bounded patch policy.
  */
 export function compactInvestigationToolOutput(
   input: CompactInvestigationToolInput,

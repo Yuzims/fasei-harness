@@ -11,7 +11,19 @@ export {
 export { GitHubProviderError } from "./errors.js";
 export { parseGitHubIssueInput, GitHubIssueInputError, INVALID_GITHUB_ISSUE_INPUT } from "./issue-input.js";
 export type { ParsedGitHubIssue } from "./issue-input.js";
-export { extractCommitShas, extractMentionedNumbers, extractPullRequestNumbers, textClosesIssue } from "./normalize.js";
+export {
+  extractCommitShas,
+  extractMentionedNumbers,
+  extractPullRequestNumbers,
+  normalizeFileChange,
+  textClosesIssue,
+} from "./normalize.js";
+export {
+  applyPatchBudget,
+  boundPatch,
+  MAX_PATCH_CHARS_PER_FILE,
+  MAX_TOTAL_PATCH_CHARS,
+} from "./patch-bounds.js";
 export {
   extractSemanticReferences,
   mentionedIssueNumbers,

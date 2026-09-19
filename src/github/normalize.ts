@@ -1,3 +1,4 @@
+import { boundPatch } from "./patch-bounds.js";
 import { GITHUB_SOURCE, UNTRUSTED } from "./types.js";
 import type {
   CommentSnapshot,
@@ -291,6 +292,7 @@ export function normalizeFileChange(
     url: str(item.blob_url) || `https://github.com/${repository}/pull/${pullNumber}`,
     retrievedAt,
     trust: UNTRUSTED,
+    ...boundPatch(item.patch),
   };
 }
 

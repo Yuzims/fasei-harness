@@ -14,6 +14,7 @@ import {
   normalizeSearchHit,
   normalizeTimelineEvent,
 } from "./normalize.js";
+import { applyPatchBudget } from "./patch-bounds.js";
 import type { GitHubDataProvider } from "./provider.js";
 import type {
   CommentSnapshot,
@@ -116,8 +117,8 @@ export class LiveGitHubProvider implements GitHubDataProvider {
       `/repos/${encodeRepo(owner, repo)}/pulls/${ref.pullNumber}/files?per_page=100`,
     );
     const retrievedAt = this.http.retrievedAt();
-    return raw.map((item) =>
-      normalizeFileChange(item, owner, repo, ref.pullNumber, retrievedAt),
+    return applyPatchBudget(
+      raw.map((item) => normalizeFileChange(item, owner, repo, ref.pullNumber, retrievedAt)),
     );
   }
 

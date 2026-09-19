@@ -67,6 +67,9 @@ export interface FileChangeSnapshot extends ResourceMeta {
   status: string;
   additions: number;
   deletions: number;
+  /** Bounded unified diff from GitHub. Absent on older snapshots and binary/large files. */
+  patch?: string;
+  patchTruncated?: boolean;
 }
 
 export interface CommitSnapshot extends ResourceMeta {

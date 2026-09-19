@@ -83,7 +83,15 @@ function resolvedRest(url: string): Response {
   }
   if (path === "/repos/acme/box/pulls/7/files") {
     return jsonResponse([
-      { filename: "src/cart.ts", status: "modified", additions: 8, deletions: 2 },
+      {
+        filename: "src/cart.ts",
+        status: "modified",
+        additions: 8,
+        deletions: 2,
+        sha: "should-not-leak",
+        raw_url: "https://example.invalid/raw",
+        patch: "@@ -1,2 +1,3 @@\n context\n-old\n+new\n",
+      },
     ]);
   }
   if (path === "/repos/acme/box/pulls/7/commits" || path === "/repos/acme/box/commits") {
@@ -184,6 +192,10 @@ test("Live → Snapshot replay 得到同一套 normalized 调查链", async () =
   assert.deepEqual(replayCommits, liveCommits);
   assert.equal(replayPr.merged, true);
   assert.equal(captured.trust, "external_untrusted");
+  assert.equal(liveFiles[0]?.patch, "@@ -1,2 +1,3 @@\n context\n-old\n+new\n");
+  assert.equal(liveFiles[0]?.patchTruncated, false);
+  assert.equal("sha" in (liveFiles[0] ?? {}), false);
+  assert.equal("raw_url" in (liveFiles[0] ?? {}), false);
 });
 
 test("Snapshot schema：缺字段 / 错误版本 / 坏 JSON / 缺文件", () => {

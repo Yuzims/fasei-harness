@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Task, ToolResult } from "../core/types.js";
+import type { ClaimInput, Task, ToolResult } from "../core/types.js";
 import type { Tool } from "../tools/tool.js";
 import {
   extractLlmUsage,
@@ -226,7 +226,49 @@ export function parseChatCompletion(data: unknown): ModelResponse {
     throw new Error("LLM 既没有 tool_call 也没有文本");
   }
 
+  const structured = parseStructuredFinalAnswer(content);
+  if (structured) {
+    return structured;
+  }
+
   return { type: "final", message: content };
+}
+
+/**
+ * Recover the Phase 14.1 final-claim bridge on the live LLM path.
+ *
+ * When the model returns a structured JSON answer carrying an explicit
+ * `claims` array (same shape as the record_claim tool payload), lift it into
+ * ModelResponse.claims so AgentLoop propagates it to AgentResult.claims and
+ * captureAgentClaims can write Claim / ClaimEvidence. This is field access on
+ * structured output, not prose extraction: polarity, role, and Evidence
+ * references stay validated downstream (invalid Evidence is still skipped).
+ * Plain-text answers are left untouched.
+ */
+function parseStructuredFinalAnswer(
+  content: string,
+): { type: "final"; message: string; claims: ClaimInput[] } | undefined {
+  const parsed = parseJsonObject(content);
+  if (!parsed || !Array.isArray(parsed.claims)) {
+    return undefined;
+  }
+  const claims = (parsed.claims as unknown[])
+    .filter(
+      (item): item is ClaimInput =>
+        Boolean(item) &&
+        typeof item === "object" &&
+        !Array.isArray(item) &&
+        typeof (item as Record<string, unknown>).text === "string",
+    )
+    .map((item) => ({ ...(item as ClaimInput) }));
+  const summaryField = ["message", "summary", "answer", "conclusion"]
+    .map((key) => parsed[key])
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return {
+    type: "final",
+    message: (summaryField ?? content).trim(),
+    claims,
+  };
 }
 
 export async function parseChatCompletionStream(

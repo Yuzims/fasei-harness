@@ -77,6 +77,54 @@ test("parseChatCompletion：final text", () => {
   }
 });
 
+test("parseChatCompletion：结构化 final 携带 claims 进入 ModelResponse.claims", () => {
+  const response = parseChatCompletion({
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({
+            summary: "Issue #42 was resolved by PR #123.",
+            claims: [
+              {
+                text: "Issue #42 was resolved by PR #123.",
+                polarity: "resolved",
+                critical: true,
+                evidenceIds: ["ev-issue", "ev-pr"],
+                role: "supports",
+              },
+            ],
+          }),
+        },
+      },
+    ],
+  });
+  assert.equal(response.type, "final");
+  if (response.type === "final") {
+    assert.equal(response.message, "Issue #42 was resolved by PR #123.");
+    assert.equal(response.claims?.length, 1);
+    assert.equal(response.claims?.[0]?.text, "Issue #42 was resolved by PR #123.");
+    assert.equal(response.claims?.[0]?.polarity, "resolved");
+    assert.deepEqual(response.claims?.[0]?.evidenceIds, ["ev-issue", "ev-pr"]);
+  }
+});
+
+test("parseChatCompletion：纯文本 final 不被解析成 claims", () => {
+  const response = parseChatCompletion({
+    choices: [
+      {
+        message: {
+          content: "PR #123 was merged and closes the issue, so it is fixed.",
+        },
+      },
+    ],
+  });
+  assert.equal(response.type, "final");
+  if (response.type === "final") {
+    assert.equal(response.claims, undefined);
+    assert.match(response.message, /closes the issue/);
+  }
+});
+
 test("buildChatMessages：把 loop 的 tool 历史还原成 OpenAI tool 协议", () => {
   const messages = buildChatMessages(
     { id: "t", description: "算一下" },

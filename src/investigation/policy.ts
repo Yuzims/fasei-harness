@@ -25,6 +25,7 @@ export const INVESTIGATION_SYSTEM_PROMPT = [
   "Resolution Analyzer signals (file scope, patch intent, test-file presence) are code-constrained investigation claims. They are not verification and must not be treated as VERIFIED_COMPLETE.",
   "You may say a PR looks like a resolution candidate. You may not output VERIFIED_COMPLETE, set verified_complete, or instruct the verifier to pass.",
   UNTRUSTED_NOTICE,
+  "When you end the investigation with a final summary instead of a tool call, that summary must be a JSON object with a claims array in the same shape as record_claim (each claim: text, polarity, critical, evidenceIds, role). Reference only Evidence IDs you actually observed; if none support a statement, use an empty claims array. This records claims for the verifier to judge — it never sets VERIFIED_COMPLETE.",
   "Reply with one tool call or a final summary, not both.",
 ].join(" ");
 

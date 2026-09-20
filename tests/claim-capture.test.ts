@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { AgentLoop } from "../src/agent/agent-loop.js";
+import { parseChatCompletion } from "../src/agent/openai-compat-model.js";
 import type { HistoryMessage, Model, ModelResponse } from "../src/agent/model.js";
 import { LlmUsageCollector } from "../src/agent/llm-usage.js";
+import { ToolRegistry } from "../src/tools/tool-registry.js";
 import type { AgentResult, Task, ToolResult } from "../src/core/types.js";
 import {
   claimSupportStatus,
@@ -453,4 +456,59 @@ test("B3: capture 不修改 Resolution Analysis", () => {
   assert.deepEqual(run.resolutionAnalyses, before);
   assert.deepEqual(run.resolutionAnalyses[0]?.claimIds, []);
   assert.deepEqual(run.resolutionAnalyses[0]?.supportingEvidenceIds, ["ev-pr"]);
+});
+
+test("Real issue claim pipeline: raw structured LLM output → parser → AgentResult.claims → Claim + ClaimEvidence", async () => {
+  const { run, session } = captureSession();
+  const observed = addEvidence(session, "ev-pr-123");
+
+  const rawChatCompletion = {
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({
+            summary: "PR #123 was merged and resolves the issue.",
+            claims: [
+              {
+                text: "PR #123 resolves the issue.",
+                polarity: "resolved",
+                critical: true,
+                evidenceIds: [observed.id],
+                role: "supports",
+              },
+            ],
+          }),
+        },
+      },
+    ],
+  };
+
+  const parsed = parseChatCompletion(rawChatCompletion);
+  const model: Model = {
+    async decide(): Promise<ModelResponse> {
+      return parsed;
+    },
+  };
+
+  const loop = new AgentLoop(model, new ToolRegistry(), session.trace);
+  const agentResult = await loop.run(
+    { id: "task-1", description: "Investigate acme/box#42." },
+    session.runId,
+  );
+
+  assert.equal(agentResult.status, "completed");
+  assert.equal(agentResult.claims?.length, 1, "AgentResult.claims must carry the parsed claims");
+
+  const captured = captureAgentClaims(session, agentResult);
+
+  assert.equal(captured.claimIds.length, 1);
+  assert.equal(run.claims.length, 1);
+  assert.equal(run.claims[0]?.text, "PR #123 resolves the issue.");
+  assert.equal(run.claimEvidence.length, 1);
+  assert.equal(run.claimEvidence[0]?.claimId, run.claims[0]?.id);
+  assert.equal(run.claimEvidence[0]?.evidenceId, observed.id);
+  assert.equal(
+    claimSupportStatus(run.claims[0]!.id, run.claimEvidence, run.evidence),
+    "supported",
+  );
 });

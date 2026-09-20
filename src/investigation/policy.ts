@@ -53,3 +53,15 @@ export const FORBIDDEN_WRITE_TOOLS = [
   "github_push",
   "git_push",
 ] as const;
+
+/**
+ * Phase 16.3-B Finalization Boundary instruction.
+ * Runtime stops investigation and hands the decision to the Agent; the Agent
+ * still owns the Final answer and Runtime never fabricates it.
+ */
+export const FINALIZATION_INSTRUCTION = [
+  "Finalization Boundary: the Harness has stopped further investigation.",
+  "No investigation tool call is legal on this turn, including record_claim.",
+  "Produce your final answer now as the final JSON summary object with a claims array in the same shape as record_claim (each claim: text, polarity, critical, evidenceIds, role), referencing only Evidence IDs you actually observed; use an empty claims array when nothing is supported.",
+  "This boundary does not mean the task is complete: you still cannot set VERIFIED_COMPLETE; an independent verifier judges completion.",
+].join(" ");

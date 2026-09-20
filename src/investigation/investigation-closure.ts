@@ -33,6 +33,10 @@ export const GAP_OPEN_UNRESOLVABLE_REASON =
 export const NO_LEGAL_INVESTIGATION_ACTION =
   "Harness stopped: no remaining legal investigation actions. Not verified.";
 
+/** Phase 16.3-B: the last LLM call is reserved for the Agent's Final decision. */
+export const FINALIZATION_BUDGET_REASON =
+  "Harness stopped: the remaining LLM call is reserved for the Agent's Final answer. No further investigation actions are legal. Independent verification will judge completion.";
+
 export interface InvestigationClosureDecision<T extends ClosureAction = ClosureAction> {
   status: InvestigationClosureStatus;
   legalActions: T[];

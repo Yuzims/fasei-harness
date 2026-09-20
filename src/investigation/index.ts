@@ -3,6 +3,7 @@ export type { InvestigateInput, InvestigateOptions } from "./investigation-agent
 export {
   INVESTIGATION_SYSTEM_PROMPT,
   UNTRUSTED_NOTICE,
+  FINALIZATION_INSTRUCTION,
   READ_ONLY_INVESTIGATION_TOOLS,
   FORBIDDEN_WRITE_TOOLS,
 } from "./policy.js";
@@ -26,6 +27,7 @@ export {
   requiredGapsSatisfied,
   GAP_CLOSED_REASON,
   GAP_OPEN_UNRESOLVABLE_REASON,
+  FINALIZATION_BUDGET_REASON,
 } from "./investigation-closure.js";
 export type { InvestigationClosureStatus, InvestigationClosureDecision } from "./investigation-closure.js";
 export {

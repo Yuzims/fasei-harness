@@ -54,7 +54,9 @@ export type TraceEventType =
   /** Phase 14.3 Failure Localization. Reference only; the FailureEvent payload is not stored in trace. */
   | "failure_localized"
   /** Phase 15 Recovery Eligibility decision. Gate-only: records whether the existing recovery path may start. */
-  | "recovery_eligibility_evaluated";
+  | "recovery_eligibility_evaluated"
+  /** Phase 16.3-B Finalization Boundary. Runtime stopped investigation and offered the Agent its Final decision; not a completion verdict. */
+  | "finalization_boundary_reached";
 
 export interface TraceEvent {
   id: string;

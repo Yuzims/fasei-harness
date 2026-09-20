@@ -401,8 +401,22 @@ test("not_planned stops the loop without chasing phantom PR files", async () => 
       session.state.addCandidatePr(616);
     },
   });
-  assert.equal(result.agentResult?.decision, "gap_closed");
-  assert.notEqual(result.agentResult?.decision, "final");
+  // Phase 16.3-B: the Runtime stops investigating at the Finalization
+  // Boundary and the Agent itself produces the Final answer.
+  assert.equal(result.agentResult?.decision, "final");
+  assert.equal(
+    result.agentResult?.output,
+    "No legal GitHub investigation actions remain. Not verified.",
+  );
+  const boundary = trace
+    .getEvents()
+    .find((event) => event.type === "finalization_boundary_reached");
+  assert.equal(boundary?.data.investigationClosure, "GAP_CLOSED");
+  assert.equal(boundary?.data.trigger, "closure");
+  assert.equal(
+    trace.getEvents().some((event) => event.type === "investigation_blocked"),
+    false,
+  );
   assert.equal(
     result.investigationSteps.some(
       (step) =>
@@ -418,8 +432,6 @@ test("not_planned stops the loop without chasing phantom PR files", async () => 
     run: result.run,
   });
   assert.equal(result.verification?.status, independent.status);
-  const blocked = trace.getEvents().find((event) => event.type === "investigation_blocked");
-  assert.equal(blocked?.data.code, "GAP_CLOSED");
 });
 
 test("Phase 8.8.6 — open issue continues past get_issue and does not mint verified_complete", async () => {

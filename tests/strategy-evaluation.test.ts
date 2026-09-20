@@ -220,10 +220,12 @@ test("Case 7 — tight budget reduces exploratory actions and keeps unresolved r
   );
 });
 
-test("Case 8 — strategy_exhausted is not an Agent final and verifier still runs", async () => {
+test("Case 8 — a strategy stop gives the Agent a Finalization opportunity and the verifier still runs", async () => {
   const comparison = await evaluateSyntheticCase("no_legal_action");
-  assert.equal(comparison.strategy.strategyExhausted, true);
-  assert.notEqual(comparison.strategy.agentDecision, "final");
+  // Phase 16.3-B: Runtime no longer fabricates strategy_exhausted without
+  // asking the Agent; the Agent finalizes inside the Finalization Boundary.
+  assert.equal(comparison.strategy.agentDecision, "final");
+  assert.equal(comparison.strategy.strategyExhausted, false);
   assert.ok(comparison.strategy.finalVerificationStatus);
   assert.notEqual(comparison.strategy.finalVerificationStatus, "verified_complete");
 });

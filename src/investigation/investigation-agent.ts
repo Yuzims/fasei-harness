@@ -40,7 +40,7 @@ import {
   type InvestigationActor,
   type InvestigationAgentReport,
 } from "./investigation-report.js";
-import { INVESTIGATION_SYSTEM_PROMPT } from "./policy.js";
+import { FINALIZATION_INSTRUCTION, INVESTIGATION_SYSTEM_PROMPT } from "./policy.js";
 import { RecoveryPlanner } from "./recovery-planner.js";
 import {
   ILLEGAL_INVESTIGATION_ACTION,
@@ -51,6 +51,7 @@ import {
   type CandidateInvestigationAction,
 } from "./candidate-actions.js";
 import {
+  FINALIZATION_BUDGET_REASON,
   GAP_CLOSED_REASON,
   GAP_OPEN_UNRESOLVABLE_REASON,
   type InvestigationClosureStatus,
@@ -182,6 +183,18 @@ class InvestigationLoopModel implements Model {
         : history;
 
     if (this.constrainLegalActions && planned && planned.closure !== "GAP_OPEN_ACTIONABLE") {
+      if (canRequestFinalization(remainingLlmCalls)) {
+        return await this.runFinalizationBoundary({
+          task,
+          history: nextHistory,
+          toolResults,
+          context,
+          planned,
+          remainingLlmCalls,
+          trigger: "closure",
+        });
+      }
+      // No budget left even for a Finalization decision: keep the stop verdict.
       const blocked = blockForClosure(planned.closure, planned.closureReason);
       const legalTools: string[] = [];
       this.session.trace.record(this.session.runId, this.session.state.currentStep, "agent_step", {
@@ -198,6 +211,21 @@ class InvestigationLoopModel implements Model {
         reason: blocked.reason,
         legalTools,
       };
+    }
+
+    if (this.constrainLegalActions && planned && remainingLlmCalls === 1) {
+      // Contract D: the configured budget cannot be fully consumed by
+      // investigation tool decisions; the last model decision is reserved
+      // for the Agent's Finalization opportunity.
+      return await this.runFinalizationBoundary({
+        task,
+        history: nextHistory,
+        toolResults,
+        context,
+        planned,
+        remainingLlmCalls,
+        trigger: "budget",
+      });
     }
 
     const response = await this.inner.decide(task, nextHistory, toolResults, context);
@@ -245,6 +273,86 @@ class InvestigationLoopModel implements Model {
     }
     return response;
   }
+
+  /**
+   * Phase 16.3-B Finalization Boundary (Contracts A-C):
+   * Runtime stops investigation and offers the Agent one legitimate Final
+   * decision. Runtime never generates the final answer or claims; if the
+   * Agent does not finalize on this turn, the stop verdict is preserved.
+   */
+  private async runFinalizationBoundary(input: {
+    task: Task;
+    history: HistoryMessage[];
+    toolResults: ToolResult[];
+    context?: ModelContext;
+    planned: InvestigationPlan;
+    remainingLlmCalls: number | undefined;
+    trigger: "closure" | "budget";
+  }): Promise<ModelResponse> {
+    const { planned, remainingLlmCalls, trigger, context } = input;
+    const fallback =
+      trigger === "closure"
+        ? blockForClosure(planned.closure, planned.closureReason)
+        : { code: "NO_LEGAL_INVESTIGATION_ACTION" as const, reason: FINALIZATION_BUDGET_REASON };
+    this.session.trace.record(
+      this.session.runId,
+      this.session.state.currentStep,
+      "finalization_boundary_reached",
+      {
+        trigger,
+        investigationClosure: planned.closure,
+        remainingLlmCalls,
+        finalAuthor: "agent",
+        blockCodeIfAgentDoesNotFinalize: fallback.code,
+        legalTools: [],
+      },
+    );
+    if (context) {
+      context.legalInvestigationActions = [];
+      context.remainingLlmCalls = remainingLlmCalls;
+      context.isLegalInvestigationAction = () => false;
+    }
+    const response = await this.inner.decide(
+      input.task,
+      [...input.history, { role: "user" as const, content: FINALIZATION_INSTRUCTION }],
+      input.toolResults,
+      context,
+    );
+    if (response.type === "final") {
+      this.session.trace.record(this.session.runId, this.session.state.currentStep, "agent_step", {
+        tool: undefined,
+        reason: "Agent produced the Final answer inside the Finalization Boundary.",
+        legalTools: [],
+        investigationClosure: planned.closure,
+        finalizationBoundary: trigger,
+      });
+      return response;
+    }
+    const attemptedTool = response.type === "tool_call" ? response.call.name : undefined;
+    this.session.trace.record(this.session.runId, this.session.state.currentStep, "agent_step", {
+      tool: attemptedTool,
+      reason: fallback.reason,
+      evidenceGapMissing: planned.gap.missingRequirements.map((item) => item.requirementId),
+      legalTools: [],
+      code: fallback.code,
+      investigationClosure: planned.closure,
+      finalizationBoundary: trigger,
+      attemptedTool,
+    });
+    return {
+      type: "investigation_blocked",
+      code: fallback.code,
+      reason: fallback.reason,
+      attemptedTool,
+      legalTools: [],
+    };
+  }
+}
+
+type InvestigationPlan = ReturnType<typeof planInvestigationStrategy>;
+
+function canRequestFinalization(remainingLlmCalls: number | undefined): boolean {
+  return remainingLlmCalls === undefined || remainingLlmCalls >= 1;
 }
 
 function blockForClosure(

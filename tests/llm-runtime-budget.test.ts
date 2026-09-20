@@ -13,6 +13,7 @@ import {
   investigate,
   type AnalysisContext,
 } from "../src/investigation/index.js";
+import { TraceCollector } from "../src/trace/trace-collector.js";
 
 const LIVE_ENV = {
   AGENT_MODEL: "openai",
@@ -116,32 +117,42 @@ class ContinuePlanner extends RecoveryPlanner {
   }
 }
 
-test("LLM call budget: third decide is not sent and fails as LLM_CALL_BUDGET_EXCEEDED", async () => {
+test("Finalization Boundary reserves the last call; the later budget overrun stays terminal", async () => {
   const httpCalls: string[] = [];
   const signals: AbortSignal[] = [];
+  const trace = new TraceCollector();
   const result = await investigate({
     task: { owner: "acme", repository: "box", issueNumber: 42 },
     provider: new SnapshotGitHubProvider(githubFixturePath("insufficient-evidence")),
     env: LIVE_ENV,
     fetchImpl: threeDecisionFetch(httpCalls, signals),
+    trace,
+    planner: new ContinuePlanner(),
     llmRuntimeBudget: { maxLlmCalls: 2, maxWallClockMs: 120_000 },
     maxAttempts: 3,
     maxRecoveryAttempts: 3,
   });
 
+  // Call 2 was the reserved Finalization decision, not exploration: it is
+  // answered with a tool by the scripted model and refused without execution.
   assert.equal(httpCalls.length, 2);
   assert.equal(result.llmUsage.llmCalls, 2);
   assert.equal(
     httpCalls.every((url) => url.includes("/chat/completions")),
     true,
   );
+  const boundary = trace
+    .getEvents()
+    .find((event) => event.type === "finalization_boundary_reached");
+  assert.equal(boundary?.data.trigger, "budget");
+  assert.equal(boundary?.data.remainingLlmCalls, 1);
   const failure = result.run.attempts.at(-1)?.failure;
   assert.equal(failure?.type, "runtime_budget_exceeded");
   assert.equal(failure?.errorCode, LLM_CALL_BUDGET_EXCEEDED);
   assert.equal(failure?.retryable, false);
   assert.equal(result.run.attempts.at(-1)?.recovery?.action, "stop");
   assert.equal(result.run.status, "stopped");
-  assert.equal(result.run.attempts.length, 1);
+  assert.equal(result.run.attempts.length, 2);
   assert.equal(signals.length, 2);
   assert.ok(signals[0] instanceof AbortSignal);
 });
@@ -236,25 +247,36 @@ test("LLM usage survives a timed-out second call and keeps unknown tokens null",
 
 test("LLM budget failure is terminal and cannot be bypassed by recovery", async () => {
   const httpCalls: string[] = [];
+  const trace = new TraceCollector();
   const result = await investigate({
     task: { owner: "acme", repository: "box", issueNumber: 42 },
     provider: new SnapshotGitHubProvider(githubFixturePath("insufficient-evidence")),
     env: LIVE_ENV,
     fetchImpl: threeDecisionFetch(httpCalls, []),
+    trace,
     llmRuntimeBudget: { maxLlmCalls: 1, maxWallClockMs: 120_000 },
     maxAttempts: 3,
     maxRecoveryAttempts: 3,
     planner: new ContinuePlanner(),
   });
 
+  // The one allowed call is the Finalization decision itself; the scripted
+  // model answers with a tool, so Runtime refuses it without executing.
   assert.equal(httpCalls.length, 1);
   assert.equal(result.llmUsage.llmCalls, 1);
-  assert.equal(result.run.attempts.length, 1);
-  const attempt = result.run.attempts[0];
+  assert.equal(
+    trace.getEvents().some((event) => event.type === "finalization_boundary_reached"),
+    true,
+  );
+  assert.equal(
+    trace.getEvents().some((event) => event.type === "tool_call"),
+    false,
+  );
+  assert.equal(result.run.attempts.length, 2);
+  const attempt = result.run.attempts.at(-1);
   assert.equal(attempt?.failure?.type, "runtime_budget_exceeded");
   assert.equal(attempt?.failure?.errorCode, LLM_CALL_BUDGET_EXCEEDED);
   assert.equal(attempt?.recovery?.action, "stop");
-  assert.notEqual(attempt?.recovery?.action, "continue_investigation");
   assert.equal(result.run.status, "stopped");
 });
 

@@ -206,16 +206,30 @@ function exhaustLegalModel(counter: { decides: number }): Model {
   return {
     async decide(
       _task: Task,
-      _history: HistoryMessage[],
+      history: HistoryMessage[],
       _toolResults: ToolResult[],
       context?: ModelContext,
     ): Promise<ModelResponse> {
       counter.decides += 1;
       const legal = context?.legalInvestigationActions ?? [];
-      assert.ok(
-        legal.length > 0,
-        "inner model must not be invoked when Strategy has no legal investigation action",
-      );
+      if (legal.length === 0) {
+        // Phase 16.3-B: an empty legal action set may only reach the inner
+        // model inside the Finalization Boundary. Simulate an Agent that
+        // refuses to finalize; Runtime must then refuse the tool itself.
+        assert.equal(
+          history.some((item) => item.content.includes("Finalization Boundary:")),
+          true,
+          "inner model must not be invoked without legal actions outside the Finalization Boundary",
+        );
+        return {
+          type: "tool_call",
+          call: {
+            id: randomUUID(),
+            name: "github_get_issue",
+            arguments: { owner: "acme", repo: "box", issueNumber: 42 },
+          },
+        };
+      }
       const github = legal.find((item) => item.tool.startsWith("github_"));
       if (github) {
         return {
@@ -1270,7 +1284,11 @@ test("Phase 8.8.4 Test 8 — satisfying a recovery target does not mint verified
       withRecoveryTarget(session.state, ["pr-merged"]);
     },
   });
-  assert.equal(result.agentResult?.decision, "gap_closed");
+  // Phase 16.3-B: GAP_CLOSED opens a Finalization Boundary instead of
+  // fabricating a block; this Agent takes the opportunity and finalizes.
+  assert.equal(result.agentResult?.decision, "final");
+  assert.notEqual(result.agentResult?.decision, "gap_closed");
+  assert.equal(result.agentResult?.output, "Recovery target already gathered.");
   assert.notEqual(result.verification?.status, "verified_complete");
   assert.notEqual(result.run.status, "verified_complete");
   const independent = new IndependentCompletionVerifier().verify({

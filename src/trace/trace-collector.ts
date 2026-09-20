@@ -42,7 +42,9 @@ export type TraceEventType =
   | "retrieval_candidate_ranked"
   | "retrieval_candidate_selected"
   | "retrieval_candidate_rejected"
-  | "retrieval_investigation_started";
+  | "retrieval_investigation_started"
+  /** Phase 11.0 Recovery Intent decision. Not an execution result. */
+  | "recovery_intent";
 
 export interface TraceEvent {
   id: string;

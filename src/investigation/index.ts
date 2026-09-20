@@ -116,6 +116,29 @@ export {
 } from "./resolution-gap-recovery.js";
 export type { ResolutionGapRecoveryCandidate } from "./resolution-gap-recovery.js";
 export {
+  DEFAULT_INTENT_CONSTRAINTS,
+  RECOVERY_INTENT_AUTO_EXECUTE,
+  RECOVERY_INTENT_NOTICE,
+  RECOVERY_INTENT_OBJECTIVES,
+  RESOLUTION_GAP_OBJECTIVE_MAPPING,
+  RESOLUTION_GAP_TYPE_ORDER,
+  createRecoveryIntent,
+  deriveRecoveryIntents,
+  recordRecoveryIntentDecisions,
+  recoveryIntentId,
+  toRecoveryActionCandidatesFromIntents,
+  toRecoveryIntentEvents,
+} from "./recovery/index.js";
+export type {
+  RecoveryActionCandidate,
+  RecoveryCandidateAction,
+  RecoveryIntent,
+  RecoveryIntentConstraints,
+  RecoveryIntentEvent,
+  RecoveryIntentObjective,
+  RecoveryIntentPriority,
+} from "./recovery/index.js";
+export {
   MAX_INVESTIGATED_CANDIDATES,
   NO_CANDIDATE_FOUND,
   RETRIEVAL_TOP_K,

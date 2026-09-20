@@ -134,3 +134,20 @@ export {
   phase102VerifierInvariantHolds,
 } from "./resolution-gap-evaluation.js";
 export type { Phase102GapObservation, Phase102GapView } from "./resolution-gap-evaluation.js";
+export {
+  RECOVERY_INTENT_EVALUATION_NOTE,
+  RECOVERY_INTENT_EVALUATION_VERSION,
+  RECOVERY_INTENT_FOCUS_CASES,
+  evaluatePhase110FocusCases,
+  intentHasExecutionLeak,
+  mappingHolds,
+  mergeHolds,
+  observeRecoveryIntents,
+  observeRecoveryIntentsFromGapObservation,
+  phase110VerifierInvariantHolds,
+} from "./recovery-intent-evaluation.js";
+export type {
+  Phase110CandidateView,
+  Phase110IntentObservation,
+  Phase110IntentView,
+} from "./recovery-intent-evaluation.js";

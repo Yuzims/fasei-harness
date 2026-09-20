@@ -959,6 +959,21 @@ Deterministic rules emit `ResolutionGap` values (`missing_patch_evidence`, `insu
 
 Evaluation: [`docs/evaluation/phase-10.2-resolution-gap.md`](evaluation/phase-10.2-resolution-gap.md)
 
+## Phase 11.0 — Recovery Intent Layer — DONE
+
+Converts ResolutionGap into a runtime-readable Recovery Intent. This is an intermediate abstraction only: Failure Localization → Recovery Intent → Recovery Action Candidate. Recovery is not executed.
+
+```text
+ResolutionGap
+  → RecoveryIntent
+  → RecoveryPolicy
+  → Candidate Actions   (autoExecute = false)
+```
+
+Deterministic Gap → Intent mapping. Same objective merges multiple gaps. Intent names a missing capability, not a tool. IndependentCompletionVerifier remains the only completion authority. RecoveryPlanner core logic and Agent Loop are unchanged.
+
+Evaluation: [`docs/evaluation/phase-11.0-recovery-intent.md`](evaluation/phase-11.0-recovery-intent.md)
+
 ## Not started
 
 Later phases wait for a new task.

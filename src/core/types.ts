@@ -24,11 +24,25 @@ export type AgentLoopDecision =
   | "gap_unresolvable"
   | "illegal_investigation_action";
 
+/**
+ * Structured Agent-declared claim. Not extracted from `AgentResult.output`.
+ * Capture writes this through record_claim(); it is not a verification verdict.
+ */
+export interface ClaimInput {
+  text: string;
+  polarity?: "resolved" | "unresolved" | "partial" | "unknown";
+  critical?: boolean;
+  evidenceIds?: string[];
+  role?: "supports" | "contradicts" | "contextual";
+}
+
 export interface AgentResult {
   status: "completed" | "failed";
   output?: unknown;
   steps: number;
   decision?: AgentLoopDecision;
+  /** Explicit claims from the Agent runtime. Optional; omitted means nothing captured. */
+  claims?: ClaimInput[];
 }
 
 export interface ToolCall {

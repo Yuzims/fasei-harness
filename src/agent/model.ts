@@ -1,4 +1,4 @@
-import type { Task, ToolCall, ToolResult } from "../core/types.js";
+import type { ClaimInput, Task, ToolCall, ToolResult } from "../core/types.js";
 import type { Workspace } from "../core/workspace.js";
 import type { FailureEvent, InvestigationStrategy, RecoveryPlan } from "../domain/types.js";
 import type { Failure } from "../legacy/failure/failure-types.js";
@@ -13,7 +13,7 @@ export type InvestigationBlockCode =
 
 export type ModelResponse =
   | { type: "tool_call"; call: ToolCall }
-  | { type: "final"; message: string }
+  | { type: "final"; message: string; claims?: ClaimInput[] }
   | {
       type: "investigation_blocked";
       code: InvestigationBlockCode;

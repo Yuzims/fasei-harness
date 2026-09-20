@@ -17,6 +17,12 @@ export type TraceEventType =
   | "agent_step"
   | "evidence_added"
   | "claim_created"
+  /** Phase 14.1 capture boundary. Identity only; not a verification judgement. */
+  | "claim_recorded"
+  /** Phase 14.1 capture boundary. Agent claims dropped for unknown Evidence IDs. */
+  | "claims_dropped_at_capture"
+  /** Phase 14.1 capture boundary. Capture failed; verification still runs. */
+  | "claim_capture_failed"
   | "investigation_completed"
   | "verification_started"
   | "verification_check"

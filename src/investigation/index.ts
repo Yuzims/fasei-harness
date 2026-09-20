@@ -63,6 +63,15 @@ export {
   TEST_DRIVER_NOTICE,
 } from "./test-driver.js";
 export {
+  asClaimInput,
+  asClaimInputs,
+  captureAgentClaims,
+  claimFingerprint,
+  record_claim,
+} from "./claim-capture.js";
+export type { ClaimCaptureSession, ClaimCaptureSource, RecordClaimResult } from "./claim-capture.js";
+export type { ClaimInput } from "../core/types.js";
+export {
   createInvestigationToolList,
   createRecordResolutionAnalysisTool,
   ingestObservation,

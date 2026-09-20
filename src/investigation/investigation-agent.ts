@@ -55,6 +55,7 @@ import {
   GAP_OPEN_UNRESOLVABLE_REASON,
   type InvestigationClosureStatus,
 } from "./investigation-closure.js";
+import { captureAgentClaims } from "./claim-capture.js";
 import { formatStateForModel, investigationFingerprint, InvestigationState } from "./state.js";
 import { SnapshotInvestigationDriver, TEST_DRIVER_NOTICE } from "./test-driver.js";
 
@@ -651,6 +652,21 @@ async function runInvestigationAttempts(input: {
         output: error.message,
         steps: Math.max(1, state.currentStep),
       };
+    }
+
+    try {
+      const captured = captureAgentClaims(session, lastAgentResult);
+      if (captured.droppedUnknownEvidence > 0) {
+        trace.record(run.id, state.currentStep, "claims_dropped_at_capture", {
+          droppedCount: captured.droppedUnknownEvidence,
+          reason: "unknown evidence ids",
+        });
+      }
+    } catch (error) {
+      // Agent output is untrusted input: capture must never skip verification.
+      trace.record(run.id, state.currentStep, "claim_capture_failed", {
+        reason: error instanceof Error ? error.message : String(error),
+      });
     }
 
     const claimedComplete = state.run.claims.some(

@@ -1,17 +1,15 @@
 import { createHash } from "node:crypto";
 import {
   closingKeywordReferencesIssue,
-  createClaim,
-  createClaimEvidenceBinding,
   createEvidence,
   createEvidenceRelation,
   EvidenceGraphError,
-  type ClaimEvidenceRole,
   type ClaimPolarity,
   type EvidenceKind,
   type EvidenceRelationType,
   type FailureEvent,
 } from "../domain/index.js";
+import { asClaimInput, parsePolarity, record_claim } from "./claim-capture.js";
 import type { GitHubDataProvider } from "../github/provider.js";
 import type { Tool } from "../tools/tool.js";
 import { createInvestigationGithubTools } from "../tools/github.js";
@@ -57,7 +55,7 @@ import {
 } from "./retrieval/index.js";
 
 const POLARITIES: ClaimPolarity[] = ["resolved", "unresolved", "partial", "unknown"];
-const ROLES: ClaimEvidenceRole[] = ["supports", "contradicts", "contextual"];
+const ROLES = ["supports", "contradicts", "contextual"] as const;
 
 export type RetrievalCandidateSelection = (
   candidates: readonly RetrievalCandidate[],
@@ -783,26 +781,16 @@ function wrapGithubTool(tool: Tool, session: InvestigationSession): Tool {
   };
 }
 
-function parsePolarity(value: unknown): ClaimPolarity {
-  if (typeof value === "string" && (POLARITIES as string[]).includes(value)) {
-    return value as ClaimPolarity;
-  }
-  return "unknown";
-}
-
-function parseRole(value: unknown): ClaimEvidenceRole {
-  if (typeof value === "string" && (ROLES as string[]).includes(value)) {
-    return value as ClaimEvidenceRole;
-  }
-  return "supports";
-}
-
-function asClaimList(args: Record<string, unknown>): Array<Record<string, unknown>> {
+function asClaimList(args: Record<string, unknown>) {
   if (Array.isArray(args.claims)) {
-    return args.claims.filter(isRecord);
+    return args.claims.flatMap((item) => {
+      const parsed = asClaimInput(item);
+      return parsed ? [parsed] : [];
+    });
   }
   if (typeof args.text === "string") {
-    return [args];
+    const parsed = asClaimInput(args);
+    return parsed ? [parsed] : [];
   }
   return [];
 }
@@ -838,44 +826,7 @@ export function createRecordClaimTool(session: InvestigationSession): Tool {
       },
     },
     async execute(args) {
-      const known = new Set(session.state.run.evidence.map((item) => item.id));
-      const created: string[] = [];
-      for (const item of asClaimList(args)) {
-        const evidenceIds = Array.isArray(item.evidenceIds)
-          ? item.evidenceIds.filter((id): id is string => typeof id === "string")
-          : [];
-        const missing = evidenceIds.filter((id) => !known.has(id));
-        if (missing.length > 0) {
-          throw new Error(`record_claim unknown evidence ids: ${missing.join(", ")}`);
-        }
-        const claim = createClaim({
-          text: String(item.text ?? ""),
-          polarity: parsePolarity(item.polarity),
-          critical: item.critical !== false,
-        });
-        session.state.addClaim(claim);
-        const role = parseRole(item.role);
-        for (const evidenceId of evidenceIds) {
-          session.state.bind(
-            createClaimEvidenceBinding(
-              { claimId: claim.id, evidenceId, role },
-              {
-                claims: session.state.run.claims,
-                evidence: session.state.run.evidence,
-                claimEvidence: session.state.run.claimEvidence,
-              },
-            ),
-          );
-        }
-        session.trace.record(session.runId, session.state.currentStep, "claim_created", {
-          claimId: claim.id,
-          text: claim.text,
-          polarity: claim.polarity,
-          evidenceIds,
-          role,
-        });
-        created.push(claim.id);
-      }
+      const recorded = record_claim(session, asClaimList(args), { source: "record_claim" });
       if (Array.isArray(args.unresolvedQuestions)) {
         for (const question of args.unresolvedQuestions) {
           if (typeof question === "string") {
@@ -889,16 +840,19 @@ export function createRecordClaimTool(session: InvestigationSession): Tool {
       if (typeof args.polarity === "string") {
         session.state.polarity = parsePolarity(args.polarity);
       }
-      session.state.claimsRecorded = created.length > 0 || session.state.run.claims.length > 0;
+      // Tool-only boundary state. The shared Claim writer (and Agent final-claim
+      // capture) must not touch claimsRecorded or Resolution Analysis.
+      session.state.claimsRecorded =
+        recorded.claimIds.length > 0 || session.state.run.claims.length > 0;
       attachClaimsToResolutionAnalyses(session.state.run);
       session.state.recordTool({
         tool: "record_claim",
-        arguments: { claimCount: created.length },
+        arguments: { claimCount: recorded.claimIds.length },
         success: true,
         evidenceIds: [],
         reason: session.state.lastDecisionReason,
       });
-      return compactRecordClaimOutput(created);
+      return compactRecordClaimOutput(recorded.claimIds);
     },
   };
 }

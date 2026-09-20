@@ -28,7 +28,11 @@ class HistorySpyModel implements Model {
       };
     }
 
-    return { type: "final", message: "计算完成" };
+    return {
+      type: "final",
+      message: "计算完成",
+      claims: [{ text: "1 + 1 = 2", polarity: "resolved" }],
+    };
   }
 }
 
@@ -43,6 +47,7 @@ test("Loop：把 user / assistant(tool_call) / tool 写回下一轮 decide", asy
   );
 
   assert.equal(result.status, "completed");
+  assert.deepEqual(result.claims, [{ text: "1 + 1 = 2", polarity: "resolved" }]);
   assert.equal(spy.snapshots.length, 2);
 
   const first = spy.snapshots[0]!;

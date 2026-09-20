@@ -69,6 +69,7 @@ export class AgentLoop {
           output: response.message,
           steps: step,
           decision: "final",
+          claims: response.claims,
         };
       }
 

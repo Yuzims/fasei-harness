@@ -160,3 +160,30 @@ export {
   phase111VerifierInvariantHolds,
 } from "./recovery-loop-evaluation.js";
 export type { Phase111Observation } from "./recovery-loop-evaluation.js";
+export {
+  RECOVERY_EVALUATION_FOCUS_CASES,
+  RECOVERY_EVALUATION_NOTE,
+  RECOVERY_EVALUATION_VERSION,
+  analyzeRecoveryEffectivenessByGapType,
+  buildRecoveryEvaluationReport,
+  classifyVerificationDelta,
+  computeEvidenceGain,
+  computeGapReduction,
+  evaluateRecoveryImpact,
+  evaluateRecoveryLoopCase,
+  evaluateRecoveryLoopFocusCases,
+  readRecoveryCostFromTrace,
+  recoveryCostOf,
+} from "./recovery-loop-evaluation.js";
+export type {
+  GapTypeEffectiveness,
+  RecoveryCost,
+  RecoveryEvaluationBaselineInput,
+  RecoveryEvaluationObservation,
+  RecoveryEvaluationRecoveryInput,
+  RecoveryEvaluationReport,
+  RecoveryEvaluationResult,
+  RecoveryEvaluationSnapshot,
+  RecoveryEvaluationTraceEvent,
+  VerificationDelta,
+} from "./recovery-evaluation-types.js";

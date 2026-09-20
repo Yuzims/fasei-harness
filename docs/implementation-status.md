@@ -994,6 +994,22 @@ Default `maxRecoveryRounds = 1`. Only blocking gaps auto-trigger. Warning gaps a
 
 Evaluation: [`docs/evaluation/phase-11.1-recovery-loop.md`](evaluation/phase-11.1-recovery-loop.md)
 
+## Phase 11.2 — Recovery Evaluation Framework — DONE
+
+Independent Evaluation Layer comparing Baseline Investigation vs Recovery Enabled Investigation. Measures gap reduction, evidence gain, verification delta, and recovery cost by Failure type. Does not prove Recovery always improves completion rate.
+
+```text
+Baseline result
+Recovery result
+  → evaluateRecoveryImpact()
+  → RecoveryEvaluationResult
+  → effectiveness by gap type
+```
+
+Evaluation is read-only. ControlledRecoveryLoop, RecoveryExecutor, RecoveryIntent, RecoveryAttempt, RecoveryBudget, ResolutionGapAnalyzer, ResolutionAnalyzer, IndependentCompletionVerifier, Evidence Graph, retrieval ranking/selection, Ground Truth, and snapshot schema are unchanged.
+
+Evaluation: [`docs/evaluation/phase-11.2-recovery-evaluation.md`](evaluation/phase-11.2-recovery-evaluation.md)
+
 ## Not started
 
 Later phases wait for a new task.

@@ -151,3 +151,12 @@ export type {
   Phase110IntentObservation,
   Phase110IntentView,
 } from "./recovery-intent-evaluation.js";
+export {
+  RECOVERY_LOOP_EVALUATION_NOTE,
+  RECOVERY_LOOP_EVALUATION_VERSION,
+  RECOVERY_LOOP_FOCUS_CASES,
+  evaluatePhase111FocusCases,
+  evaluatePhase111RecoveryCase,
+  phase111VerifierInvariantHolds,
+} from "./recovery-loop-evaluation.js";
+export type { Phase111Observation } from "./recovery-loop-evaluation.js";

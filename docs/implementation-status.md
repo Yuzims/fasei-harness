@@ -974,6 +974,26 @@ Deterministic Gap → Intent mapping. Same objective merges multiple gaps. Inten
 
 Evaluation: [`docs/evaluation/phase-11.0-recovery-intent.md`](evaluation/phase-11.0-recovery-intent.md)
 
+## Phase 11.1 — Controlled Recovery Loop — DONE
+
+Connects Phase 11.0 Gap → Intent → Candidate to a budgeted Recovery Execution Loop. Recovery is a new InvestigationAttempt. It does not overwrite the parent attempt, set success, or modify IndependentCompletionVerifier.
+
+```text
+Attempt #1
+  → ResolutionGapAnalyzer
+  → RecoveryIntent
+  → RecoveryBudget
+  → RecoveryActionCandidate
+  → RecoveryExecutor
+  → Attempt #2
+  → Re-analysis
+  → IndependentCompletionVerifier
+```
+
+Default `maxRecoveryRounds = 1`. Only blocking gaps auto-trigger. Warning gaps are recorded. Executor adds Evidence only. Results still pass Evidence → Verifier.
+
+Evaluation: [`docs/evaluation/phase-11.1-recovery-loop.md`](evaluation/phase-11.1-recovery-loop.md)
+
 ## Not started
 
 Later phases wait for a new task.

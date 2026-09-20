@@ -44,7 +44,11 @@ export type TraceEventType =
   | "retrieval_candidate_rejected"
   | "retrieval_investigation_started"
   /** Phase 11.0 Recovery Intent decision. Not an execution result. */
-  | "recovery_intent";
+  | "recovery_intent"
+  /** Phase 11.1 Controlled Recovery Attempt. Linked to a parent InvestigationAttempt. */
+  | "recovery_attempt_started"
+  /** Phase 11.1 Recovery execution finished. Added Evidence IDs only. */
+  | "recovery_execution_completed";
 
 export interface TraceEvent {
   id: string;

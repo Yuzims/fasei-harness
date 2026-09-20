@@ -29,3 +29,42 @@ export type {
   RecoveryIntentObjective,
   RecoveryIntentPriority,
 } from "./recovery-types.js";
+export {
+  createRecoveryAttempt,
+  recoveryAttemptId,
+  resolutionGapId,
+} from "./recovery-attempt.js";
+export type {
+  RecoveryAttempt,
+  RecoveryAttemptOutcome,
+  RecoveryAttemptStatus,
+} from "./recovery-attempt.js";
+export {
+  DEFAULT_RECOVERY_BUDGET,
+  canExecuteRecoveryAction,
+  canStartRecoveryRound,
+  createRecoveryBudget,
+  createRecoveryBudgetUsage,
+  remainingRecoveryActions,
+} from "./recovery-budget.js";
+export type { RecoveryBudget, RecoveryBudgetUsage } from "./recovery-budget.js";
+export {
+  RECOVERY_EXECUTOR_NOTICE,
+  createRecoveryExecutor,
+} from "./recovery-executor.js";
+export type { RecoveryExecutionResult, RecoveryExecutor } from "./recovery-executor.js";
+export {
+  blockingRecoveryIntents,
+  blockingResolutionGaps,
+  selectRecoveryActionCandidates,
+  warningResolutionGaps,
+} from "./recovery-selection.js";
+export {
+  recordRecoveryAttemptStarted,
+  recordRecoveryExecutionCompleted,
+  recoveryAttemptStartedPayload,
+} from "./recovery-execution-trace.js";
+export type {
+  RecoveryAttemptStartedEvent,
+  RecoveryExecutionCompletedEvent,
+} from "./recovery-execution-trace.js";

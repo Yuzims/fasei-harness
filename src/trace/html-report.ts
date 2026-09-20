@@ -24,7 +24,9 @@ function eventClass(type: string): string {
     type === "recovery_started" ||
     type === "recovery_applied" ||
     type === "recovery_completed" ||
-    type === "recovery_intent"
+    type === "recovery_intent" ||
+    type === "recovery_attempt_started" ||
+    type === "recovery_execution_completed"
   ) {
     return "ev-recover";
   }

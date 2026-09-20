@@ -10,6 +10,7 @@ import type { LlmRuntimeBudget } from "../agent/llm-runtime.js";
 import type { InvestigationRun, ResolutionAnalysis } from "../domain/index.js";
 import type { InvestigationState, ToolHistoryEntry } from "./state.js";
 import type { RetrievalCandidate } from "./retrieval/candidate.js";
+import type { RecoveryAttempt } from "./recovery/recovery-attempt.js";
 import {
   RETRIEVAL_TOP_K,
   investigatedCandidatesFromEvents,
@@ -73,6 +74,8 @@ export interface InvestigationAgentReport {
   investigatedCandidates: RetrievalCandidate[];
   /** Candidates promoted by the existing candidate lifecycle. */
   promotedCandidates: RetrievalCandidate[];
+  /** Phase 11.1 RecoveryAttempts. Linked to parent InvestigationAttempts; never replace them. */
+  recoveryAttempts: RecoveryAttempt[];
 }
 
 export function countTraceToolCalls(events: readonly { type: string }[]): number {
@@ -201,5 +204,6 @@ export function toAgentReport(input: {
       investigatedCandidatesFromEvents(input.state.retrievalCandidates, input.traceEvents ?? []),
     ),
     promotedCandidates: cloneCandidates(promotedCandidatesOf(input.state.retrievalCandidates)),
+    recoveryAttempts: [...input.state.recoveryAttempts],
   };
 }

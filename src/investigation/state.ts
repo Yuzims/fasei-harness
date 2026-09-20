@@ -12,6 +12,8 @@ import type {
   ResolutionAnalysis,
 } from "../domain/index.js";
 import type { RetrievalCandidate } from "./retrieval/candidate.js";
+import type { RecoveryAttempt } from "./recovery/recovery-attempt.js";
+import { createRecoveryBudgetUsage, type RecoveryBudgetUsage } from "./recovery/recovery-budget.js";
 
 export type RetrievalStrategy = "default" | "timeline" | "comments" | "linked_pr" | "broaden";
 
@@ -55,6 +57,8 @@ export class InvestigationState {
   lastRecovery?: RecoveryPlan;
   readonly authoredResolutionCandidates = new Set<string>();
   readonly retrievalCandidates: RetrievalCandidate[] = [];
+  readonly recoveryAttempts: RecoveryAttempt[] = [];
+  readonly recoveryBudgetUsage: RecoveryBudgetUsage = createRecoveryBudgetUsage();
   retrievalOutcome?: "ok" | "no_candidate_found";
   retrievalOutcomeReason?: string;
   discoveryTruncated?: boolean;

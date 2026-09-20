@@ -58,6 +58,8 @@ import {
 import { captureAgentClaims } from "./claim-capture.js";
 import { formatStateForModel, investigationFingerprint, InvestigationState } from "./state.js";
 import { SnapshotInvestigationDriver, TEST_DRIVER_NOTICE } from "./test-driver.js";
+import { runControlledRecoveryLoop } from "./controlled-recovery-loop.js";
+import { createRecoveryBudget, type RecoveryBudget, type RecoveryExecutor } from "./recovery/index.js";
 
 export interface InvestigateInput {
   owner: string;
@@ -124,6 +126,16 @@ export interface InvestigateOptions {
    * unchanged when this is omitted.
    */
   candidateSelection?: RetrievalCandidateSelection;
+  /**
+   * Phase 11.1 controlled recovery budget. Runtime-enforced.
+   * Default maxRecoveryRounds = 1.
+   */
+  recoveryBudget?: Partial<RecoveryBudget>;
+  /**
+   * Phase 11.1 RecoveryExecutor. When omitted, the controlled recovery loop
+   * does not execute. The executor only adds Evidence.
+   */
+  recoveryExecutor?: RecoveryExecutor;
 }
 
 class InvestigationLoopModel implements Model {
@@ -819,6 +831,37 @@ async function runInvestigationAttempts(input: {
     run.attempts = next.attempts;
     state.fingerprints.push(fingerprint);
     previousAttemptId = attemptId;
+
+    if (attempt === 1 && options.recoveryExecutor) {
+      const recoveryResult = await runControlledRecoveryLoop({
+        task,
+        run,
+        parentAttemptId: attemptId,
+        budget: createRecoveryBudget(options.recoveryBudget),
+        usage: state.recoveryBudgetUsage,
+        executor: options.recoveryExecutor,
+        trace,
+        verifier,
+        runId: run.id,
+        step: state.currentStep,
+      });
+      if (recoveryResult.recoveryAttempt) {
+        state.recoveryAttempts.push(recoveryResult.recoveryAttempt);
+      }
+      if (recoveryResult.executed) {
+        if (recoveryResult.verification) {
+          lastVerification = recoveryResult.verification;
+        }
+        previousAttemptId = run.attempts[run.attempts.length - 1]?.id ?? previousAttemptId;
+        run.status =
+          lastVerification.status === "verified_complete" ||
+          lastVerification.status === "not_verified" ||
+          lastVerification.status === "insufficient_evidence"
+            ? lastVerification.status
+            : run.status;
+        break;
+      }
+    }
 
     if (willStop || !failure) {
       run.status = exhausted

@@ -1026,6 +1026,21 @@ Deterministic rules: blocking-gap priority, gap coverage, cost ≤ remaining bud
 
 Evaluation: [`docs/evaluation/phase-12-recovery-policy.md`](evaluation/phase-12-recovery-policy.md)
 
+## Phase 13.0 — Recovery Policy Evaluation & Calibration — DONE
+
+Independent Evaluation Layer comparing Naive first-action Recovery Policy vs Phase 12 cost-aware Recovery Policy. Measures average action cost, gap coverage, unnecessary-action rate, and budget compliance. Decision only: neither policy executes recovery.
+
+```text
+Recovery Input
+  → Naive Policy          (first legal candidate)
+  → Cost-aware Policy     (Phase 12, unchanged)
+  → Recovery Policy Evaluation
+```
+
+Evaluation does not modify RecoveryPolicy, RecoveryExecutor, ControlledRecoveryLoop, verifier semantics, or runtime selection. It does not measure completion improvement and does not pick a winner.
+
+Evaluation: [`docs/evaluation/phase-13-policy-evaluation.md`](evaluation/phase-13-policy-evaluation.md)
+
 ## Not started
 
 Later phases wait for a new task.

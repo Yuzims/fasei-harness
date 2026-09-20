@@ -200,3 +200,34 @@ export type {
   RecoveryPolicyEvaluationMetrics,
   RecoveryPolicyObservation,
 } from "./recovery-policy-evaluation.js";
+export {
+  NAIVE_RECOVERY_POLICY_NAME,
+  NAIVE_RECOVERY_POLICY_NOTE,
+  NaiveRecoveryPolicy,
+  decideNaiveRecoveryPolicy,
+} from "./recovery-policy-baseline.js";
+export {
+  RECOVERY_POLICY_COMPARISON_METRICS_VERSION,
+  aggregateRecoveryPolicyMetrics,
+  computeRecoveryPolicyDecisionMetrics,
+} from "./recovery-policy-metrics.js";
+export type {
+  RecoveryPolicyAggregateMetrics,
+  RecoveryPolicyDecisionMetrics,
+} from "./recovery-policy-metrics.js";
+export {
+  RECOVERY_POLICY_COMPARISON_FOCUS_CASES,
+  RECOVERY_POLICY_COMPARISON_NOTE,
+  RECOVERY_POLICY_COMPARISON_VERSION,
+  buildPhase13ComparisonReport,
+  buildPhase13PolicyInput,
+  compareRecoveryPolicies,
+  evaluatePhase13FocusCases,
+} from "./recovery-policy-comparison.js";
+export type {
+  RecoveryPolicyCaseComparison,
+  RecoveryPolicyComparisonCaseId,
+  RecoveryPolicyComparisonReport,
+  RecoveryPolicyMetricDifference,
+  RecoveryPolicySideObservation,
+} from "./recovery-policy-comparison.js";

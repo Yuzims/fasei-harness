@@ -924,6 +924,23 @@ Discovery
 
 Investigation success remains: expected candidate entered the budget (`investigating` or `promoted`). Combined Recall@K can miss a candidate that is still inside the per-type budget (C08).
 
+## Phase 10.0 — Resolution Effect Analysis MVP — DONE
+
+Adds Candidate Resolution Evidence Analysis between Investigation Agent observations and Independent Completion Verifier. The new Resolution Analyzer produces investigation claims only.
+
+```text
+Issue
+  → Candidate Retrieval
+  → Investigation Agent
+  → Resolution Analyzer
+  → Evidence Graph provenance
+  → Independent Verifier
+```
+
+Three code-constrained signals: `file_scope_alignment`, `patch_intent_alignment`, `test_evidence`. Structured status is assigned by code. LLM prose cannot set signal status, cannot produce `VERIFIED_COMPLETE`, and cannot treat merged PR or PR title/body as resolution proof.
+
+IndependentCompletionVerifier, Ground Truth, Real-v1 snapshots, retrieval ranking, discovery, Evidence-Gap Strategy, RecoveryPlanner, and FailureAnalyzer are unchanged.
+
 ## Not started
 
 Later phases wait for a new task.

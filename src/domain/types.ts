@@ -206,12 +206,49 @@ export interface ClaimEvidence {
   role: ClaimEvidenceRole;
 }
 
+export type ResolutionSignalType =
+  | "file_scope_alignment"
+  | "patch_intent_alignment"
+  | "test_evidence";
+
+export type ResolutionAlignmentStatus = "supported" | "partial" | "unknown";
+
+export type TestEvidenceStatus = "present" | "absent" | "unknown";
+
+export type ResolutionOverallStatus = "supported" | "partial" | "unknown";
+
+export type ResolutionEvidenceRole = "issue" | "candidate" | "file_change" | "patch";
+
 /**
- * Agent-side investigation artifact. Hypothesis about whether observed
- * code changes may address the issue. Never a completion verdict.
+ * Provenance pointer from a ResolutionSignal back to Evidence Graph nodes.
+ * A signal without Evidence IDs is not a valid investigation claim.
+ */
+export interface EvidenceReference {
+  evidenceId: string;
+  role: ResolutionEvidenceRole;
+  trust?: EvidenceTrust;
+}
+
+/**
+ * Code-constrained investigation signal. Not a completion verdict.
+ * Status is assigned by ResolutionAnalyzer, never by LLM prose.
+ */
+export interface ResolutionSignal {
+  type: ResolutionSignalType;
+  status: ResolutionAlignmentStatus | TestEvidenceStatus;
+  evidenceIds: string[];
+  /** Optional explanation text. Must not claim the issue is fixed. */
+  explanation?: string;
+}
+
+/**
+ * Agent-side investigation claim about candidate resolution evidence.
+ * Hypothesis only. Never a completion verdict and never VERIFIED_COMPLETE.
  */
 export interface ResolutionAnalysis {
   id: string;
+  /** Same identity as candidateEvidenceId. Phase 10.0 claim field. */
+  candidateId: string;
   candidateEvidenceId: string;
   issueEvidenceId: string;
   mergeCommitSha?: string;
@@ -221,6 +258,9 @@ export interface ResolutionAnalysis {
   unresolvedQuestions: string[];
   supportingEvidenceIds: string[];
   claimIds: string[];
+  signals: ResolutionSignal[];
+  overall: ResolutionOverallStatus;
+  provenance: EvidenceReference[];
 }
 
 export interface VerificationCheck {

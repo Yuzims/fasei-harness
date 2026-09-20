@@ -227,7 +227,21 @@ export interface InvestigationClaimEvidenceDTO {
   role: string;
 }
 
+export interface ResolutionSignalDTO {
+  type: string;
+  status: string;
+  evidenceIds: string[];
+  explanation?: string;
+}
+
+export interface EvidenceReferenceDTO {
+  evidenceId: string;
+  role: string;
+  trust?: string;
+}
+
 export interface ResolutionAnalysisDTO {
+  candidateId?: string;
   candidateEvidenceId: string;
   issueEvidenceId: string;
   mergeCommitSha?: string;
@@ -237,6 +251,9 @@ export interface ResolutionAnalysisDTO {
   unresolvedQuestions: string[];
   supportingEvidenceIds: string[];
   claimIds: string[];
+  signals?: ResolutionSignalDTO[];
+  overall?: string;
+  provenance?: EvidenceReferenceDTO[];
 }
 
 export interface InvestigationStepDTO {

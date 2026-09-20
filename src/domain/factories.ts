@@ -3,6 +3,7 @@ import type {
   Claim,
   ClaimEvidence,
   Evidence,
+  EvidenceReference,
   EvidenceRelation,
   EvidenceRequirement,
   InvestigationAttempt,
@@ -10,6 +11,8 @@ import type {
   InvestigationTask,
   InvestigationTarget,
   ResolutionAnalysis,
+  ResolutionOverallStatus,
+  ResolutionSignal,
 } from "./types.js";
 
 function requireText(value: string, field: string): string {
@@ -133,11 +136,19 @@ export function bindClaimEvidence(input: ClaimEvidence): ClaimEvidence {
 }
 
 export function createResolutionAnalysis(
-  input: Omit<ResolutionAnalysis, "id"> & { id?: string },
+  input: Omit<ResolutionAnalysis, "id" | "candidateId" | "signals" | "overall" | "provenance"> & {
+    id?: string;
+    candidateId?: string;
+    signals?: ResolutionSignal[];
+    overall?: ResolutionOverallStatus;
+    provenance?: EvidenceReference[];
+  },
 ): ResolutionAnalysis {
+  const candidateEvidenceId = requireText(input.candidateEvidenceId, "candidateEvidenceId");
   return {
     id: input.id?.trim() || randomUUID(),
-    candidateEvidenceId: requireText(input.candidateEvidenceId, "candidateEvidenceId"),
+    candidateId: input.candidateId?.trim() || candidateEvidenceId,
+    candidateEvidenceId,
     issueEvidenceId: requireText(input.issueEvidenceId, "issueEvidenceId"),
     mergeCommitSha: input.mergeCommitSha?.trim() || undefined,
     codeRelevance: requireText(input.codeRelevance, "codeRelevance"),
@@ -146,6 +157,9 @@ export function createResolutionAnalysis(
     unresolvedQuestions: [...input.unresolvedQuestions],
     supportingEvidenceIds: [...input.supportingEvidenceIds],
     claimIds: [...input.claimIds],
+    signals: [...(input.signals ?? [])],
+    overall: input.overall ?? "unknown",
+    provenance: [...(input.provenance ?? [])],
   };
 }
 

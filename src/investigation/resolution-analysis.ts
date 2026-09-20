@@ -3,51 +3,18 @@
  * Produces investigation hypotheses only. Never a completion verdict.
  */
 import { createResolutionAnalysis, type Evidence, type InvestigationRun, type ResolutionAnalysis } from "../domain/index.js";
+import { attachResolutionSignals } from "./resolution-analyzer.js";
+import { fileChangeFromEvidence, hasBoundedPatch, isTestFilePath } from "./resolution-files.js";
 
 export const INSUFFICIENT_CODE_CHANGE_CONTEXT = "insufficient code-change context";
 
 export const TEST_SUPPORT_NOT_OBSERVED =
   "Current observed PR file evidence does not include an obvious test-file change (not observed / unknown). Absence from this snapshot is not evidence that tests are missing.";
 
-const TEST_FILE_PATTERN = /(^|\/)tests?\/|(^|\/)__tests__\/|(^|\/)spec\/|\.spec\.|\.test\./i;
+export { fileChangeFromEvidence, hasBoundedPatch, isTestFilePath };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-export function isTestFilePath(filename: string): boolean {
-  return TEST_FILE_PATTERN.test(filename.replaceAll("\\", "/"));
-}
-
-export function fileChangeFromEvidence(evidence: Evidence): {
-  filename: string;
-  status: string;
-  additions: number;
-  deletions: number;
-  patch?: string;
-  patchTruncated?: boolean;
-} | undefined {
-  if (evidence.kind !== "file" || !isRecord(evidence.payload)) {
-    return undefined;
-  }
-  const filename = typeof evidence.payload.filename === "string" ? evidence.payload.filename : "";
-  if (!filename) {
-    return undefined;
-  }
-  return {
-    filename,
-    status: typeof evidence.payload.status === "string" ? evidence.payload.status : "modified",
-    additions: typeof evidence.payload.additions === "number" ? evidence.payload.additions : 0,
-    deletions: typeof evidence.payload.deletions === "number" ? evidence.payload.deletions : 0,
-    patch: typeof evidence.payload.patch === "string" && evidence.payload.patch.length > 0
-      ? evidence.payload.patch
-      : undefined,
-    patchTruncated: evidence.payload.patchTruncated === true,
-  };
-}
-
-export function hasBoundedPatch(evidence: Evidence): boolean {
-  return Boolean(fileChangeFromEvidence(evidence)?.patch);
 }
 
 function knownEvidenceIds(run: InvestigationRun): Set<string> {
@@ -93,6 +60,15 @@ function pullCandidates(run: InvestigationRun): Evidence[] {
   return run.evidence.filter(
     (item) => item.kind === "pull_request" && item.contentRef?.startsWith("pr:") && !item.contentRef.startsWith("pr-merge:"),
   );
+}
+
+function commitCandidates(run: InvestigationRun): Evidence[] {
+  return run.evidence.filter((item) => item.kind === "commit");
+}
+
+function analysisCandidates(run: InvestigationRun): Evidence[] {
+  const pulls = pullCandidates(run);
+  return pulls.length > 0 ? pulls : commitCandidates(run);
 }
 
 function mergeFactForPull(run: InvestigationRun, pullNumber: number): Evidence | undefined {
@@ -287,20 +263,24 @@ export function buildResolutionAnalysisForCandidate(
           .join(", ")}. Inference: the observed diff may correspond to the described problem. Runtime behavior remains unproven.`
       : INSUFFICIENT_CODE_CHANGE_CONTEXT;
 
-  return createResolutionAnalysis({
-    candidateEvidenceId: input.candidate.id,
-    issueEvidenceId: input.issue.id,
-    mergeCommitSha: input.authored?.mergeCommitSha ?? mergeCommitSha(run, input.candidate),
-    codeRelevance,
-    behavioralAlignment,
-    testSupport,
-    unresolvedQuestions: uniqueQuestions,
-    supportingEvidenceIds: supporting,
-    claimIds: existingClaimIds(run, [
-      ...(input.authored?.claimIds ?? []),
-      ...relatedClaimIds(run, supporting),
-    ]),
-  });
+  return attachResolutionSignals(
+    run,
+    createResolutionAnalysis({
+      candidateEvidenceId: input.candidate.id,
+      issueEvidenceId: input.issue.id,
+      mergeCommitSha: input.authored?.mergeCommitSha ?? mergeCommitSha(run, input.candidate),
+      codeRelevance,
+      behavioralAlignment,
+      testSupport,
+      unresolvedQuestions: uniqueQuestions,
+      supportingEvidenceIds: supporting,
+      claimIds: existingClaimIds(run, [
+        ...(input.authored?.claimIds ?? []),
+        ...relatedClaimIds(run, supporting),
+      ]),
+    }),
+    { exposePatch },
+  );
 }
 
 export function buildResolutionAnalyses(
@@ -308,7 +288,7 @@ export function buildResolutionAnalyses(
   options?: { preserveCandidateIds?: Iterable<string>; exposePatch?: boolean },
 ): ResolutionAnalysis[] {
   const issue = issueEvidence(run);
-  const candidates = pullCandidates(run);
+  const candidates = analysisCandidates(run);
   if (!issue || candidates.length === 0) {
     return [];
   }
@@ -318,11 +298,15 @@ export function buildResolutionAnalyses(
     if (preserve.has(candidate.id) && previous.has(candidate.id)) {
       const kept = previous.get(candidate.id);
       if (kept) {
-        return {
-          ...kept,
-          supportingEvidenceIds: existingEvidenceIds(run, kept.supportingEvidenceIds).known,
-          claimIds: existingClaimIds(run, [...kept.claimIds, ...relatedClaimIds(run, kept.supportingEvidenceIds)]),
-        };
+        return attachResolutionSignals(
+          run,
+          {
+            ...kept,
+            supportingEvidenceIds: existingEvidenceIds(run, kept.supportingEvidenceIds).known,
+            claimIds: existingClaimIds(run, [...kept.claimIds, ...relatedClaimIds(run, kept.supportingEvidenceIds)]),
+          },
+          { exposePatch: options?.exposePatch },
+        );
       }
     }
     return buildResolutionAnalysisForCandidate(run, {
@@ -380,19 +364,22 @@ export function recordAuthoredResolutionAnalysis(
     return { unresolvedQuestions: [...new Set(questions)] };
   }
 
-  const analysis = createResolutionAnalysis({
-    candidateEvidenceId: candidate.id,
-    issueEvidenceId: issueItem.id,
-    mergeCommitSha: draft.mergeCommitSha?.trim() || mergeCommitSha(run, candidate),
-    codeRelevance: draft.codeRelevance.trim() || INSUFFICIENT_CODE_CHANGE_CONTEXT,
-    behavioralAlignment: draft.behavioralAlignment.trim() || INSUFFICIENT_CODE_CHANGE_CONTEXT,
-    testSupport: draft.testSupport.trim() || TEST_SUPPORT_NOT_OBSERVED,
-    unresolvedQuestions: [...new Set(questions)],
-    supportingEvidenceIds: support.known.length > 0
-      ? support.known
-      : existingEvidenceIds(run, [candidate.id, issueItem.id]).known,
-    claimIds: claims,
-  });
+  const analysis = attachResolutionSignals(
+    run,
+    createResolutionAnalysis({
+      candidateEvidenceId: candidate.id,
+      issueEvidenceId: issueItem.id,
+      mergeCommitSha: draft.mergeCommitSha?.trim() || mergeCommitSha(run, candidate),
+      codeRelevance: draft.codeRelevance.trim() || INSUFFICIENT_CODE_CHANGE_CONTEXT,
+      behavioralAlignment: draft.behavioralAlignment.trim() || INSUFFICIENT_CODE_CHANGE_CONTEXT,
+      testSupport: draft.testSupport.trim() || TEST_SUPPORT_NOT_OBSERVED,
+      unresolvedQuestions: [...new Set(questions)],
+      supportingEvidenceIds: support.known.length > 0
+        ? support.known
+        : existingEvidenceIds(run, [candidate.id, issueItem.id]).known,
+      claimIds: claims,
+    }),
+  );
   return { analysis, unresolvedQuestions: analysis.unresolvedQuestions };
 }
 

@@ -114,3 +114,13 @@ export type {
   RetrievalCandidateView,
   RetrievalDiagnosis,
 } from "./retrieval-metrics.js";
+export {
+  RESOLUTION_EFFECT_EVALUATION_NOTE,
+  RESOLUTION_EFFECT_EVALUATION_VERSION,
+  RESOLUTION_EFFECT_FOCUS_CASES,
+  evaluatePhase10FocusCases,
+  evaluatePhase10ResolutionCase,
+  observeResolutionEffect,
+  phase10VerifierInvariantHolds,
+} from "./resolution-effect-evaluation.js";
+export type { Phase10ResolutionObservation, Phase10SignalView } from "./resolution-effect-evaluation.js";

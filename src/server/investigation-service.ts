@@ -340,6 +340,7 @@ export function toInvestigationSessionDTO(
       role: item.role,
     })),
     resolutionAnalyses: (report.resolutionAnalyses ?? []).map((item) => ({
+      candidateId: item.candidateId,
       candidateEvidenceId: item.candidateEvidenceId,
       issueEvidenceId: item.issueEvidenceId,
       mergeCommitSha: item.mergeCommitSha,
@@ -349,6 +350,18 @@ export function toInvestigationSessionDTO(
       unresolvedQuestions: [...item.unresolvedQuestions],
       supportingEvidenceIds: [...item.supportingEvidenceIds],
       claimIds: [...item.claimIds],
+      signals: (item.signals ?? []).map((signal) => ({
+        type: signal.type,
+        status: signal.status,
+        evidenceIds: [...signal.evidenceIds],
+        explanation: signal.explanation,
+      })),
+      overall: item.overall ?? "unknown",
+      provenance: (item.provenance ?? []).map((ref) => ({
+        evidenceId: ref.evidenceId,
+        role: ref.role,
+        trust: ref.trust,
+      })),
     })),
     steps: report.investigationSteps.map((step) => ({
       step: step.step,

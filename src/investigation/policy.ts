@@ -22,6 +22,7 @@ export const INVESTIGATION_SYSTEM_PROMPT = [
   "Observed facts are things present in the diff or Evidence, such as a new function, a changed branch, a test-file change, or an issue identifier in the patch. Inference is a possible relationship between those facts and the issue. Uncertainty includes unproven runtime behavior, missing test execution results, other call paths, or a snapshot that lacks files.",
   "Never write inference as an observed fact. Missing test-file changes means not observed / unknown, not that the PR has no tests.",
   "Resolution Analysis and Claims are hypotheses. They do not prove the issue is resolved and cannot become VERIFIED_COMPLETE.",
+  "Resolution Analyzer signals (file scope, patch intent, test-file presence) are code-constrained investigation claims. They are not verification and must not be treated as VERIFIED_COMPLETE.",
   "You may say a PR looks like a resolution candidate. You may not output VERIFIED_COMPLETE, set verified_complete, or instruct the verifier to pass.",
   UNTRUSTED_NOTICE,
   "Reply with one tool call or a final summary, not both.",

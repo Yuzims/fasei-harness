@@ -98,6 +98,13 @@ export {
   upsertResolutionAnalysis,
 } from "./resolution-analysis.js";
 export {
+  RESOLUTION_ANALYZER_NOTICE,
+  ResolutionAnalyzer,
+  analyzeResolutionSignals,
+  attachResolutionSignals,
+  filesForCandidate,
+} from "./resolution-analyzer.js";
+export {
   MAX_INVESTIGATED_CANDIDATES,
   NO_CANDIDATE_FOUND,
   RETRIEVAL_TOP_K,

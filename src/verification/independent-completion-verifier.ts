@@ -15,6 +15,7 @@ import {
   buildVerificationResult,
   evaluateEvidenceRequirement,
   graphFromRun,
+  isCompletionRelevantClaim,
   isOptionalRequirement,
   isOptionalRequirementAbsent,
   requirementEvalContext,
@@ -269,9 +270,7 @@ export class IndependentCompletionVerifier {
     const result = buildVerificationResult({
       checks,
       requirements: task.requirements,
-      claims: run.claims.filter(
-        (claim) => claim.critical && (claim.polarity === "resolved" || claim.polarity === "partial"),
-      ),
+      claims: run.claims.filter(isCompletionRelevantClaim),
       claimEvidence: run.claimEvidence,
       evidence: run.evidence,
       task,

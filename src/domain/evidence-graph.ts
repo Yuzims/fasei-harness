@@ -385,6 +385,16 @@ export function mergeContradiction(
   return { conflict, merged, unmerged };
 }
 
+/**
+ * Shared definition of a completion-relevant Claim: a critical Claim asserting
+ * resolution (resolved/partial). Only these Claims require support checking for
+ * completion. Their absence never blocks; non-critical or non-resolution Claims
+ * never affect verified_complete.
+ */
+export function isCompletionRelevantClaim(claim: Claim): boolean {
+  return claim.critical && (claim.polarity === "resolved" || claim.polarity === "partial");
+}
+
 export function claimSupportStatus(
   claimId: string,
   links: ClaimEvidence[],

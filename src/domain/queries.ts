@@ -1,4 +1,5 @@
 import {
+  isCompletionRelevantClaim,
   isOptionalRequirement,
 } from "./evidence-graph.js";
 import {
@@ -99,7 +100,7 @@ export function buildVerificationResult(input: {
   });
   const missing = missingRequirements(input.requirements, context);
   const unsupported = unsupportedClaims(
-    input.claims.filter((claim) => claim.critical),
+    input.claims.filter(isCompletionRelevantClaim),
     input.claimEvidence,
     input.evidence,
   );

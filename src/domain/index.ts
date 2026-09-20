@@ -106,6 +106,7 @@ export {
   graphFromRun,
   hasRelation,
   isClaimEvidenceRole,
+  isCompletionRelevantClaim,
   isEvidenceRelationType,
   isOptionalRequirement,
   issueEvidenceItems,

@@ -10,6 +10,7 @@
 import {
   claimSupportStatus,
   contradictingRelations,
+  isCompletionRelevantClaim,
   isOptionalRequirement,
   issueEvidenceItems,
   mergeContradiction,
@@ -354,35 +355,25 @@ function evalClaimSupport(
     });
   }
 
-  const critical = claims.filter((claim) => claim.critical);
-  if (critical.length === 0) {
+  const completionRelevant = claims.filter(isCompletionRelevantClaim);
+  if (completionRelevant.length === 0) {
     return result(requirement, "claim_support", {
       outcome: "satisfied",
-      reason: "No critical claims recorded; completion is judged from independent evidence checks.",
+      reason:
+        "No completion-relevant critical claim requires support validation; completion is judged from independent evidence checks.",
       evidenceIds: [],
     });
   }
 
-  const statuses = critical.map((claim) => ({
+  const statuses = completionRelevant.map((claim) => ({
     claim,
     status: claimSupportStatus(claim.id, claimEvidence, evidence),
   }));
-  const contradicted = statuses.filter(
-    (item) =>
-      item.status === "contradicted" &&
-      (item.claim.polarity === "resolved" || item.claim.polarity === "partial"),
-  );
-  const unsupported = statuses.filter(
-    (item) =>
-      item.status === "unsupported" &&
-      (item.claim.polarity === "resolved" || item.claim.polarity === "partial"),
-  );
+  const contradicted = statuses.filter((item) => item.status === "contradicted");
+  const unsupported = statuses.filter((item) => item.status === "unsupported");
 
   const graphContradictions = contradictingRelations(context.graph);
-  const contradictedByGraph = critical.filter((claim) => {
-    if (claim.polarity !== "resolved" && claim.polarity !== "partial") {
-      return false;
-    }
+  const contradictedByGraph = completionRelevant.filter((claim) => {
     const linked = new Set(
       claimEvidence.filter((link) => link.claimId === claim.id).map((link) => link.evidenceId),
     );
@@ -399,7 +390,7 @@ function evalClaimSupport(
   if (allContradicted.length > 0) {
     return result(requirement, "claim_support", {
       outcome: "rejected",
-      reason: "Critical claim is contradicted by ClaimEvidence or an Evidence Graph contradicts edge.",
+      reason: "Completion-relevant critical claim is contradicted by ClaimEvidence or an Evidence Graph contradicts edge.",
       evidenceIds: claimEvidence
         .filter((link) => allContradicted.some((claim) => claim.id === link.claimId))
         .map((link) => link.evidenceId),
@@ -410,7 +401,7 @@ function evalClaimSupport(
   if (unsupported.length > 0) {
     return result(requirement, "claim_support", {
       outcome: "missing",
-      reason: "Critical claim is missing supporting ClaimEvidence in this investigation.",
+      reason: "Completion-relevant critical claim is missing supporting ClaimEvidence in this investigation.",
       evidenceIds: [],
       actual: unsupported.map((item) => item.claim.id),
     });
@@ -418,7 +409,7 @@ function evalClaimSupport(
 
   return result(requirement, "claim_support", {
     outcome: "satisfied",
-    reason: "Critical claims have explicit ClaimEvidence support without contradiction.",
+    reason: "Completion-relevant critical claims have explicit ClaimEvidence support without contradiction.",
     evidenceIds: claimEvidence.map((link) => link.evidenceId),
   });
 }

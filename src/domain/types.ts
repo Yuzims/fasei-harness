@@ -263,6 +263,76 @@ export interface ResolutionAnalysis {
   provenance: EvidenceReference[];
 }
 
+/** Phase 10.0 alias: ResolutionAnalysis is an investigation claim, not verification. */
+export type ResolutionClaim = ResolutionAnalysis;
+
+/**
+ * Observation of one Resolution Chain node.
+ * `unknown` means the evidence was not observed. It is not `absent` and not `unsupported`.
+ */
+export type ResolutionChainNodeStatus = "observed" | "unknown";
+
+export interface ResolutionChainNode {
+  status: ResolutionChainNodeStatus;
+  evidenceIds: string[];
+}
+
+/**
+ * Phase 10.1-shaped Resolution Explanation for one candidate.
+ * Investigation structure only. Not a completion verdict.
+ */
+export interface ResolutionChain {
+  candidateId: string;
+  issue: ResolutionChainNode;
+  candidate: ResolutionChainNode;
+  affected_area: ResolutionChainNode;
+  code_change: ResolutionChainNode;
+  validation: {
+    status: TestEvidenceStatus;
+    evidenceIds: string[];
+  };
+  alignment: {
+    status: ResolutionAlignmentStatus;
+    evidenceIds: string[];
+  };
+  behaviorHypothesis: {
+    present: boolean;
+    evidenceIds: string[];
+  };
+  overall: ResolutionOverallStatus;
+}
+
+export type ResolutionGapType =
+  | "missing_candidate"
+  | "missing_file_evidence"
+  | "missing_patch_evidence"
+  | "missing_validation_evidence"
+  | "weak_issue_change_alignment"
+  | "insufficient_resolution_context";
+
+export type ResolutionGapSeverity = "blocking" | "warning";
+
+export type ResolutionGapRecommendedAction =
+  | "fetch_commit_patch"
+  | "inspect_changed_files"
+  | "search_regression_tests"
+  | "search_resolution_candidates"
+  | "inspect_issue_change_alignment";
+
+/**
+ * Why the current Resolution Explanation cannot support further verification.
+ * Failure Localization + Recovery Signal only. Not a verifier verdict.
+ */
+export interface ResolutionGap {
+  candidateId: string;
+  type: ResolutionGapType;
+  severity: ResolutionGapSeverity;
+  missingEvidenceTypes: string[];
+  evidenceIds: string[];
+  explanation: string;
+  recommendedActions: ResolutionGapRecommendedAction[];
+}
+
 export interface VerificationCheck {
   id: string;
   name: string;

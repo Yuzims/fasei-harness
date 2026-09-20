@@ -104,6 +104,17 @@ export {
   attachResolutionSignals,
   filesForCandidate,
 } from "./resolution-analyzer.js";
+export { buildResolutionChain, buildResolutionChains } from "./resolution-chain.js";
+export {
+  RESOLUTION_GAP_ANALYZER_NOTICE,
+  analyzeResolutionGaps,
+  analyzeResolutionGapsForRun,
+} from "./resolution-gap-analyzer.js";
+export {
+  RESOLUTION_GAP_RECOVERY_AUTO_EXECUTE,
+  toRecoveryActionCandidates,
+} from "./resolution-gap-recovery.js";
+export type { ResolutionGapRecoveryCandidate } from "./resolution-gap-recovery.js";
 export {
   MAX_INVESTIGATED_CANDIDATES,
   NO_CANDIDATE_FOUND,

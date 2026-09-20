@@ -124,3 +124,13 @@ export {
   phase10VerifierInvariantHolds,
 } from "./resolution-effect-evaluation.js";
 export type { Phase10ResolutionObservation, Phase10SignalView } from "./resolution-effect-evaluation.js";
+export {
+  RESOLUTION_GAP_EVALUATION_NOTE,
+  RESOLUTION_GAP_EVALUATION_VERSION,
+  RESOLUTION_GAP_FOCUS_CASES,
+  evaluatePhase102FocusCases,
+  evaluatePhase102ResolutionCase,
+  observeResolutionGaps,
+  phase102VerifierInvariantHolds,
+} from "./resolution-gap-evaluation.js";
+export type { Phase102GapObservation, Phase102GapView } from "./resolution-gap-evaluation.js";

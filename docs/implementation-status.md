@@ -941,6 +941,24 @@ Three code-constrained signals: `file_scope_alignment`, `patch_intent_alignment`
 
 IndependentCompletionVerifier, Ground Truth, Real-v1 snapshots, retrieval ranking, discovery, Evidence-Gap Strategy, RecoveryPlanner, and FailureAnalyzer are unchanged.
 
+## Phase 10.2 — Resolution Gap Analyzer — DONE
+
+Adds Failure Localization + Recovery Signal after Resolution Chain. The analyzer explains why the current Resolution Explanation cannot support further verification. It is not a verifier and cannot produce `VERIFIED_COMPLETE`.
+
+```text
+Issue
+  → Investigation Agent
+  → Evidence Graph
+  → Resolution Analyzer
+  → Resolution Chain
+  → Resolution Gap Analyzer
+  → Recovery Planner   (adapter only; suggestions are not executed)
+```
+
+Deterministic rules emit `ResolutionGap` values (`missing_patch_evidence`, `insufficient_resolution_context`, …). Every gap cites existing Evidence IDs. Unknown evidence is never claimed as absent. Recovery suggestions are not auto-executed. IndependentCompletionVerifier remains the only completion authority.
+
+Evaluation: [`docs/evaluation/phase-10.2-resolution-gap.md`](evaluation/phase-10.2-resolution-gap.md)
+
 ## Not started
 
 Later phases wait for a new task.

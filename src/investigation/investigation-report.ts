@@ -76,6 +76,11 @@ export interface InvestigationAgentReport {
   promotedCandidates: RetrievalCandidate[];
   /** Phase 11.1 RecoveryAttempts. Linked to parent InvestigationAttempts; never replace them. */
   recoveryAttempts: RecoveryAttempt[];
+  /**
+   * Phase 14.4 FailureReport reference. FailureReport is an independent
+   * artifact addressed by id — never embedded here.
+   */
+  failureReportId?: string;
 }
 
 export function countTraceToolCalls(events: readonly { type: string }[]): number {

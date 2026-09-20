@@ -17,6 +17,7 @@
     "benchmark:recovery": "tsx examples/recovery-benchmark.ts",
     "ablation": "tsx examples/ablation.ts",
     "live": "tsx examples/live.ts",
+    "investigate": "tsx examples/investigate.ts",
     "capture-reports": "tsx scripts/capture-reports.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "demo:basic": "tsx examples/basic-run.ts",

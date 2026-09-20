@@ -532,6 +532,27 @@ export async function runInvestigation(
   return runLiveIssue(route.target, options);
 }
 
+export interface InvestigateGitHubIssueOptions extends RunInvestigationOptions {
+  mode?: InvestigationMode;
+}
+
+export async function investigateGitHubIssue(
+  input: string,
+  options: InvestigateGitHubIssueOptions = {},
+): Promise<InvestigationSessionDTO> {
+  const target = parseGitHubIssueInput(input);
+  const mode = options.mode ?? "live";
+  return runInvestigation(
+    {
+      owner: target.owner,
+      repository: target.repository,
+      issueNumber: target.issueNumber,
+      mode,
+    },
+    options,
+  );
+}
+
 export function loadRealV1BenchmarkResult(): DatasetBenchmarkResult {
   const path = realDatasetLatestResultPath();
   if (!existsSync(path)) {

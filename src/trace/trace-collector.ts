@@ -50,7 +50,9 @@ export type TraceEventType =
   /** Phase 11.1 Recovery execution finished. Added Evidence IDs only. */
   | "recovery_execution_completed"
   /** Phase 12.0 Recovery Policy decision. Not an execution result. */
-  | "recovery_policy_decision";
+  | "recovery_policy_decision"
+  /** Phase 14.3 Failure Localization. Reference only; the FailureEvent payload is not stored in trace. */
+  | "failure_localized";
 
 export interface TraceEvent {
   id: string;

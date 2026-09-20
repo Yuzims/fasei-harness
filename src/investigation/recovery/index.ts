@@ -1,4 +1,12 @@
 export {
+  evaluateRecoveryEligibility,
+} from "./recovery-eligibility.js";
+export type {
+  RecoveryEligibility,
+  RecoveryEligibilityInput,
+  RecoveryEligibilityReason,
+} from "./recovery-eligibility.js";
+export {
   RECOVERY_INTENT_NOTICE,
   createRecoveryIntent,
   recoveryIntentId,

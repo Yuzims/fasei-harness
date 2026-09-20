@@ -52,7 +52,9 @@ export type TraceEventType =
   /** Phase 12.0 Recovery Policy decision. Not an execution result. */
   | "recovery_policy_decision"
   /** Phase 14.3 Failure Localization. Reference only; the FailureEvent payload is not stored in trace. */
-  | "failure_localized";
+  | "failure_localized"
+  /** Phase 15 Recovery Eligibility decision. Gate-only: records whether the existing recovery path may start. */
+  | "recovery_eligibility_evaluated";
 
 export interface TraceEvent {
   id: string;

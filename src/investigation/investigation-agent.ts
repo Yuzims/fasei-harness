@@ -58,8 +58,14 @@ import {
 import { captureAgentClaims } from "./claim-capture.js";
 import { formatStateForModel, investigationFingerprint, InvestigationState } from "./state.js";
 import { SnapshotInvestigationDriver, TEST_DRIVER_NOTICE } from "./test-driver.js";
-import { runControlledRecoveryLoop } from "./controlled-recovery-loop.js";
-import { createRecoveryBudget, type RecoveryBudget, type RecoveryExecutor } from "./recovery/index.js";
+import { analyzeGapsForRecovery, runControlledRecoveryLoop } from "./controlled-recovery-loop.js";
+import {
+  createRecoveryBudget,
+  evaluateRecoveryEligibility,
+  type RecoveryBudget,
+  type RecoveryExecutor,
+} from "./recovery/index.js";
+import { FailureReportBuilder, localizeVerificationFailures } from "../failure/index.js";
 
 export interface InvestigateInput {
   owner: string;
@@ -833,33 +839,57 @@ async function runInvestigationAttempts(input: {
     previousAttemptId = attemptId;
 
     if (attempt === 1 && options.recoveryExecutor) {
-      const recoveryResult = await runControlledRecoveryLoop({
-        task,
-        run,
-        parentAttemptId: attemptId,
-        budget: createRecoveryBudget(options.recoveryBudget),
-        usage: state.recoveryBudgetUsage,
-        executor: options.recoveryExecutor,
-        trace,
-        verifier,
-        runId: run.id,
+      const gaps = analyzeGapsForRecovery(run);
+      const failureEvents = localizeVerificationFailures(lastVerification, {
+        investigationId: run.id,
         step: state.currentStep,
+        trace,
       });
-      if (recoveryResult.recoveryAttempt) {
-        state.recoveryAttempts.push(recoveryResult.recoveryAttempt);
-      }
-      if (recoveryResult.executed) {
-        if (recoveryResult.verification) {
-          lastVerification = recoveryResult.verification;
+      const failureReport = new FailureReportBuilder().build(failureEvents);
+      const eligibility = evaluateRecoveryEligibility({
+        verification: lastVerification,
+        failureReport,
+        gaps,
+      });
+      trace.record(run.id, state.currentStep, "recovery_eligibility_evaluated", {
+        investigationRunId: run.id,
+        attemptId,
+        attempt,
+        failureReportId: failureReport?.id,
+        blockingGapCount: gaps.filter((item) => item.severity === "blocking").length,
+        eligible: eligibility.eligible,
+        reason: eligibility.reason,
+      });
+      if (eligibility.eligible) {
+        const recoveryResult = await runControlledRecoveryLoop({
+          task,
+          run,
+          parentAttemptId: attemptId,
+          budget: createRecoveryBudget(options.recoveryBudget),
+          usage: state.recoveryBudgetUsage,
+          executor: options.recoveryExecutor,
+          trace,
+          verifier,
+          runId: run.id,
+          step: state.currentStep,
+          gaps,
+        });
+        if (recoveryResult.recoveryAttempt) {
+          state.recoveryAttempts.push(recoveryResult.recoveryAttempt);
         }
-        previousAttemptId = run.attempts[run.attempts.length - 1]?.id ?? previousAttemptId;
-        run.status =
-          lastVerification.status === "verified_complete" ||
-          lastVerification.status === "not_verified" ||
-          lastVerification.status === "insufficient_evidence"
-            ? lastVerification.status
-            : run.status;
-        break;
+        if (recoveryResult.executed) {
+          if (recoveryResult.verification) {
+            lastVerification = recoveryResult.verification;
+          }
+          previousAttemptId = run.attempts[run.attempts.length - 1]?.id ?? previousAttemptId;
+          run.status =
+            lastVerification.status === "verified_complete" ||
+            lastVerification.status === "not_verified" ||
+            lastVerification.status === "insufficient_evidence"
+              ? lastVerification.status
+              : run.status;
+          break;
+        }
       }
     }
 

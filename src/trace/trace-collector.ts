@@ -48,7 +48,9 @@ export type TraceEventType =
   /** Phase 11.1 Controlled Recovery Attempt. Linked to a parent InvestigationAttempt. */
   | "recovery_attempt_started"
   /** Phase 11.1 Recovery execution finished. Added Evidence IDs only. */
-  | "recovery_execution_completed";
+  | "recovery_execution_completed"
+  /** Phase 12.0 Recovery Policy decision. Not an execution result. */
+  | "recovery_policy_decision";
 
 export interface TraceEvent {
   id: string;

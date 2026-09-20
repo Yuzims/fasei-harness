@@ -1010,6 +1010,22 @@ Evaluation is read-only. ControlledRecoveryLoop, RecoveryExecutor, RecoveryInten
 
 Evaluation: [`docs/evaluation/phase-11.2-recovery-evaluation.md`](evaluation/phase-11.2-recovery-evaluation.md)
 
+## Phase 12.0 — Recovery Policy Layer — DONE
+
+Adds a constrained Policy Decision Layer between Recovery Intent / Action Candidates and Recovery Execution. Policy reads gaps, intents, candidates, budget, and action profiles, then emits a RecoveryDecision (selected / rejected / reason). It does not execute recovery and does not change Phase 11.1 runtime semantics.
+
+```text
+RecoveryIntent
+  → RecoveryActionCandidate
+  → Recovery Policy
+  → RecoveryDecision
+  → RecoveryExecutor   (unchanged; not invoked by this layer)
+```
+
+Deterministic rules: blocking-gap priority, gap coverage, cost ≤ remaining budget, lower cost on equal coverage, stable order. No LLM / ML / RL. `estimatedCost` is a policy input, not runtime actual cost. IndependentCompletionVerifier remains the only completion authority.
+
+Evaluation: [`docs/evaluation/phase-12-recovery-policy.md`](evaluation/phase-12-recovery-policy.md)
+
 ## Not started
 
 Later phases wait for a new task.

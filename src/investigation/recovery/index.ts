@@ -68,3 +68,25 @@ export type {
   RecoveryAttemptStartedEvent,
   RecoveryExecutionCompletedEvent,
 } from "./recovery-execution-trace.js";
+export {
+  DEFAULT_RECOVERY_ACTION_PROFILES,
+  RECOVERY_POLICY_EVENT_TYPE,
+  RECOVERY_POLICY_NOTICE,
+  coveredGapTypes,
+  createRecoveryActionProfile,
+  createRecoveryDecision,
+  createRecoveryPolicyInput,
+  decideRecoveryPolicy,
+  orderedInputGapTypes,
+  recordRecoveryPolicyDecision,
+  remainingPolicyBudget,
+  selectedEstimatedCost,
+  toRecoveryPolicyDecisionEvent,
+} from "./policy/index.js";
+export type {
+  RecoveryActionProfile,
+  RecoveryDecision,
+  RecoveryPolicyDecisionEvent,
+  RecoveryPolicyInput,
+  RecoveryPolicyRejectCause,
+} from "./policy/index.js";

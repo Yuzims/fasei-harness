@@ -187,3 +187,16 @@ export type {
   RecoveryEvaluationTraceEvent,
   VerificationDelta,
 } from "./recovery-evaluation-types.js";
+export {
+  RECOVERY_POLICY_EVALUATION_NOTE,
+  RECOVERY_POLICY_EVALUATION_VERSION,
+  RECOVERY_POLICY_FOCUS_CASES,
+  buildRecoveryPolicyInput,
+  evaluatePhase12FocusCases,
+  evaluateRecoveryPolicyDecision,
+  isPrCreatingAction,
+} from "./recovery-policy-evaluation.js";
+export type {
+  RecoveryPolicyEvaluationMetrics,
+  RecoveryPolicyObservation,
+} from "./recovery-policy-evaluation.js";

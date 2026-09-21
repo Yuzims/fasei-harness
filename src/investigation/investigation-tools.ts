@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   closingKeywordReferencesIssue,
+  commitFact,
   createEvidence,
   createEvidenceRelation,
   EvidenceGraphError,
@@ -428,13 +429,6 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
       mentioned.push(mentionedNumber);
       relate(session, timelineId, pullEvidenceId(session, mentionedNumber), "mentions");
     }
-    const shaMatch = /\b([0-9a-f]{7,40})\b/i.exec(String(event.body ?? ""));
-    if (shaMatch?.[1]) {
-      const commitId = evidenceIdByRef(session, resourceKey("commit", shaMatch[1]));
-      if (commitId && closingKeywordReferencesIssue(String(event.body ?? ""), issueNumber)) {
-        relate(session, commitId, issueEvidenceId(session), "fixes");
-      }
-    }
   }
   registerPullCandidates(session, mentioned);
   return ids;
@@ -658,6 +652,68 @@ function ingestInvestigatedCommit(session: InvestigationSession, output: unknown
   return id ? [id] : [];
 }
 
+function commitShasMatch(a: string, b: string): boolean {
+  const x = a.trim().toLowerCase();
+  const y = b.trim().toLowerCase();
+  if (!x || !y) {
+    return false;
+  }
+  if (x === y) {
+    return true;
+  }
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length >= 7 && long.startsWith(short);
+}
+
+function findCommitEvidenceIdBySha(session: InvestigationSession, sha: string): string | undefined {
+  for (const item of session.state.run.evidence) {
+    const fact = commitFact(item);
+    if (fact && commitShasMatch(fact.sha, sha)) {
+      return item.id;
+    }
+  }
+  return undefined;
+}
+
+const LEGACY_BODY_SHA = /\b[0-9a-f]{7,40}\b/i;
+
+/**
+ * Rebuild commit → fixes → issue relations from all ingested evidence, after
+ * every ingestion round, so relation truth does not depend on whether
+ * Timeline or Commit Evidence arrived first.
+ * Primary path matches the structured TimelineEventSnapshot.commitId against
+ * Commit Evidence facts; the body-SHA lookup only serves legacy snapshots that
+ * predate commitId. Creates no Evidence and no resolution claims.
+ */
+function reconcileCommitFixRelations(session: InvestigationSession): void {
+  const issueId = issueEvidenceId(session);
+  if (!issueId) {
+    return;
+  }
+  const issueNumber = session.state.task.target.issueNumber;
+  for (const timelineEvidence of session.state.run.evidence) {
+    if (timelineEvidence.kind !== "timeline") {
+      continue;
+    }
+    for (const event of asArray(timelineEvidence.payload)) {
+      if (!isRecord(event)) {
+        continue;
+      }
+      const body = String(event.body ?? "");
+      if (!closingKeywordReferencesIssue(body, issueNumber)) {
+        continue;
+      }
+      const structuredCommitId =
+        typeof event.commitId === "string" && event.commitId.trim() ? event.commitId.trim() : undefined;
+      const sha = structuredCommitId ?? LEGACY_BODY_SHA.exec(body)?.[0];
+      if (!sha) {
+        continue;
+      }
+      relate(session, findCommitEvidenceIdBySha(session, sha), issueId, "fixes");
+    }
+  }
+}
+
 function syncResolutionAnalyses(session: InvestigationSession): void {
   session.state.run.resolutionAnalyses = buildResolutionAnalyses(session.state.run, {
     preserveCandidateIds: session.state.authoredResolutionCandidates,
@@ -704,6 +760,7 @@ export function ingestObservation(
     default:
       return [];
   }
+  reconcileCommitFixRelations(session);
   syncResolutionAnalyses(session);
   return ids;
 }

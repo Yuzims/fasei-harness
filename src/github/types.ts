@@ -41,6 +41,8 @@ export interface TimelineEventSnapshot extends ResourceMeta {
   createdAt: string;
   actor: string;
   body: string;
+  /** GitHub's structured `commit_id`; undefined when the event carries no commit identity. */
+  commitId?: string;
   pullRequestNumber?: number;
 }
 

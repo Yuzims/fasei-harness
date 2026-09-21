@@ -1041,6 +1041,25 @@ Evaluation does not modify RecoveryPolicy, RecoveryExecutor, ControlledRecoveryL
 
 Evaluation: [`docs/evaluation/phase-13-policy-evaluation.md`](evaluation/phase-13-policy-evaluation.md)
 
+## Phase 14.1 — Claim Capture Boundary — DONE
+
+Agent structured output can enter the existing Claim system. No new Claim type. No NL / LLM extraction. Capture writes `Claim` via `record_claim()` only. It does not create Evidence, judge support, or change IndependentCompletionVerifier.
+
+```text
+Agent Result { output, claims? }
+        |
+        v
+record_claim()
+        |
+        v
+InvestigationRun.claims
+        |
+        v
+Existing IndependentCompletionVerifier
+```
+
+Evaluation: [`docs/evaluation/phase-14.1-claim-capture.md`](evaluation/phase-14.1-claim-capture.md)
+
 ## Not started
 
-Later phases wait for a new task.
+Phase 14.2 empty-claim handling, claim verification tightening, and recovery integration wait for the next review. Policy learning, adaptive cost model, reinforcement learning, self-healing, multi-round recovery, semantic retrieval, and runtime optimization are not started.

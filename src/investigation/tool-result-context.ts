@@ -91,6 +91,9 @@ function compactTimeline(output: unknown, issueNumber?: number): Record<string, 
       continue;
     }
     const item: Record<string, unknown> = { event: String(event.event ?? "unknown") };
+    if (typeof event.commitId === "string" && event.commitId.trim()) {
+      item.commitId = event.commitId.trim();
+    }
     const pullNumber = Number(event.pullRequestNumber);
     if (Number.isInteger(pullNumber) && pullNumber > 0) {
       item.pullRequestNumber = pullNumber;

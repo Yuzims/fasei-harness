@@ -42,6 +42,7 @@ import {
   MAX_INVESTIGATED_CANDIDATES,
   applyCandidateSelection,
   candidateSelectionResult,
+  createRetrievalCandidate,
   discoverCommitCandidates,
   discoverPullCandidates,
   discoveryOutcome,
@@ -54,6 +55,7 @@ import {
   type IssueRetrievalContext,
   type RetrievalCandidate,
 } from "./retrieval/index.js";
+import { STRUCTURAL_POINTS } from "./retrieval/ranking.js";
 
 const POLARITIES: ClaimPolarity[] = ["resolved", "unresolved", "partial", "unknown"];
 const ROLES = ["supports", "contradicts", "contextual"] as const;
@@ -201,6 +203,47 @@ function registerPullCandidates(
     recordCandidateDiscovered(session, session.state.retrievalCandidates.find((item) => item.id === candidate.id) ?? candidate);
   }
   applyGroupSelection(session, "pull_request");
+}
+
+function registerTimelineCommitCandidates(
+  session: InvestigationSession,
+  commitShas: string[],
+): void {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const raw of commitShas) {
+    const sha = raw.trim();
+    if (!sha || seen.has(sha.toLowerCase())) {
+      continue;
+    }
+    seen.add(sha.toLowerCase());
+    unique.push(sha);
+  }
+  if (unique.length === 0) {
+    return;
+  }
+  recordDiscoveryStarted(session, {
+    intent: "find_resolution_commit",
+    source: "timeline_reference",
+    candidateBound: MAX_INVESTIGATED_CANDIDATES,
+  });
+  const context = issueRetrievalContext(session);
+  for (const sha of unique) {
+    const candidate = createRetrievalCandidate({
+      sourceType: "commit",
+      sourceId: sha,
+      relevanceSignals: { structuralScore: STRUCTURAL_POINTS },
+      retrievalReason: "Referenced by the issue timeline as a commit reference.",
+      status: "candidate",
+    });
+    void context;
+    session.state.addRetrievalCandidate(candidate);
+    recordCandidateDiscovered(
+      session,
+      session.state.retrievalCandidates.find((item) => item.id === candidate.id) ?? candidate,
+    );
+  }
+  applyGroupSelection(session, "commit");
 }
 
 function discoverRepositoryCommitCandidates(
@@ -414,9 +457,13 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
     relate(session, timelineId, issueEvidenceId(session), "references");
   }
   const mentioned: number[] = [];
+  const timelineCommitShas: string[] = [];
   for (const event of events) {
     if (!isRecord(event)) {
       continue;
+    }
+    if (typeof event.commitId === "string" && event.commitId.trim()) {
+      timelineCommitShas.push(event.commitId.trim());
     }
     const pullNumber = Number(event.pullRequestNumber);
     if (Number.isInteger(pullNumber) && pullNumber > 0) {
@@ -431,6 +478,7 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
     }
   }
   registerPullCandidates(session, mentioned);
+  registerTimelineCommitCandidates(session, timelineCommitShas);
   return ids;
 }
 

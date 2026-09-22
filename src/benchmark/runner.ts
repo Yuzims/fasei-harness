@@ -11,6 +11,7 @@ import { SnapshotGitHubProvider } from "../github/snapshot-provider.js";
 import { githubFixturePath, loadSnapshot } from "../github/snapshot-store.js";
 import type { InvestigationSnapshot } from "../github/types.js";
 import { investigate, type InvestigationAgentReport } from "../investigation/index.js";
+import type { TraceCollector } from "../trace/trace-collector.js";
 import {
   convertCaseToScenario,
   expectedOutcomeForDatasetCase,
@@ -137,7 +138,11 @@ export function loadScenarioSnapshot(scenario: BenchmarkScenario): Investigation
   return loadSnapshot(resolveScenarioSnapshotPath(scenario));
 }
 
-export async function executeScenario(scenario: BenchmarkScenario): Promise<InvestigationAgentReport> {
+export async function executeScenario(
+  scenario: BenchmarkScenario,
+  /** Optional external TraceCollector for live SSE observation; default: investigate creates its own. */
+  trace?: TraceCollector,
+): Promise<InvestigationAgentReport> {
   const inner = new SnapshotGitHubProvider(loadScenarioSnapshot(scenario));
   const env = prepareScenarioEnvironment(scenario, inner);
   if (scenario.kind === "normal" && !(env.provider instanceof SnapshotGitHubProvider)) {
@@ -152,6 +157,7 @@ export async function executeScenario(scenario: BenchmarkScenario): Promise<Inve
     provider: env.provider,
     useTestDriver: env.useTestDriver,
     modelFactory: env.modelFactory,
+    trace,
   });
 }
 

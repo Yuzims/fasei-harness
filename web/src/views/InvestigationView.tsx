@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ApiError, fetchInvestigationCatalog, runInvestigation } from "../api/client";
+import { ApiError, fetchInvestigationCatalog, runInvestigationStream } from "../api/client";
 import { AdvancedInfo } from "../components/AdvancedInfo";
 import { AgentAnswerPanel } from "../components/AgentOutput";
 import { EvidencePanel } from "../components/EvidencePanel";
 import { FindingsPanel } from "../components/FindingsPanel";
+import { InvestigationProcessPanel } from "../components/InvestigationProcessPanel";
 import { OpenQuestionsPanel } from "../components/OpenQuestionsPanel";
 import { IndependentVerificationPanel, InvestigationResultBanner } from "../components/VerificationPanel";
+import { applyLiveStreamEvent, type LiveProcessItem } from "../lib/investigation-stream";
 import { buildInvestigationResultView } from "../lib/investigation-presentation";
 import {
   catalogRunRequest,
@@ -71,6 +73,7 @@ export function InvestigationView() {
   const [error, setError] = useState<{ status?: number; message: string; code?: string }>();
   const [requestedMode, setRequestedMode] = useState<"live" | "snapshot">("live");
   const [focusEvidenceIds, setFocusEvidenceIds] = useState<string[]>([]);
+  const [liveItems, setLiveItems] = useState<LiveProcessItem[]>([]);
   const mode = session ? investigationMode(session) : requestedMode;
   const result = session ? buildInvestigationResultView(session) : undefined;
 
@@ -94,17 +97,28 @@ export function InvestigationView() {
     setError(undefined);
     setSession(undefined);
     setFocusEvidenceIds([]);
+    setLiveItems([]);
     setRequestedMode(body.mode === "snapshot" || body.caseId || body.scenarioId ? "snapshot" : "live");
     try {
-      const result = await runInvestigation(body);
-      setSession(result);
-      setPhase("completed");
+      await runInvestigationStream(body, (event) => {
+        if (event.type === "done") {
+          setSession(event.session);
+          setPhase("completed");
+          return;
+        }
+        if (event.type === "error") {
+          setError({ message: event.message });
+          setPhase("failed");
+          return;
+        }
+        setLiveItems((items) => applyLiveStreamEvent(items, event));
+      });
     } catch (err) {
       const status = err instanceof ApiError ? err.status : undefined;
       const code = err instanceof ApiError ? err.code : undefined;
       const message = err instanceof Error ? err.message : String(err);
-      setError({ status, code, message });
-      setPhase("failed");
+      setError((current) => current ?? { status, code, message });
+      setPhase((current) => (current === "running" ? "failed" : current));
     }
   }
 
@@ -258,10 +272,7 @@ export function InvestigationView() {
       ) : null}
 
       {phase === "running" ? (
-        <section className="panel" aria-live="polite">
-          <p className="empty-lead">正在调查 GitHub Issue…</p>
-          <p className="muted">正在获取证据，并由 Harness 独立验证。</p>
-        </section>
+        <InvestigationProcessPanel live={{ items: liveItems, running: true }} />
       ) : null}
 
       {session && result ? (

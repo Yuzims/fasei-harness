@@ -7,6 +7,7 @@ import { executeCase, runBenchmark } from "../eval/benchmark.js";
 import { runRetrievalAblation } from "../retrieval/ablation.js";
 import { agentExamples, agentStatus, runAgentSession } from "./agent-service.js";
 import { toInvestigationHttpError } from "./investigation-errors.js";
+import { streamInvestigation } from "./investigation-stream.js";
 import {
   investigationCatalog,
   loadRealV1BenchmarkResult,
@@ -158,6 +159,20 @@ export function createApp(env: Env = process.env, options: AppOptions = {}) {
       const mapped = toInvestigationHttpError(error);
       return c.json(mapped.body, mapped.status as 400 | 401 | 403 | 404 | 429 | 502 | 504);
     }
+  });
+
+  app.post("/api/investigations/stream", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return c.json({ error: { code: "INVALID_REQUEST", message: "JSON body is required." } }, 400);
+    }
+    return streamSSE(c, async (stream) => {
+      await streamInvestigation(body, (event) => stream.writeSSE({ data: JSON.stringify(event) }), {
+        env,
+        fetchImpl: options.fetchImpl,
+        signal: c.req.raw.signal,
+      });
+    });
   });
 
   app.get("/api/fasei-benchmark/real-v1", (c) => {

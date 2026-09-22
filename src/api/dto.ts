@@ -425,3 +425,79 @@ export interface LlmUsageAggregateDTO {
   profilingSummary: string;
   calls: LlmCallDTO[];
 }
+
+/**
+ * Phase 17-B1 public SSE projection of runtime TraceEvents. Observation channel only:
+ * never a second source of truth. Summaries are harness-authored; raw agent reasoning,
+ * prompts, tool arguments, and evidence payloads must never be placed here.
+ */
+export type InvestigationStreamEvent =
+  | {
+      type: "investigation_started";
+      step: number;
+      timestamp: number;
+    }
+  | {
+      type: "agent_step";
+      step: number;
+      summary: string;
+    }
+  | {
+      type: "tool_call";
+      step: number;
+      tool: string;
+      summary: string;
+    }
+  | {
+      type: "tool_result";
+      step: number;
+      tool: string;
+      success: boolean;
+      summary: string;
+    }
+  | {
+      type: "evidence_added";
+      step: number;
+      summary: string;
+    }
+  | {
+      type: "verification_started";
+      step: number;
+      summary: string;
+    }
+  | {
+      type: "verification_check";
+      step: number;
+      summary: string;
+      status: string;
+    }
+  | {
+      type: "verification_completed";
+      step: number;
+      status: string;
+      summary: string;
+    }
+  | {
+      type: "failure";
+      step: number;
+      summary: string;
+    }
+  | {
+      type: "recovery";
+      step: number;
+      summary: string;
+    }
+  | {
+      type: "investigation_completed";
+      step: number;
+      status: string;
+      summary: string;
+    }
+  | {
+      type: "done";
+      session: InvestigationSessionDTO;
+    }
+  | {
+      type: "error";
+      message: string;
+    };

@@ -22,6 +22,7 @@ import type { InvestigationAttempt } from "../domain/index.js";
 import { investigate, type InvestigationAgentReport } from "../investigation/index.js";
 import { formatLlmProfilingSummary } from "../agent/llm-usage.js";
 import type { GitHubDataProvider } from "../github/provider.js";
+import type { TraceCollector } from "../trace/trace-collector.js";
 import { LiveGitHubProvider } from "../github/live-provider.js";
 import { parseGitHubIssueInput, type ParsedGitHubIssue } from "../github/issue-input.js";
 import { InvestigationHttpError } from "./investigation-errors.js";
@@ -36,6 +37,8 @@ export interface RunInvestigationOptions {
   fetchImpl?: typeof fetch;
   liveProvider?: GitHubDataProvider;
   signal?: AbortSignal;
+  /** Phase 17-B1: SSE streaming observes this same runtime trace. */
+  trace?: TraceCollector;
 }
 
 export type InvestigationRoute =
@@ -425,7 +428,10 @@ export function resolveInvestigationRoute(input: InvestigationRequest): Investig
   return { mode: "live", target };
 }
 
-async function runSnapshotIssue(target: ParsedGitHubIssue): Promise<InvestigationSessionDTO> {
+async function runSnapshotIssue(
+  target: ParsedGitHubIssue,
+  trace?: TraceCollector,
+): Promise<InvestigationSessionDTO> {
   const dataset = realDataset();
   const matchedCase = dataset.cases.find((item) => {
     const { owner, repository } = splitRepository(item.source.repository);
@@ -437,7 +443,7 @@ async function runSnapshotIssue(target: ParsedGitHubIssue): Promise<Investigatio
   });
   if (matchedCase) {
     const scenario = convertCaseToScenario(dataset, matchedCase);
-    const report = await executeScenario(scenario);
+    const report = await executeScenario(scenario, trace);
     return toInvestigationSessionDTO(report, {
       mode: "snapshot",
       catalogId: matchedCase.caseId,
@@ -452,7 +458,7 @@ async function runSnapshotIssue(target: ParsedGitHubIssue): Promise<Investigatio
     }),
   );
   if (matchedFixture) {
-    const report = await executeScenario(matchedFixture);
+    const report = await executeScenario(matchedFixture, trace);
     return toInvestigationSessionDTO(report, {
       mode: "snapshot",
       catalogId: matchedFixture.id,
@@ -491,6 +497,7 @@ async function runLiveIssue(
     env: options.env,
     fetchImpl: options.fetchImpl,
     signal: options.signal,
+    trace: options.trace,
   });
   return toInvestigationSessionDTO(report, { mode: "live" });
 }
@@ -505,7 +512,7 @@ export async function runInvestigation(
     if (!scenario) {
       throw Object.assign(new Error(`Unknown scenario: ${route.scenarioId}`), { status: 404 });
     }
-    const report = await executeScenario(scenario);
+    const report = await executeScenario(scenario, options.trace);
     return toInvestigationSessionDTO(report, {
       mode: "snapshot",
       catalogId: scenario.id,
@@ -519,7 +526,7 @@ export async function runInvestigation(
       throw Object.assign(new Error(`Unknown Real-v1 case: ${route.caseId}`), { status: 404 });
     }
     const scenario = convertCaseToScenario(dataset, found);
-    const report = await executeScenario(scenario);
+    const report = await executeScenario(scenario, options.trace);
     return toInvestigationSessionDTO(report, {
       mode: "snapshot",
       catalogId: found.caseId,
@@ -527,7 +534,7 @@ export async function runInvestigation(
     });
   }
   if (route.mode === "snapshot") {
-    return runSnapshotIssue(route.target);
+    return runSnapshotIssue(route.target, options.trace);
   }
   return runLiveIssue(route.target, options);
 }

@@ -592,6 +592,10 @@ a {
   color: var(--not-verified);
 }
 
+.step-list li.pending {
+  color: var(--muted, #8a8f98);
+}
+
 .compare {
   display: grid;
   grid-template-columns: 1fr 1fr;

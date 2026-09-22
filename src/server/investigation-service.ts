@@ -25,6 +25,7 @@ import type { GitHubDataProvider } from "../github/provider.js";
 import type { TraceCollector } from "../trace/trace-collector.js";
 import { LiveGitHubProvider } from "../github/live-provider.js";
 import { GithubGraphQlClient, type ResolutionReferenceSource } from "../github/graphql.js";
+import { GithubCommitHintSource, type UnlinkedFixCommitSource } from "../github/commit-hints.js";
 import { parseGitHubIssueInput, type ParsedGitHubIssue } from "../github/issue-input.js";
 import { InvestigationHttpError } from "./investigation-errors.js";
 
@@ -42,6 +43,8 @@ export interface RunInvestigationOptions {
   trace?: TraceCollector;
   /** Phase 18-A: injectable GraphQL closing-reference source for the prescan. */
   resolutionGraphQl?: ResolutionReferenceSource;
+  /** Phase 18-B: injectable file-scoped commit source for unlinked-fix hints. */
+  resolutionCommitHints?: UnlinkedFixCommitSource;
 }
 
 export type InvestigationRoute =
@@ -509,6 +512,7 @@ async function runLiveIssue(
           env: options.env ?? process.env,
           fetchImpl: options.fetchImpl,
         }),
+      commitHints: options.resolutionCommitHints ?? new GithubCommitHintSource(),
     },
   });
   return toInvestigationSessionDTO(report, { mode: "live" });

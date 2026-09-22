@@ -2,26 +2,38 @@ import {
   type ResolutionPrescanCandidate,
   type ResolutionPrescanRecord,
   type ResolutionPrescanSourceRecord,
+  type UnlinkedFixHint,
+  type UnlinkedFixScan,
 } from "../domain/index.js";
 import type { GitHubDataProvider } from "../github/provider.js";
 import { GitHubProviderError } from "../github/errors.js";
 import { extractMentionedNumbers } from "../github/normalize.js";
+import type { UnlinkedFixCommitSource } from "../github/commit-hints.js";
 import type {
   ClosingReferenceFacts,
   ResolutionReferenceSource,
 } from "../github/graphql.js";
 import type { PullRequestSnapshot } from "../github/types.js";
-import { ingestObservation, type InvestigationSession } from "./investigation-tools.js";
+import {
+  ingestObservation,
+  stampCorroboratedFixRelations,
+  type InvestigationSession,
+} from "./investigation-tools.js";
 
 export const HARNESS_STRUCTURED_SOURCE = "harness_structured";
 
 /** Deterministic bound on how many enumerated candidates get PR-detail ingestion. */
 export const PRESCAN_MAX_CANDIDATES = 12;
 
+/** Deterministic bound on how many distinct files the hint scan may query. */
+export const PRESCAN_MAX_HINT_FILES = 40;
+
 export interface ResolutionPrescanDeps {
   session: InvestigationSession;
   provider: GitHubDataProvider;
   graphQl?: ResolutionReferenceSource;
+  /** Phase 18-B: source for the hypothesis-only unlinked-fix hint scan. */
+  commitHints?: UnlinkedFixCommitSource;
   maxCandidates?: number;
   now?: () => string;
 }
@@ -72,8 +84,10 @@ export async function runResolutionPrescan(
   };
 
   // 1. Issue observation: ingested, then its title/body mentions feed enumeration.
+  let issueCreatedAt: string | undefined;
   try {
     const issue = await provider.getIssue(ref);
+    issueCreatedAt = issue.createdAt ?? undefined;
     ingestObservation(
       session,
       "github_get_issue",
@@ -244,6 +258,29 @@ export async function runResolutionPrescan(
     detail: `${fetchedDetails}/${prescanCandidates.length} candidate PR detail(s) ingested`,
   });
 
+  // 5.5 Phase 18-B: the only certified PR→Issue "fixes" edges in the graph come
+  // from structured corroboration. Merged status alone never mints fixes, so
+  // this stamp must run after detail ingestion (evidence ids must exist).
+  stampCorroboratedFixRelations(
+    session,
+    prescanCandidates
+      .filter((candidate) => candidate.structuredClosingReference === true)
+      .map((candidate) => candidate.pullNumber),
+  );
+
+  // 6. Phase 18-B unlinked-fix hint scan: commits on candidate base branches
+  // touching investigated files since the issue was created. Hypothesis-only:
+  // never ingested as Evidence, never read by any verifier condition, and it
+  // never changes this record's `state` (18-A assertions stay valid).
+  const unlinkedFixScan = await scanUnlinkedFixHints({
+    provider,
+    commitHints: deps.commitHints,
+    owner: target.owner,
+    repo: target.repository,
+    candidates: prescanCandidates,
+    issueCreatedAt,
+  });
+
   const record: ResolutionPrescanRecord = {
     state: sources.every((source) => source.state === "completed") ? "completed" : "incomplete",
     startedAt,
@@ -255,6 +292,7 @@ export async function runResolutionPrescan(
     candidatesEnumerated,
     candidatesTruncated,
     commitCandidates: [...new Set(timelineCommitShas.map((sha) => sha.toLowerCase()))].sort(),
+    unlinkedFixScan,
   };
 
   session.state.run.resolutionPrescan = record;
@@ -285,4 +323,132 @@ function applyDetailFacts(candidate: ResolutionPrescanCandidate, pr: PullRequest
   candidate.mergedAt = candidate.mergedAt ?? pr.mergedAt ?? null;
   candidate.prCreatedAt = candidate.prCreatedAt ?? pr.createdAt ?? null;
   candidate.baseRefName = candidate.baseRefName ?? pr.baseRefName ?? null;
+  candidate.mergeCommitSha = candidate.mergeCommitSha ?? pr.mergeCommitSha ?? null;
+}
+
+function skippedScan(issueCreatedAt: string | undefined, reason: string): UnlinkedFixScan {
+  return {
+    state: "skipped",
+    hints: [],
+    filesExamined: 0,
+    filesTruncated: false,
+    baseRefs: [],
+    windowStart: issueCreatedAt,
+    reason,
+  };
+}
+
+function toHints(hits: Map<string, Set<string>>): UnlinkedFixHint[] {
+  return [...hits.entries()]
+    .map(([sha, files]) => ({ sha, files: [...files].sort() }))
+    .sort((a, b) => a.sha.localeCompare(b.sha));
+}
+
+/**
+ * Exhaustive-within-bounds scan: for every (candidate base ref, investigated
+ * file) pair, ask GitHub for commits on that ref touching that file since the
+ * issue was created, then subtract the candidates' own merge commits. A hit is
+ * a HYPOTHESIS that an unlinked commit fixed the issue; nothing here judges
+ * whether it did, and no consumer may treat hints as certified.
+ */
+async function scanUnlinkedFixHints(input: {
+  provider: GitHubDataProvider;
+  commitHints?: UnlinkedFixCommitSource;
+  owner: string;
+  repo: string;
+  candidates: ResolutionPrescanCandidate[];
+  issueCreatedAt?: string;
+}): Promise<UnlinkedFixScan> {
+  const { issueCreatedAt } = input;
+  if (!input.commitHints) {
+    return skippedScan(issueCreatedAt, "no_commit_hint_source");
+  }
+  if (!issueCreatedAt) {
+    return skippedScan(issueCreatedAt, "no_issue_created_at");
+  }
+  const detailed = input.candidates.filter((candidate) => candidate.detailState === "completed");
+  if (detailed.length === 0) {
+    return skippedScan(issueCreatedAt, "no_candidate_details");
+  }
+
+  const files = new Set<string>();
+  for (const candidate of detailed) {
+    try {
+      const changes = await input.provider.getPullRequestFiles({
+        owner: input.owner,
+        repo: input.repo,
+        pullNumber: candidate.pullNumber,
+      });
+      for (const change of changes) {
+        if (change.filename) {
+          files.add(change.filename);
+        }
+      }
+    } catch {
+      return {
+        ...skippedScan(issueCreatedAt, `candidate_files_fetch_failed:pr#${candidate.pullNumber}`),
+        state: "incomplete",
+      };
+    }
+  }
+  const sortedFiles = [...files].sort();
+  const examinedFiles = sortedFiles.slice(0, PRESCAN_MAX_HINT_FILES);
+  const filesTruncated = sortedFiles.length > examinedFiles.length;
+  const refs = [...new Set(detailed.map((c) => c.baseRefName).filter((r): r is string => Boolean(r)))].sort();
+  const targets: (string | undefined)[] = refs.length > 0 ? refs : [undefined];
+  const excluded = new Set(
+    detailed
+      .map((candidate) => candidate.mergeCommitSha?.toLowerCase())
+      .filter((sha): sha is string => Boolean(sha)),
+  );
+
+  const hits = new Map<string, Set<string>>();
+  let budgetReached = filesTruncated;
+  for (const ref of targets) {
+    for (const file of examinedFiles) {
+      try {
+        const result = await input.commitHints.listCommitsTouchingFile({
+          owner: input.owner,
+          repo: input.repo,
+          ref,
+          path: file,
+          since: issueCreatedAt,
+        });
+        for (const sha of result.shas) {
+          const key = sha.toLowerCase();
+          if (excluded.has(key)) {
+            continue;
+          }
+          const bucket = hits.get(key);
+          if (bucket) {
+            bucket.add(file);
+          } else {
+            hits.set(key, new Set([file]));
+          }
+        }
+        if (result.truncated) {
+          budgetReached = true;
+        }
+      } catch {
+        return {
+          state: "incomplete",
+          hints: toHints(hits),
+          filesExamined: examinedFiles.length,
+          filesTruncated,
+          baseRefs: targets.map((item) => item ?? "(default)"),
+          windowStart: issueCreatedAt,
+          reason: `hint_query_failed:${ref ?? "(default)"}:${file}`,
+        };
+      }
+    }
+  }
+  return {
+    state: budgetReached ? "incomplete" : "completed",
+    reason: budgetReached ? "query_budget_reached" : undefined,
+    hints: toHints(hits),
+    filesExamined: examinedFiles.length,
+    filesTruncated,
+    baseRefs: targets.map((item) => item ?? "(default)"),
+    windowStart: issueCreatedAt,
+  };
 }

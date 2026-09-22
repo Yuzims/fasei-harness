@@ -40,6 +40,8 @@ export interface IssueFact {
   state?: "open" | "closed";
   /** GitHub issue state_reason, e.g. completed / not_planned. */
   stateReason?: string;
+  /** ISO timestamp from the GitHub payload; drives the Phase 18-B temporal guard. */
+  createdAt?: string;
 }
 
 export interface PullFact {
@@ -48,6 +50,8 @@ export interface PullFact {
   number: number;
   merged?: boolean;
   state?: string;
+  mergedAt?: string;
+  createdAt?: string;
 }
 
 function repositoryOf(item: Evidence, payload: Record<string, unknown>): string {
@@ -75,6 +79,7 @@ export function issueFact(item: Evidence): IssueFact | undefined {
     number,
     state,
     stateReason,
+    createdAt: stringField(payload, "createdAt") ?? stringField(payload, "created_at"),
   };
 }
 
@@ -96,6 +101,8 @@ export function pullFact(item: Evidence): PullFact | undefined {
     number,
     merged: typeof payload.merged === "boolean" ? payload.merged : undefined,
     state: stringField(payload, "state"),
+    mergedAt: stringField(payload, "mergedAt") ?? stringField(payload, "merged_at"),
+    createdAt: stringField(payload, "createdAt") ?? stringField(payload, "created_at"),
   };
 }
 

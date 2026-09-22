@@ -155,6 +155,7 @@ export function computeEvidenceGap(task: InvestigationTask, run: InvestigationRu
   const context = requirementEvalContext({
     task,
     graph: graphFromRun(run),
+    prescan: run.resolutionPrescan,
   });
   const items = strategyRequirements(task).map((requirement) =>
     toItem(requirement, evaluateEvidenceRequirement(requirement, context)),

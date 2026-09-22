@@ -48,6 +48,8 @@ export type {
   ResolutionSignal,
   ResolutionSignalType,
   TestEvidenceStatus,
+  UnlinkedFixHint,
+  UnlinkedFixScan,
   EvidenceReference,
   VerificationCheck,
   VerificationResult,
@@ -144,10 +146,20 @@ export {
   asResolutionCandidate,
   closingKeywordReferencesIssue,
   codeEvidenceForCandidates,
+  evaluateResolutionAdmission,
   landedResolutionCandidates,
   resolveResolutionCandidates,
 } from "./resolution-path.js";
-export type { ResolutionCandidate, ResolutionPathKind } from "./resolution-path.js";
+export type {
+  RefutedResolutionCandidate,
+  ResolutionAdmission,
+  ResolutionAdmissionOptions,
+  ResolutionCandidate,
+  ResolutionPathKind,
+} from "./resolution-path.js";
+
+export { corroboratedFixPullNumbers, refutedByTemporalOrder } from "./attribution.js";
+export type { TemporalRefutation, TemporalRefutationBasis } from "./attribution.js";
 
 export { describeResolutionAlignment, contentTokens, identifierTokens } from "./resolution-alignment.js";
 export type { AlignmentOutcome } from "./resolution-alignment.js";

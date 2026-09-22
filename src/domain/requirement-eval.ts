@@ -18,10 +18,12 @@ import {
   targetIssueEvidence,
   type EvidenceGraph,
 } from "./evidence-graph.js";
-import { isExplicitNonResolutionReason, issueFact } from "./evidence-facts.js";
+import { isExplicitNonResolutionReason, issueFact, pullFact } from "./evidence-facts.js";
+import { corroboratedFixPullNumbers } from "./attribution.js";
 import { describeResolutionAlignment } from "./resolution-alignment.js";
 import {
   codeEvidenceForCandidates,
+  evaluateResolutionAdmission,
   landedResolutionCandidates,
   resolveResolutionCandidates,
 } from "./resolution-path.js";
@@ -30,11 +32,18 @@ import type {
   EvidenceRequirement,
   EvidenceRequirementCondition,
   InvestigationTask,
+  ResolutionPrescanRecord,
 } from "./types.js";
 
 export interface RequirementEvalContext {
   graph: EvidenceGraph;
   task: InvestigationTask;
+  /**
+   * Phase 18-B: the 18-A prescan record, present only on runs that ran it.
+   * Switches pr-merged from legacy merged semantics to structured
+   * corroboration; the temporal guard is independent of this.
+   */
+  prescan?: ResolutionPrescanRecord;
 }
 
 export type RequirementOutcome = "satisfied" | "missing" | "rejected";
@@ -248,9 +257,11 @@ function evalResolutionMerged(
       actual: "contradicted",
     });
   }
-  const landed = landedResolutionCandidates(context.graph, context.task);
-  if (landed.length > 0) {
-    const labels = landed.map((item) =>
+  const admission = evaluateResolutionAdmission(context.graph, context.task, {
+    prescan: context.prescan,
+  });
+  if (admission.landed.length > 0) {
+    const labels = admission.landed.map((item) =>
       item.path === "pr_merge"
         ? `merged PR #${item.pull?.number ?? "?"}`
         : `direct commit ${item.commit?.sha?.slice(0, 12) ?? ""}`.trim(),
@@ -258,7 +269,7 @@ function evalResolutionMerged(
     return result(requirement, "resolution_merged", {
       outcome: "satisfied",
       reason: `Resolution path landed: ${labels.join(", ")}.`,
-      evidenceIds: landed.map((item) => item.evidence.id),
+      evidenceIds: admission.landed.map((item) => item.evidence.id),
       expected: true,
       actual: labels,
     });
@@ -271,13 +282,41 @@ function evalResolutionMerged(
       expected: true,
     });
   }
+  const explanations: string[] = [];
+  const refutedIds: string[] = [];
+  for (const item of admission.refuted) {
+    explanations.push(item.refutation.reason);
+    refutedIds.push(item.candidate.evidence.id);
+  }
+  if (admission.uncorroborated.length > 0) {
+    const labels = admission.uncorroborated.map(
+      (item) => `PR #${item.pull?.number ?? "?"}`,
+    );
+    explanations.push(
+      `Merged ${labels.join(", ")} without structured closing corroboration cannot satisfy pr-merged (merged is a state fact, not a fixes attribution).`,
+    );
+    refutedIds.push(...admission.uncorroborated.map((item) => item.evidence.id));
+  }
   if (contradiction.unmerged.length > 0) {
+    const corroborated = corroboratedFixPullNumbers(context.prescan);
+    const closingRefs = contradiction.unmerged
+      .map(pullFact)
+      .filter((fact): fact is NonNullable<typeof fact> => Boolean(fact))
+      .filter((fact) => corroborated.has(fact.number))
+      .map((fact) => `PR #${fact.number}`);
+    explanations.push(
+      closingRefs.length > 0
+        ? `Candidate PR exists but merged=false (open or closed-unmerged is not completion); ${closingRefs.join(", ")} hold structured closing references yet never landed.`
+        : "Candidate PR exists but merged=false (open or closed-unmerged is not completion).",
+    );
+  }
+  if (explanations.length > 0) {
     return result(requirement, "resolution_merged", {
       outcome: "rejected",
-      reason: "Candidate PR exists but merged=false (open or closed-unmerged is not completion).",
-      evidenceIds: contradiction.unmerged.map((item) => item.id),
+      reason: explanations.join(" "),
+      evidenceIds: [...refutedIds, ...contradiction.unmerged.map((item) => item.id)],
       expected: true,
-      actual: false,
+      actual: admission.refuted.length > 0 ? "temporally_refuted" : false,
     });
   }
   return result(requirement, "resolution_merged", {
@@ -292,7 +331,9 @@ function evalResolutionCodeEvidence(
   requirement: EvidenceRequirement,
   context: RequirementEvalContext,
 ): RequirementEvaluation {
-  const landed = landedResolutionCandidates(context.graph, context.task);
+  const landed = landedResolutionCandidates(context.graph, context.task, {
+    prescan: context.prescan,
+  });
   const candidates = landed.length > 0 ? landed : resolveResolutionCandidates(context.graph, context.task);
   const found = codeEvidenceForCandidates(context.graph, candidates);
   if (found.length > 0) {
@@ -314,7 +355,9 @@ function evalResolutionEffect(
   requirement: EvidenceRequirement,
   context: RequirementEvalContext,
 ): RequirementEvaluation {
-  const landed = landedResolutionCandidates(context.graph, context.task);
+  const landed = landedResolutionCandidates(context.graph, context.task, {
+    prescan: context.prescan,
+  });
   if (landed.length === 0) {
     return result(requirement, "resolution_effect", {
       outcome: "missing",
@@ -436,9 +479,11 @@ export function requirementEvalContext(input: {
   relations?: EvidenceGraph["relations"];
   claims?: EvidenceGraph["claims"];
   claimEvidence?: EvidenceGraph["claimEvidence"];
+  prescan?: ResolutionPrescanRecord;
 }): RequirementEvalContext {
   return {
     task: input.task,
+    prescan: input.prescan,
     graph: input.graph ?? {
       evidence: input.evidence ?? [],
       relations: input.relations ?? [],

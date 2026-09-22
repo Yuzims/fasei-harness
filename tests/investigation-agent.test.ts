@@ -118,7 +118,10 @@ test("Investigation：resolved fixture 多步调查并形成 resolution candidat
   assert.ok(texts.some((text) => /src\/cart\.ts/i.test(text)));
   assert.ok(result.claimEvidence.length > 0);
   assert.equal(result.claims.every((claim) => result.claimEvidence.some((link) => link.claimId === claim.id)), true);
-  assert.ok(result.run.relations.some((item) => item.type === "fixes"));
+  // Phase 18-B: the "Fixes #42" commit message mints a hypothesis edge only;
+  // merged PR #7 alone must never certify a fixes relation.
+  assert.ok(result.run.relations.some((item) => item.type === "hypothesis_fixes"));
+  assert.equal(result.run.relations.some((item) => item.type === "fixes"), false);
   assert.ok(result.run.relations.some((item) => item.type === "derived_from"));
   assert.ok(result.run.relations.some((item) => item.type === "merges"));
 

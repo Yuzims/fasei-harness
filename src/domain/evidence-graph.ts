@@ -24,6 +24,7 @@ export const EVIDENCE_RELATION_TYPES: readonly EvidenceRelationType[] = [
   "derived_from",
   "references",
   "fixes",
+  "hypothesis_fixes",
   "merges",
   "reviews",
   "parents",
@@ -36,9 +37,14 @@ export const CLAIM_EVIDENCE_ROLES: readonly ClaimEvidenceRole[] = [
   "contextual",
 ];
 
-/** PR → Issue edges that identify a resolution candidate. */
+/**
+ * PR → Issue edges that identify a resolution candidate.
+ * "fixes" is structured-corroboration only (Phase 18-B); "hypothesis_fixes"
+ * nominates a candidate but never certifies it.
+ */
 export const RESOLUTION_CANDIDATE_RELATIONS: readonly EvidenceRelationType[] = [
   "fixes",
+  "hypothesis_fixes",
   "references",
   "supports",
 ];

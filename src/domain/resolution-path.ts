@@ -9,10 +9,24 @@ import {
   CODE_LINK_RELATIONS,
   mergeContradiction,
   resolutionCandidateEvidence,
+  targetIssueEvidence,
   type EvidenceGraph,
 } from "./evidence-graph.js";
-import { commitFact, isCodeEvidence, pullFact, type CommitFact, type PullFact } from "./evidence-facts.js";
-import type { Evidence, EvidenceRelationType, InvestigationTask } from "./types.js";
+import {
+  commitFact,
+  isCodeEvidence,
+  issueFact,
+  pullFact,
+  type CommitFact,
+  type PullFact,
+} from "./evidence-facts.js";
+import { corroboratedFixPullNumbers, refutedByTemporalOrder, type TemporalRefutation } from "./attribution.js";
+import type {
+  Evidence,
+  EvidenceRelationType,
+  InvestigationTask,
+  ResolutionPrescanRecord,
+} from "./types.js";
 
 export const RESOLUTION_PATHS = ["pr_merge", "direct_commit"] as const;
 export type ResolutionPathKind = (typeof RESOLUTION_PATHS)[number];
@@ -62,17 +76,81 @@ function commitLanded(candidate: ResolutionCandidate): boolean {
   return candidate.path === "direct_commit" && Boolean(candidate.commit?.sha);
 }
 
-export function landedResolutionCandidates(
+export interface ResolutionAdmissionOptions {
+  prescan?: ResolutionPrescanRecord;
+}
+
+export interface RefutedResolutionCandidate {
+  candidate: ResolutionCandidate;
+  refutation: TemporalRefutation;
+}
+
+export interface ResolutionAdmission {
+  landed: ResolutionCandidate[];
+  /** Landed PRs mechanically refuted by the Phase 18-B temporal guard. */
+  refuted: RefutedResolutionCandidate[];
+  /**
+   * Landed PRs rejected because the run has a prescan record and this PR
+   * lacks the structured closing-issue corroboration it requires.
+   */
+  uncorroborated: ResolutionCandidate[];
+  conflict: boolean;
+}
+
+/**
+ * Phase 18-B admission for landed resolution paths.
+ * - Temporal refutation (candidate predates the issue) always applies when
+ *   both timestamps exist; it is a pure field comparison.
+ * - Structured-corroboration gating applies only to runs carrying a prescan
+ *   record; no-prescan runs keep the historical merged semantics.
+ */
+export function evaluateResolutionAdmission(
   graph: EvidenceGraph,
   task: InvestigationTask,
-): ResolutionCandidate[] {
+  options?: ResolutionAdmissionOptions,
+): ResolutionAdmission {
   const candidates = resolveResolutionCandidates(graph, task);
   const pulls = candidates.filter((item) => item.path === "pr_merge").map((item) => item.evidence);
   const contradiction = mergeContradiction(graph, pulls);
   if (contradiction.conflict) {
-    return [];
+    return { landed: [], refuted: [], uncorroborated: [], conflict: true };
   }
-  return candidates.filter((item) => prLanded(graph, item) || commitLanded(item));
+  const issue = targetIssueEvidence(graph, task).map(issueFact).find((item) => item);
+  const prescan = options?.prescan;
+  const corroborated = prescan ? corroboratedFixPullNumbers(prescan) : undefined;
+  const landed: ResolutionCandidate[] = [];
+  const refuted: RefutedResolutionCandidate[] = [];
+  const uncorroborated: ResolutionCandidate[] = [];
+  for (const candidate of candidates) {
+    if (candidate.path === "direct_commit") {
+      if (commitLanded(candidate)) {
+        landed.push(candidate);
+      }
+      continue;
+    }
+    if (!prLanded(graph, candidate)) {
+      continue;
+    }
+    const refutation = candidate.pull ? refutedByTemporalOrder(candidate.pull, issue) : undefined;
+    if (refutation) {
+      refuted.push({ candidate, refutation });
+      continue;
+    }
+    if (corroborated && !(candidate.pull && corroborated.has(candidate.pull.number))) {
+      uncorroborated.push(candidate);
+      continue;
+    }
+    landed.push(candidate);
+  }
+  return { landed, refuted, uncorroborated, conflict: false };
+}
+
+export function landedResolutionCandidates(
+  graph: EvidenceGraph,
+  task: InvestigationTask,
+  options?: ResolutionAdmissionOptions,
+): ResolutionCandidate[] {
+  return evaluateResolutionAdmission(graph, task, options).landed;
 }
 
 export function codeEvidenceForCandidates(

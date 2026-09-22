@@ -228,7 +228,7 @@ export class IndependentCompletionVerifier {
   verify(input: IndependentVerifyInput, trace?: TraceCollector): VerificationResult {
     const { task, run } = input;
     const graph = graphFromRun(run);
-    const context = requirementEvalContext({ task, graph });
+    const context = requirementEvalContext({ task, graph, prescan: run.resolutionPrescan });
     const step = Math.max(0, ...run.attempts.map((item) => item.attempt), 0);
 
     trace?.record(run.id, step, "verification_started", {
@@ -275,6 +275,7 @@ export class IndependentCompletionVerifier {
       evidence: run.evidence,
       task,
       graph,
+      prescan: run.resolutionPrescan,
       agentClaimedComplete: input.agentClaimedComplete === true,
     });
 

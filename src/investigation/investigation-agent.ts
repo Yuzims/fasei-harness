@@ -59,6 +59,7 @@ import {
 import { captureAgentClaims } from "./claim-capture.js";
 import { runResolutionPrescan } from "./resolution-prescan.js";
 import type { ResolutionReferenceSource } from "../github/graphql.js";
+import type { UnlinkedFixCommitSource } from "../github/commit-hints.js";
 import { formatStateForModel, investigationFingerprint, InvestigationState } from "./state.js";
 import { SnapshotInvestigationDriver, TEST_DRIVER_NOTICE } from "./test-driver.js";
 import { analyzeGapsForRecovery, runControlledRecoveryLoop } from "./controlled-recovery-loop.js";
@@ -153,6 +154,7 @@ export interface InvestigateOptions {
   resolutionPrescan?: {
     enabled?: boolean;
     graphQl?: ResolutionReferenceSource;
+    commitHints?: UnlinkedFixCommitSource;
     maxCandidates?: number;
   };
 }
@@ -644,6 +646,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
         session,
         provider: options.provider,
         graphQl: options.resolutionPrescan.graphQl,
+        commitHints: options.resolutionPrescan.commitHints,
         maxCandidates: options.resolutionPrescan.maxCandidates,
       });
     } catch (error) {

@@ -15,6 +15,12 @@ export type {
   ClosingReferencesQuery,
   ResolutionReferenceSource,
 } from "./graphql.js";
+export { GithubCommitHintSource } from "./commit-hints.js";
+export type {
+  UnlinkedFixCommitQuery,
+  UnlinkedFixCommitResult,
+  UnlinkedFixCommitSource,
+} from "./commit-hints.js";
 export { parseGitHubIssueInput, GitHubIssueInputError, INVALID_GITHUB_ISSUE_INPUT } from "./issue-input.js";
 export type { ParsedGitHubIssue } from "./issue-input.js";
 export {

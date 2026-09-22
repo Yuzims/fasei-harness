@@ -1,10 +1,12 @@
 /**
  * Phase 16.4-B1-b — Relationship Reconciliation.
  *
- * commit → fixes → issue must not depend on Evidence arrival order:
+ * commit → hypothesis_fixes → issue must not depend on Evidence arrival order:
  * reconciliation re-runs after every ingestion round, keyed on the structured
  * TimelineEventSnapshot.commitId (legacy body-SHA only as compatibility path).
  * Relation truth here is graph fact only — never verified_complete.
+ * Phase 18-B: text closing-keyword edges are typed hypothesis_fixes and never
+ * certify; certified "fixes" comes only from structured corroboration.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -92,7 +94,7 @@ function commitFixTriples(session: InvestigationSession): string[] {
   const byId = new Map(session.state.run.evidence.map((item) => [item.id, item]));
   const triples: string[] = [];
   for (const relation of session.state.run.relations) {
-    if (relation.type !== "fixes") {
+    if (relation.type !== "hypothesis_fixes") {
       continue;
     }
     const source = byId.get(relation.fromEvidenceId);
@@ -100,14 +102,16 @@ function commitFixTriples(session: InvestigationSession): string[] {
     const fact = source ? commitFact(source) : undefined;
     const issue = target ? issueFact(target) : undefined;
     if (fact && issue) {
-      triples.push(`${fact.sha.toLowerCase()}|fixes|${issue.repository}#${issue.number}`);
+      triples.push(`${fact.sha.toLowerCase()}|hypothesis_fixes|${issue.repository}#${issue.number}`);
     }
   }
   return triples.sort();
 }
 
 function fixesRelationCount(session: InvestigationSession): number {
-  return session.state.run.relations.filter((relation) => relation.type === "fixes").length;
+  return session.state.run.relations.filter(
+    (relation) => relation.type === "hypothesis_fixes" || relation.type === "fixes",
+  ).length;
 }
 
 test("Test A — Timeline first: relation absent until Commit Evidence arrives, then reconciled", () => {
@@ -117,7 +121,7 @@ test("Test A — Timeline first: relation absent until Commit Evidence arrives, 
   assert.deepEqual(commitFixTriples(session), [], "relation construction must not fail permanently");
 
   ingestCommit(session);
-  assert.deepEqual(commitFixTriples(session), [`${SHA}|fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
+  assert.deepEqual(commitFixTriples(session), [`${SHA}|hypothesis_fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
 });
 
 test("Test B — Commit first: same final relation as Timeline first", () => {
@@ -127,7 +131,7 @@ test("Test B — Commit first: same final relation as Timeline first", () => {
   assert.equal(fixesRelationCount(session), 0, "commit message alone must not claim fixes");
 
   ingestTimeline(session, [{ commitId: SHA, body: "fixes #258694" }]);
-  assert.deepEqual(commitFixTriples(session), [`${SHA}|fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
+  assert.deepEqual(commitFixTriples(session), [`${SHA}|hypothesis_fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
 });
 
 test("Test C — both arrival orders converge to the same relation semantics", () => {
@@ -155,7 +159,7 @@ test("Test C.2 — Issue Evidence arriving last is reconciled too", () => {
   assert.deepEqual(commitFixTriples(session), []);
 
   ingestIssue(session);
-  assert.deepEqual(commitFixTriples(session), [`${SHA}|fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
+  assert.deepEqual(commitFixTriples(session), [`${SHA}|hypothesis_fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
 });
 
 test("Test D — commitId present but body contains no SHA: structured path builds fixes", () => {
@@ -166,7 +170,7 @@ test("Test D — commitId present but body contains no SHA: structured path buil
   ingestTimeline(session, [{ commitId: SHA, body }]);
   ingestCommit(session);
 
-  assert.deepEqual(commitFixTriples(session), [`${SHA}|fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
+  assert.deepEqual(commitFixTriples(session), [`${SHA}|hypothesis_fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
 });
 
 test("Test E — legacy snapshot without commitId still replays via body-SHA compatibility path", () => {
@@ -177,7 +181,7 @@ test("Test E — legacy snapshot without commitId still replays via body-SHA com
 
   assert.deepEqual(
     commitFixTriples(session),
-    [`${SHA}|fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`],
+    [`${SHA}|hypothesis_fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`],
     "legacy body-SHA path is compatibility only, not the structured-fact path",
   );
 });
@@ -188,7 +192,7 @@ test("Test E.2 — legacy short-SHA body resolves against full-SHA Commit Eviden
   ingestTimeline(session, [{ body: `fixes #258694 (${SHA.slice(0, 7)})` }]);
   ingestCommit(session);
 
-  assert.deepEqual(commitFixTriples(session), [`${SHA}|fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
+  assert.deepEqual(commitFixTriples(session), [`${SHA}|hypothesis_fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`]);
 });
 
 test("Test F.1 — commitId without Commit Evidence must not invent a relation", () => {
@@ -245,7 +249,7 @@ test("Test G — reconciliation is idempotent across repeated ingestion rounds",
 });
 
 test("Regression microsoft/vscode#258694 — fixes holds in either Timeline/Commit order", () => {
-  const expected = [`${SHA}|fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`];
+  const expected = [`${SHA}|hypothesis_fixes|${OWNER}/${REPO}#${ISSUE_NUMBER}`];
   const scenario = (order: "timeline-first" | "commit-first") => {
     const session = makeSession();
     ingestIssue(session);

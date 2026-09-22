@@ -88,6 +88,7 @@ export function buildVerificationResult(input: {
   task: InvestigationTask;
   relations?: InvestigationRun["relations"];
   graph?: RequirementEvalContext["graph"];
+  prescan?: RequirementEvalContext["prescan"];
   agentClaimedComplete?: boolean;
 }): VerificationResult {
   const context = requirementEvalContext({
@@ -97,6 +98,7 @@ export function buildVerificationResult(input: {
     relations: input.relations,
     claims: input.claims,
     claimEvidence: input.claimEvidence,
+    prescan: input.prescan,
   });
   const missing = missingRequirements(input.requirements, context);
   const unsupported = unsupportedClaims(

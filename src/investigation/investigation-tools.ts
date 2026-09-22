@@ -296,14 +296,13 @@ function linkIssueGraph(session: InvestigationSession, issueId: string): void {
   relate(session, evidenceIdByRef(session, resourceKey("timeline", String(issueNumber))), issueId, "references");
   for (const pullNumber of session.state.candidatePrs) {
     const prId = pullEvidenceId(session, pullNumber);
-    const merged = session.state.mergedPrs.has(pullNumber);
-    relate(session, prId, issueId, merged ? "fixes" : "references");
+    relate(session, prId, issueId, "references");
   }
 }
 
 function linkPullGraph(session: InvestigationSession, pullNumber: number, prId: string, merged: boolean): void {
   const issueId = issueEvidenceId(session);
-  relate(session, prId, issueId, merged ? "fixes" : "references");
+  relate(session, prId, issueId, "references");
   const mergeId = evidenceIdByRef(session, resourceKey("pr-merge", String(pullNumber)));
   if (merged) {
     relate(session, mergeId, prId, "merges");
@@ -312,6 +311,24 @@ function linkPullGraph(session: InvestigationSession, pullNumber: number, prId: 
   relate(session, evidenceIdByRef(session, resourceKey("timeline", String(issueNumber))), prId, "mentions");
   relate(session, evidenceIdByRef(session, resourceKey("comments", String(issueNumber))), prId, "mentions");
   relate(session, evidenceIdByRef(session, resourceKey("reviews", String(pullNumber))), prId, "reviews");
+}
+
+/**
+ * Phase 18-B: certified "fixes" edges are minted only from structured
+ * corroboration (GraphQL closingIssuesReferences facts from the prescan).
+ * Called by runResolutionPrescan after candidate details are ingested.
+ */
+export function stampCorroboratedFixRelations(
+  session: InvestigationSession,
+  pullNumbers: readonly number[],
+): void {
+  const issueId = issueEvidenceId(session);
+  if (!issueId) {
+    return;
+  }
+  for (const pullNumber of pullNumbers) {
+    relate(session, pullEvidenceId(session, pullNumber), issueId, "fixes");
+  }
 }
 
 export interface IngestionOptions {
@@ -689,7 +706,7 @@ function ingestCommitRecord(
   const issueNumber = session.state.task.target.issueNumber;
   const message = String(commit.message ?? "");
   if (closingKeywordReferencesIssue(message, issueNumber)) {
-    relate(session, id, issueId, "fixes");
+    relate(session, id, issueId, "hypothesis_fixes");
   }
   if (pullNumber && pullNumber > 0) {
     const prId = pullEvidenceId(session, pullNumber);
@@ -804,7 +821,7 @@ function reconcileCommitFixRelations(session: InvestigationSession): void {
       if (!sha) {
         continue;
       }
-      relate(session, findCommitEvidenceIdBySha(session, sha), issueId, "fixes");
+      relate(session, findCommitEvidenceIdBySha(session, sha), issueId, "hypothesis_fixes");
     }
   }
 }

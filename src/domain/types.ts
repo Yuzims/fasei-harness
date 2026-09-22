@@ -34,6 +34,8 @@ export type EvidenceRelationType =
   | "derived_from"
   | "references"
   | "fixes"
+  /** Agent/textual nomination of a fix; never certifies (Phase 18-B). */
+  | "hypothesis_fixes"
   | "merges"
   | "reviews"
   | "parents"
@@ -441,8 +443,33 @@ export interface ResolutionPrescanCandidate {
   mergedAt?: string | null;
   prCreatedAt?: string | null;
   baseRefName?: string | null;
+  mergeCommitSha?: string | null;
   /** "not_a_pull_request": GraphQL authoritatively found no PR with this number. */
   detailState: ResolutionPrescanSourceState | "not_a_pull_request";
+}
+
+/** Phase 18-B hypothesis-only hint: a commit touching an investigated file. */
+export interface UnlinkedFixHint {
+  sha: string;
+  files: string[];
+}
+
+/**
+ * Phase 18-B unlinked-fix hint scan. Exhaustive only when state is
+ * "completed"; hints are nominates-for-human/Agent-review and are consumed
+ * by NO verifier condition. This sub-record never changes the parent
+ * prescan `state` (18-A semantics stay frozen).
+ */
+export interface UnlinkedFixScan {
+  state: "completed" | "incomplete" | "skipped";
+  hints: UnlinkedFixHint[];
+  filesExamined: number;
+  filesTruncated: boolean;
+  /** Issue createdAt — the committer-date window start. */
+  windowStart?: string;
+  baseRefs: string[];
+  /** Honest reason when state is not "completed". */
+  reason?: string;
 }
 
 /**
@@ -464,6 +491,8 @@ export interface ResolutionPrescanRecord {
   candidatesTruncated: boolean;
   /** Commit SHAs observed in the issue timeline (deduped, lowercase). */
   commitCandidates: string[];
+  /** Phase 18-B hypothesis-only side-scan; never feeds the verifier. */
+  unlinkedFixScan?: UnlinkedFixScan;
 }
 
 export interface InvestigationRun {

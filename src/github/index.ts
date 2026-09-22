@@ -9,6 +9,12 @@ export {
   validateSnapshot,
 } from "./snapshot-store.js";
 export { GitHubProviderError } from "./errors.js";
+export { GithubGraphQlClient, CLOSING_REFERENCES_QUERY_TEMPLATE } from "./graphql.js";
+export type {
+  ClosingReferenceFacts,
+  ClosingReferencesQuery,
+  ResolutionReferenceSource,
+} from "./graphql.js";
 export { parseGitHubIssueInput, GitHubIssueInputError, INVALID_GITHUB_ISSUE_INPUT } from "./issue-input.js";
 export type { ParsedGitHubIssue } from "./issue-input.js";
 export {

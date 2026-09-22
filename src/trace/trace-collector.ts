@@ -43,6 +43,9 @@ export type TraceEventType =
   | "retrieval_candidate_selected"
   | "retrieval_candidate_rejected"
   | "retrieval_investigation_started"
+  /** Phase 18-A deterministic resolution-reference pre-scan machine record. */
+  | "resolution_prescan_completed"
+  | "resolution_prescan_incomplete"
   /** Phase 11.0 Recovery Intent decision. Not an execution result. */
   | "recovery_intent"
   /** Phase 11.1 Controlled Recovery Attempt. Linked to a parent InvestigationAttempt. */

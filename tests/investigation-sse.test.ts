@@ -98,7 +98,6 @@ test("SSE：恢复场景推送 failure 与 recovery 过程事件", async () => {
 });
 
 test("SSE：真流式 —— investigation_started 在 Investigation 完成前已送达浏览器", async () => {
-  let firstChatPending = false;
   let firstChatResolved = false;
   let releaseFirstChat: () => void = () => {};
   const firstChatGate = new Promise<void>((resolve) => {
@@ -110,9 +109,7 @@ test("SSE：真流式 —— investigation_started 在 Investigation 完成前�
     if (url.includes("/chat/completions")) {
       chatCalls += 1;
       if (chatCalls === 1) {
-        firstChatPending = true;
         await firstChatGate;
-        firstChatPending = false;
         firstChatResolved = true;
         return jsonResponse({
           choices: [
@@ -122,8 +119,8 @@ test("SSE：真流式 —— investigation_started 在 Investigation 完成前�
                   {
                     id: "c1",
                     function: {
-                      name: "github_get_issue",
-                      arguments: JSON.stringify({ owner: "acme", repo: "demo", issueNumber: 123 }),
+                      name: "github_list_commits",
+                      arguments: JSON.stringify({ owner: "acme", repo: "demo" }),
                     },
                   },
                 ],
@@ -175,15 +172,17 @@ test("SSE：真流式 —— investigation_started 在 Investigation 完成前�
   const decoder = new TextDecoder();
   let text = "";
   const deadline = Date.now() + 5000;
-  // 关键断言：第一次 LLM 请求仍被 gate 挂起时，SSE 已把 investigation_started 送到浏览器。
+  // 关键断言：Investigation 仍在运行时（首个 LLM 请求被 gate 挂起，done 不可能出现），
+  // SSE 已把 investigation_started 送到浏览器。Phase 18-A prescan 运行在首次 chat 之前，
+  // 所以不再要求收到帧时 chat 已经开始，只要求 gate 未放行前绝无 done。
   while (!text.includes("investigation_started")) {
     assert.ok(Date.now() < deadline, "timed out waiting for live SSE frames");
     const { done, value } = await reader.read();
     assert.equal(done, false, "stream ended before investigation_started was delivered");
     text += decoder.decode(value, { stream: true });
   }
-  assert.equal(firstChatPending, true, "investigation must still be running when frames arrive");
   assert.equal(firstChatResolved, false, "done must not have been produced yet");
+  assert.ok(!text.includes('"type":"done"'), "done must not arrive before the chat gate releases");
   releaseFirstChat();
   while (true) {
     const { done, value } = await reader.read();

@@ -80,6 +80,12 @@ export {
 } from "./investigation-tools.js";
 export type { InvestigationSession, RetrievalCandidateSelection } from "./investigation-tools.js";
 export {
+  HARNESS_STRUCTURED_SOURCE,
+  PRESCAN_MAX_CANDIDATES,
+  runResolutionPrescan,
+} from "./resolution-prescan.js";
+export type { ResolutionPrescanDeps } from "./resolution-prescan.js";
+export {
   compactInvestigationToolOutput,
   compactRecordClaimOutput,
   compactRecordResolutionAnalysisOutput,

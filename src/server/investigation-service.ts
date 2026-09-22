@@ -24,6 +24,7 @@ import { formatLlmProfilingSummary } from "../agent/llm-usage.js";
 import type { GitHubDataProvider } from "../github/provider.js";
 import type { TraceCollector } from "../trace/trace-collector.js";
 import { LiveGitHubProvider } from "../github/live-provider.js";
+import { GithubGraphQlClient, type ResolutionReferenceSource } from "../github/graphql.js";
 import { parseGitHubIssueInput, type ParsedGitHubIssue } from "../github/issue-input.js";
 import { InvestigationHttpError } from "./investigation-errors.js";
 
@@ -39,6 +40,8 @@ export interface RunInvestigationOptions {
   signal?: AbortSignal;
   /** Phase 17-B1: SSE streaming observes this same runtime trace. */
   trace?: TraceCollector;
+  /** Phase 18-A: injectable GraphQL closing-reference source for the prescan. */
+  resolutionGraphQl?: ResolutionReferenceSource;
 }
 
 export type InvestigationRoute =
@@ -498,6 +501,15 @@ async function runLiveIssue(
     fetchImpl: options.fetchImpl,
     signal: options.signal,
     trace: options.trace,
+    resolutionPrescan: {
+      enabled: true,
+      graphQl:
+        options.resolutionGraphQl ??
+        new GithubGraphQlClient({
+          env: options.env ?? process.env,
+          fetchImpl: options.fetchImpl,
+        }),
+    },
   });
   return toInvestigationSessionDTO(report, { mode: "live" });
 }

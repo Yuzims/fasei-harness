@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 import { GitHubProviderError } from "./errors.js";
 import { SNAPSHOT_SCHEMA_VERSION, UNTRUSTED, type InvestigationSnapshot } from "./types.js";
 
-export type GithubFixtureId = "resolved" | "closed-unmerged" | "insufficient-evidence";
+export type GithubFixtureId =
+  | "resolved"
+  | "closed-unmerged"
+  | "insufficient-evidence"
+  /** Phase 18-A acceptance fixture: real capture of facebook/react#37610 (REST, zero cross-referenced timeline events). */
+  | "react-37610";
 
 export function githubFixturePath(id: GithubFixtureId): string {
   return join(dirname(fileURLToPath(import.meta.url)), "../../fixtures/github", `${id}.json`);

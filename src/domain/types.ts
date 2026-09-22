@@ -414,6 +414,58 @@ export interface InvestigationAttempt {
   recovery?: RecoveryPlan;
 }
 
+export type ResolutionPrescanSourceState = "completed" | "failed" | "skipped";
+
+export interface ResolutionPrescanSourceRecord {
+  source:
+    | "rest_issue_mentions"
+    | "rest_comment_mentions"
+    | "rest_timeline_references"
+    | "graphql_closing_references"
+    | "pr_detail_fetch";
+  state: ResolutionPrescanSourceState;
+  errorCode?: string;
+  detail?: string;
+}
+
+export interface ResolutionPrescanCandidate {
+  pullNumber: number;
+  /** Deterministic channels that surfaced this candidate (field extraction, not text judgment). */
+  enumeratedBy: string[];
+  /**
+   * Raw GraphQL `closingIssuesReferences` field fact: true when the PR's
+   * structured closing references include the target issue. A fact, not a verdict.
+   */
+  structuredClosingReference?: boolean;
+  merged?: boolean;
+  mergedAt?: string | null;
+  prCreatedAt?: string | null;
+  baseRefName?: string | null;
+  /** "not_a_pull_request": GraphQL authoritatively found no PR with this number. */
+  detailState: ResolutionPrescanSourceState | "not_a_pull_request";
+}
+
+/**
+ * Phase 18-A machine record: did the deterministic resolution-reference
+ * pre-scan actually exhaust its structured sources. 18-C turns this into
+ * attributionCoverage; presence + `state` are machine-decidable.
+ */
+export interface ResolutionPrescanRecord {
+  state: "completed" | "incomplete";
+  startedAt: string;
+  completedAt?: string;
+  /** Prescan performs zero LLM calls by construction; recorded for honesty checks. */
+  llmCalls: 0;
+  /** Repository id after GitHub rename resolution (e.g. react/react for facebook/react). */
+  repositoryNameWithOwner?: string;
+  sources: ResolutionPrescanSourceRecord[];
+  candidates: ResolutionPrescanCandidate[];
+  candidatesEnumerated: number;
+  candidatesTruncated: boolean;
+  /** Commit SHAs observed in the issue timeline (deduped, lowercase). */
+  commitCandidates: string[];
+}
+
 export interface InvestigationRun {
   id: string;
   taskId: string;
@@ -427,4 +479,6 @@ export interface InvestigationRun {
   claimEvidence: ClaimEvidence[];
   /** Runtime investigation artifact. Not a snapshot field and not a verifier input. */
   resolutionAnalyses: ResolutionAnalysis[];
+  /** Phase 18-A prescan machine record. Absent means no prescan ran. */
+  resolutionPrescan?: ResolutionPrescanRecord;
 }

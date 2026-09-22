@@ -26,6 +26,7 @@ export interface IssueSnapshot extends ResourceMeta {
   body: string;
   state: "open" | "closed";
   stateReason?: string | null;
+  createdAt?: string | null;
   closedAt?: string | null;
 }
 
@@ -52,6 +53,9 @@ export interface PullRequestSnapshot extends ResourceMeta {
   body: string;
   state: "open" | "closed";
   merged: boolean;
+  mergedAt?: string | null;
+  createdAt?: string | null;
+  baseRefName?: string | null;
   mergeCommitSha?: string | null;
   headSha?: string | null;
 }

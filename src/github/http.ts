@@ -48,6 +48,17 @@ export class GithubHttpClient {
     return parseJsonBody(operation, status, text);
   }
 
+  async postJson(operation: string, path: string, body: unknown): Promise<unknown> {
+    const payload = JSON.stringify(body);
+    const { status, text } = await this.request(
+      operation,
+      path,
+      "application/vnd.github+json",
+      payload,
+    );
+    return parseJsonBody(operation, status, text);
+  }
+
   async getJsonPages(
     operation: string,
     path: string,
@@ -133,6 +144,7 @@ export class GithubHttpClient {
     operation: string,
     path: string,
     accept: string,
+    body?: string,
   ): Promise<{ status: number; text: string; headers: Headers }> {
     let lastError: GitHubProviderError | undefined;
 
@@ -142,7 +154,7 @@ export class GithubHttpClient {
       }
 
       try {
-        const { status, text, headers } = await this.send(path, accept);
+        const { status, text, headers } = await this.send(path, accept, body);
         if (status < 400) {
           return { status, text, headers };
         }
@@ -182,12 +194,16 @@ export class GithubHttpClient {
   private async send(
     path: string,
     accept: string,
+    body?: string,
   ): Promise<{ status: number; text: string; headers: Headers }> {
     const headers: Record<string, string> = {
       accept,
       "user-agent": UA,
       "x-github-api-version": "2022-11-28",
     };
+    if (body !== undefined) {
+      headers["content-type"] = "application/json";
+    }
     const token = this.token();
     if (token) {
       headers.authorization = `Bearer ${token}`;
@@ -198,8 +214,9 @@ export class GithubHttpClient {
 
     try {
       const response = await this.fetchImpl(`${API}${path}`, {
-        method: "GET",
+        method: body !== undefined ? "POST" : "GET",
         headers,
+        ...(body !== undefined ? { body } : {}),
         signal: controller.signal,
       });
       return {

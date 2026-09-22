@@ -84,6 +84,7 @@ export function normalizeIssue(
     body: str(item.body),
     state: item.state === "closed" ? "closed" : "open",
     stateReason: item.state_reason == null ? null : str(item.state_reason),
+    createdAt: item.created_at == null ? null : str(item.created_at),
     closedAt: item.closed_at == null ? null : str(item.closed_at),
     source: GITHUB_SOURCE,
     url: str(item.html_url) || `https://github.com/${repository}/issues/${number}`,
@@ -237,6 +238,7 @@ export function normalizePullRequest(
   const repository = repoName(owner, repo);
   const merged = item.merged === true;
   const head = asRecord(item.head);
+  const base = asRecord(item.base);
   return {
     id: `pr:${repository}#${number}`,
     repository,
@@ -245,6 +247,9 @@ export function normalizePullRequest(
     body: str(item.body),
     state: item.state === "closed" ? "closed" : "open",
     merged,
+    mergedAt: item.merged_at == null ? null : str(item.merged_at),
+    createdAt: item.created_at == null ? null : str(item.created_at),
+    baseRefName: base.ref == null ? null : str(base.ref),
     mergeCommitSha: item.merge_commit_sha == null ? null : str(item.merge_commit_sha),
     headSha: str(head.sha) || null,
     source: GITHUB_SOURCE,

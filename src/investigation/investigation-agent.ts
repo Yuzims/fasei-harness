@@ -57,6 +57,8 @@ import {
   type InvestigationClosureStatus,
 } from "./investigation-closure.js";
 import { captureAgentClaims } from "./claim-capture.js";
+import { runResolutionPrescan } from "./resolution-prescan.js";
+import type { ResolutionReferenceSource } from "../github/graphql.js";
 import { formatStateForModel, investigationFingerprint, InvestigationState } from "./state.js";
 import { SnapshotInvestigationDriver, TEST_DRIVER_NOTICE } from "./test-driver.js";
 import { analyzeGapsForRecovery, runControlledRecoveryLoop } from "./controlled-recovery-loop.js";
@@ -143,6 +145,16 @@ export interface InvestigateOptions {
    * does not execute. The executor only adds Evidence.
    */
   recoveryExecutor?: RecoveryExecutor;
+  /**
+   * Phase 18-A deterministic resolution-reference pre-scan.
+   * Runs zero-LLM structured queries and ingests candidates before the first
+   * AgentLoop attempt. Live GitHub runs enable this; snapshot replay does not.
+   */
+  resolutionPrescan?: {
+    enabled?: boolean;
+    graphQl?: ResolutionReferenceSource;
+    maxCandidates?: number;
+  };
 }
 
 class InvestigationLoopModel implements Model {
@@ -625,6 +637,41 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
     description: task.description,
     runtimeBudget: runtime.budget,
   });
+
+  if (options.resolutionPrescan?.enabled) {
+    try {
+      await runResolutionPrescan({
+        session,
+        provider: options.provider,
+        graphQl: options.resolutionPrescan.graphQl,
+        maxCandidates: options.resolutionPrescan.maxCandidates,
+      });
+    } catch (error) {
+      // Prescan degrades per-source internally; this only guards unexpected
+      // bugs. The run must not pretend the structured chain was exhausted.
+      run.resolutionPrescan = {
+        state: "incomplete",
+        startedAt: new Date().toISOString(),
+        llmCalls: 0,
+        sources: [
+          {
+            source: "rest_issue_mentions",
+            state: "failed",
+            errorCode: "network_error",
+            detail: error instanceof Error ? error.message.slice(0, 240) : String(error),
+          },
+        ],
+        candidates: [],
+        candidatesEnumerated: 0,
+        candidatesTruncated: false,
+        commitCandidates: [],
+      };
+      trace.record(run.id, 0, "resolution_prescan_incomplete", {
+        state: "incomplete",
+        reason: "prescan crashed",
+      });
+    }
+  }
 
   try {
     return await runInvestigationAttempts({

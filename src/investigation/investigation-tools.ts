@@ -314,10 +314,16 @@ function linkPullGraph(session: InvestigationSession, pullNumber: number, prId: 
   relate(session, evidenceIdByRef(session, resourceKey("reviews", String(pullNumber))), prId, "reviews");
 }
 
+export interface IngestionOptions {
+  /** Provenance source label for evidence added through this ingestion call. */
+  provenanceSource?: string;
+}
+
 function addEvidenceOnce(
   session: InvestigationSession,
   key: string,
   input: Parameters<typeof createEvidence>[0],
+  options?: IngestionOptions,
 ): string | undefined {
   if (session.state.investigatedResources.has(key)) {
     return session.state.run.evidence.find((item) => item.contentRef === key)?.id;
@@ -326,8 +332,8 @@ function addEvidenceOnce(
     ...input,
     provenance: {
       ...input.provenance,
-      source: "github",
-      trust: "external_untrusted",
+      source: options?.provenanceSource ?? "github",
+      trust: input.provenance.trust ?? "external_untrusted",
       rawHash: input.provenance.rawHash ?? hashPayload(input.payload ?? input.summary),
     },
     contentRef: input.contentRef ?? key,
@@ -343,7 +349,11 @@ function addEvidenceOnce(
   return evidence.id;
 }
 
-function ingestIssue(session: InvestigationSession, output: unknown): string[] {
+function ingestIssue(
+  session: InvestigationSession,
+  output: unknown,
+  options?: IngestionOptions,
+): string[] {
   if (!isRecord(output)) {
     return [];
   }
@@ -354,20 +364,25 @@ function ingestIssue(session: InvestigationSession, output: unknown): string[] {
   const url = String(output.url ?? "");
   const retrievedAt = String(output.retrievedAt ?? new Date().toISOString());
   const ids: string[] = [];
-  const issueId = addEvidenceOnce(session, resourceKey("issue", String(number)), {
-    kind: "issue",
-    summary: `Issue #${number} is ${state}: ${String(output.title ?? "")}`,
-    payload: output,
-    provenance: {
-      source: "github",
-      operation: "getIssue",
-      resource: `issues/${number}`,
-      url,
-      repository,
-      retrievedAt,
-      trust: "external_untrusted",
+  const issueId = addEvidenceOnce(
+    session,
+    resourceKey("issue", String(number)),
+    {
+      kind: "issue",
+      summary: `Issue #${number} is ${state}: ${String(output.title ?? "")}`,
+      payload: output,
+      provenance: {
+        source: "github",
+        operation: "getIssue",
+        resource: `issues/${number}`,
+        url,
+        repository,
+        retrievedAt,
+        trust: "external_untrusted",
+      },
     },
-  });
+    options,
+  );
   if (issueId) {
     ids.push(issueId);
     linkIssueGraph(session, issueId);
@@ -383,7 +398,11 @@ function ingestIssue(session: InvestigationSession, output: unknown): string[] {
   return ids;
 }
 
-function ingestComments(session: InvestigationSession, output: unknown): string[] {
+function ingestComments(
+  session: InvestigationSession,
+  output: unknown,
+  options?: IngestionOptions,
+): string[] {
   const comments = asArray(output);
   const issueNumber = session.state.task.target.issueNumber;
   const ids: string[] = [];
@@ -391,20 +410,25 @@ function ingestComments(session: InvestigationSession, output: unknown): string[
   const repository = first ? String(first.repository ?? "") : session.state.task.target.owner + "/" + session.state.task.target.repository;
   const retrievedAt = first ? String(first.retrievedAt ?? new Date().toISOString()) : new Date().toISOString();
   const url = first ? String(first.url ?? "") : undefined;
-  const commentId = addEvidenceOnce(session, resourceKey("comments", String(issueNumber)), {
-    kind: "comment",
-    summary: `${comments.length} comment(s) on issue #${issueNumber}`,
-    payload: comments,
-    provenance: {
-      source: "github",
-      operation: "getIssueComments",
-      resource: `issues/${issueNumber}#comments`,
-      url,
-      repository,
-      retrievedAt,
-      trust: "external_untrusted",
+  const commentId = addEvidenceOnce(
+    session,
+    resourceKey("comments", String(issueNumber)),
+    {
+      kind: "comment",
+      summary: `${comments.length} comment(s) on issue #${issueNumber}`,
+      payload: comments,
+      provenance: {
+        source: "github",
+        operation: "getIssueComments",
+        resource: `issues/${issueNumber}#comments`,
+        url,
+        repository,
+        retrievedAt,
+        trust: "external_untrusted",
+      },
     },
-  });
+    options,
+  );
   if (commentId) {
     ids.push(commentId);
     const issueId = issueEvidenceId(session);
@@ -428,7 +452,11 @@ function ingestComments(session: InvestigationSession, output: unknown): string[
   return ids;
 }
 
-function ingestTimeline(session: InvestigationSession, output: unknown): string[] {
+function ingestTimeline(
+  session: InvestigationSession,
+  output: unknown,
+  options?: IngestionOptions,
+): string[] {
   const events = asArray(output);
   const issueNumber = session.state.task.target.issueNumber;
   const first = events.find(isRecord);
@@ -438,20 +466,25 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
   const retrievedAt = first ? String(first.retrievedAt ?? new Date().toISOString()) : new Date().toISOString();
   const url = first ? String(first.url ?? "") : undefined;
   const ids: string[] = [];
-  const timelineId = addEvidenceOnce(session, resourceKey("timeline", String(issueNumber)), {
-    kind: "timeline",
-    summary: `Timeline for issue #${issueNumber} (${events.length} event(s))`,
-    payload: events,
-    provenance: {
-      source: "github",
-      operation: "getIssueTimeline",
-      resource: `issues/${issueNumber}#timeline`,
-      url,
-      repository,
-      retrievedAt,
-      trust: "external_untrusted",
+  const timelineId = addEvidenceOnce(
+    session,
+    resourceKey("timeline", String(issueNumber)),
+    {
+      kind: "timeline",
+      summary: `Timeline for issue #${issueNumber} (${events.length} event(s))`,
+      payload: events,
+      provenance: {
+        source: "github",
+        operation: "getIssueTimeline",
+        resource: `issues/${issueNumber}#timeline`,
+        url,
+        repository,
+        retrievedAt,
+        trust: "external_untrusted",
+      },
     },
-  });
+    options,
+  );
   if (timelineId) {
     ids.push(timelineId);
     relate(session, timelineId, issueEvidenceId(session), "references");
@@ -482,7 +515,11 @@ function ingestTimeline(session: InvestigationSession, output: unknown): string[
   return ids;
 }
 
-function ingestPullRequest(session: InvestigationSession, output: unknown): string[] {
+function ingestPullRequest(
+  session: InvestigationSession,
+  output: unknown,
+  options?: IngestionOptions,
+): string[] {
   if (!isRecord(output)) {
     return [];
   }
@@ -510,37 +547,47 @@ function ingestPullRequest(session: InvestigationSession, output: unknown): stri
     recordInvestigationStarted(session, { ...existing, status: "investigating" });
   }
   const ids: string[] = [];
-  const prId = addEvidenceOnce(session, resourceKey("pr", String(number)), {
-    kind: "pull_request",
-    summary: `PR #${number} is ${String(output.state ?? "unknown")}; title=${String(output.title ?? "")}`,
-    payload: output,
-    provenance: {
-      source: "github",
-      operation: "getPullRequest",
-      resource: pullResource(number),
-      url,
-      repository,
-      retrievedAt,
-      trust: "external_untrusted",
+  const prId = addEvidenceOnce(
+    session,
+    resourceKey("pr", String(number)),
+    {
+      kind: "pull_request",
+      summary: `PR #${number} is ${String(output.state ?? "unknown")}; title=${String(output.title ?? "")}`,
+      payload: output,
+      provenance: {
+        source: "github",
+        operation: "getPullRequest",
+        resource: pullResource(number),
+        url,
+        repository,
+        retrievedAt,
+        trust: "external_untrusted",
+      },
     },
-  });
+    options,
+  );
   if (prId) {
     ids.push(prId);
   }
-  const mergeId = addEvidenceOnce(session, resourceKey("pr-merge", String(number)), {
-    kind: "pull_request",
-    summary: `PR #${number} merged=${merged}`,
-    payload: { number, merged, mergeCommitSha: output.mergeCommitSha ?? null },
-    provenance: {
-      source: "github",
-      operation: "getPullRequest",
-      resource: pullResource(number),
-      url,
-      repository,
-      retrievedAt,
-      trust: "external_untrusted",
+  const mergeId = addEvidenceOnce(
+    session,
+    resourceKey("pr-merge", String(number)),
+    {
+      kind: "pull_request",
+      summary: `PR #${number} merged=${merged}`,
+      payload: { number, merged, mergeCommitSha: output.mergeCommitSha ?? null },
+      provenance: {
+        source: "github",
+        operation: "getPullRequest",
+        resource: pullResource(number),
+        url,
+        repository,
+        retrievedAt,
+        trust: "external_untrusted",
+      },
     },
-  });
+    options,
+  );
   if (mergeId) {
     ids.push(mergeId);
   }
@@ -774,20 +821,21 @@ export function ingestObservation(
   toolName: string,
   args: Record<string, unknown>,
   output: unknown,
+  options?: IngestionOptions,
 ): string[] {
   let ids: string[];
   switch (toolName) {
     case "github_get_issue":
-      ids = ingestIssue(session, output);
+      ids = ingestIssue(session, output, options);
       break;
     case "github_get_issue_comments":
-      ids = ingestComments(session, output);
+      ids = ingestComments(session, output, options);
       break;
     case "github_get_issue_timeline":
-      ids = ingestTimeline(session, output);
+      ids = ingestTimeline(session, output, options);
       break;
     case "github_get_pull_request":
-      ids = ingestPullRequest(session, output);
+      ids = ingestPullRequest(session, output, options);
       break;
     case "github_get_pull_request_reviews":
       ids = ingestReviews(session, output, Number(args.pullNumber));

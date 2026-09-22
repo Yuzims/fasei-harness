@@ -1,0 +1,111 @@
+{
+  "queriedAs": {
+    "owner": "facebook",
+    "repo": "react"
+  },
+  "repositoryNameWithOwner": "react/react",
+  "facts": [
+    {
+      "pullNumber": 32722,
+      "found": true,
+      "state": "MERGED",
+      "merged": true,
+      "mergedAt": "2025-05-06T17:01:40Z",
+      "createdAt": "2025-03-24T16:31:32Z",
+      "baseRefName": "main",
+      "url": "https://github.com/react/react/pull/32722",
+      "closingIssueNumbers": []
+    },
+    {
+      "pullNumber": 34069,
+      "found": true,
+      "state": "MERGED",
+      "merged": true,
+      "mergedAt": "2025-08-15T16:14:23Z",
+      "createdAt": "2025-07-31T13:53:58Z",
+      "baseRefName": "main",
+      "url": "https://github.com/react/react/pull/34069",
+      "closingIssueNumbers": []
+    },
+    {
+      "pullNumber": 37142,
+      "found": true,
+      "state": "OPEN",
+      "merged": false,
+      "mergedAt": null,
+      "createdAt": "2026-07-29T10:38:58Z",
+      "baseRefName": "main",
+      "url": "https://github.com/react/react/pull/37142",
+      "closingIssueNumbers": []
+    },
+    {
+      "pullNumber": 37162,
+      "found": true,
+      "state": "MERGED",
+      "merged": true,
+      "mergedAt": "2026-08-12T01:13:35Z",
+      "createdAt": "2026-07-31T19:10:47Z",
+      "baseRefName": "main",
+      "url": "https://github.com/react/react/pull/37162",
+      "closingIssueNumbers": []
+    },
+    {
+      "pullNumber": 37163,
+      "found": true,
+      "state": "MERGED",
+      "merged": true,
+      "mergedAt": "2026-08-12T01:19:20Z",
+      "createdAt": "2026-07-31T19:10:51Z",
+      "baseRefName": "main",
+      "url": "https://github.com/react/react/pull/37163",
+      "closingIssueNumbers": []
+    },
+    {
+      "pullNumber": 37578,
+      "found": false
+    },
+    {
+      "pullNumber": 37579,
+      "found": true,
+      "state": "MERGED",
+      "merged": true,
+      "mergedAt": "2026-09-11T13:24:42Z",
+      "createdAt": "2026-09-11T00:29:35Z",
+      "baseRefName": "main",
+      "url": "https://github.com/react/react/pull/37579",
+      "closingIssueNumbers": [
+        37578
+      ]
+    },
+    {
+      "pullNumber": 37606,
+      "found": false
+    },
+    {
+      "pullNumber": 37607,
+      "found": true,
+      "state": "OPEN",
+      "merged": false,
+      "mergedAt": null,
+      "createdAt": "2026-09-11T18:53:39Z",
+      "baseRefName": "main",
+      "url": "https://github.com/react/react/pull/37607",
+      "closingIssueNumbers": [
+        37606
+      ]
+    },
+    {
+      "pullNumber": 37626,
+      "found": true,
+      "state": "OPEN",
+      "merged": false,
+      "mergedAt": null,
+      "createdAt": "2026-09-14T10:54:00Z",
+      "baseRefName": "main",
+      "url": "https://github.com/react/react/pull/37626",
+      "closingIssueNumbers": [
+        37610
+      ]
+    }
+  ]
+}

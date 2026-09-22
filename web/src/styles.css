@@ -576,6 +576,18 @@ a {
   color: var(--insufficient);
 }
 
+.hero-coverage-marker {
+  margin-left: 10px;
+  padding: 2px 8px;
+  border: 1px solid var(--insufficient);
+  border-radius: 999px;
+  color: var(--insufficient);
+  font-size: 12px;
+  font-weight: 550;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .hero-summary {
   margin: 0 0 10px;
 }

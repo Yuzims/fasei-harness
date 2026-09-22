@@ -1,4 +1,4 @@
-import { appendAttempt, createInvestigationRun, createInvestigationTask, RECOVERY_BOUNDS } from "../domain/index.js";
+import { appendAttempt, createInvestigationRun, createInvestigationTask, deriveAttributionCoverage, RECOVERY_BOUNDS } from "../domain/index.js";
 import type {
   FailureEvent,
   InvestigationAttemptStatus,
@@ -677,7 +677,7 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
   }
 
   try {
-    return await runInvestigationAttempts({
+    const report = await runInvestigationAttempts({
       options,
       task,
       trace,
@@ -693,6 +693,15 @@ export async function investigate(options: InvestigateOptions): Promise<Investig
       runtime,
       llmUsage,
     });
+    // Phase 18-C: coverage is verdict metadata derived after the run; the
+    // verifier has already finished and never reads it back.
+    run.attributionCoverage = deriveAttributionCoverage({
+      prescan: run.resolutionPrescan,
+      llmCallsSent: runtime.llmCallsSent,
+      maxLlmCalls: runtime.budget.maxLlmCalls,
+      runtimeBudgetFailure: isRuntimeBudgetFailure(session.runtimeFailure),
+    });
+    return report;
   } finally {
     runtime.dispose();
   }

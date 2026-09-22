@@ -13,6 +13,11 @@ export function ResultHero({ view }: { view: InvestigationResultViewModel }) {
       <p className="kicker">调查结果 · {view.issueLine}</p>
       <h2 className="hero-title" data-testid="hero-status">
         {view.statusLabel}
+        {view.coverage?.marker ? (
+          <span className="hero-coverage-marker" data-testid="hero-coverage-marker">
+            {view.coverage.marker}
+          </span>
+        ) : null}
       </h2>
       <p className="hero-summary">{view.summary}</p>
 

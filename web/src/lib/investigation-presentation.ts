@@ -165,6 +165,14 @@ export interface InvestigationVerdictView {
   counts: { pass: number; fail: number; unknown: number };
 }
 
+/** Phase 18-C mid-run presentation. Copy only; checks and verdict are untouched. */
+export interface AttributionCoverageView {
+  state: "exhausted" | "mid_run" | "not_assertable";
+  /** Shown next to the status label only when this is a mid-run conclusion. */
+  marker?: string;
+  unadjudicatedCount: number;
+}
+
 export interface AgentClaimView {
   id: string;
   text: string;
@@ -181,6 +189,7 @@ function buildInvestigationVerdict(
   status: InvestigationVerificationStatus | undefined,
   checks: HarnessCheckView[],
   missingRequirementIds: string[],
+  coverage?: AttributionCoverageView,
 ): InvestigationVerdictView {
   const counts = {
     pass: checks.filter((item) => item.tone === "pass").length,
@@ -226,7 +235,46 @@ function buildInvestigationVerdict(
       }
     }
   }
-  return { why, gaps, counts };
+  return { why, gaps: coverageGapFirst(gaps, coverage), counts };
+}
+
+function coverageGapFirst(
+  gaps: VerdictGapView[],
+  coverage?: AttributionCoverageView,
+): VerdictGapView[] {
+  if (!coverage || coverage.state !== "mid_run") {
+    return gaps;
+  }
+  return [
+    {
+      id: "attribution-coverage",
+      mark: "?",
+      label:
+        coverage.unadjudicatedCount > 0
+          ? `中间结论：还有 ${coverage.unadjudicatedCount} 个解决候选未完成机器裁决`
+          : "中间结论：候选扫描未穷尽（部分机器扫描源失败或被跳过）",
+      explanation: "候选枚举或裁决尚未穷尽，本结论是中间结论，不代表已排查完所有解决线索。",
+    },
+    ...gaps,
+  ];
+}
+
+function presentAttributionCoverage(
+  session: InvestigationSessionDTO,
+): AttributionCoverageView | undefined {
+  const coverage = session.attributionCoverage;
+  if (!coverage) {
+    return undefined;
+  }
+  const unadjudicatedCount = coverage.unadjudicatedCandidates.length + coverage.unenumeratedCandidates;
+  if (coverage.state !== "mid_run") {
+    return { state: coverage.state, unadjudicatedCount };
+  }
+  return {
+    state: coverage.state,
+    unadjudicatedCount,
+    marker: coverage.budgetExhausted ? "中间结论 · 预算耗尽" : "中间结论 · 未穷尽",
+  };
 }
 
 export interface VerificationView {
@@ -257,6 +305,8 @@ export interface InvestigationResultViewModel {
   tone: VerificationTone;
   issueLine: string;
   verdict: InvestigationVerdictView;
+  /** Phase 18-C. Undefined on legacy snapshot runs — coverage not assertable. */
+  coverage?: AttributionCoverageView;
   findings: InvestigationFindingView[];
   evidence: EvidenceView[];
   verification: VerificationView;
@@ -756,6 +806,7 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
     tone: checkTone(check.status),
     explanation: checkExplanation(check.id),
   }));
+  const coverage = presentAttributionCoverage(session);
   const unsupportedClaimIds = verification?.unsupportedClaimIds ?? [];
   const agentClaims: AgentClaimView[] = session.claims.map((claim) => ({
     id: claim.id,
@@ -770,7 +821,13 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
     summary: verificationSubtitle(verification?.status),
     tone: verificationTone(verification?.status),
     issueLine,
-    verdict: buildInvestigationVerdict(status, harnessChecks, verification?.missingRequirementIds ?? []),
+    verdict: buildInvestigationVerdict(
+      status,
+      harnessChecks,
+      verification?.missingRequirementIds ?? [],
+      coverage,
+    ),
+    coverage,
     findings: buildInvestigationFindings(session),
     evidence: session.evidence,
     verification: {

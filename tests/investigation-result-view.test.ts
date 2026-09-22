@@ -395,3 +395,90 @@ test("17-B2.5 harness 检查项带 explanation，供验证明细展示人话", (
   assert.equal(typeof check.explanation, "string");
   assert.ok(check.explanation && check.explanation.length > 0);
 });
+
+const notVerifiedCheckSession = (extra: Partial<InvestigationSessionDTO> = {}): InvestigationSessionDTO =>
+  session({
+    verification: {
+      status: "not_verified",
+      evidenceCoverage: 0.5,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [
+        { id: "issue-identity", name: "issue identity", status: "pass", message: "ok" },
+        { id: "pr-merged", name: "pr merged", status: "fail", message: "refuted" },
+      ],
+    },
+    ...extra,
+  });
+
+test("18-C.1 mid_run + 预算耗尽：hero 标记与「还差什么」首行，checks 不变", () => {
+  const base = buildInvestigationResultView(notVerifiedCheckSession());
+  const view = buildInvestigationResultView(
+    notVerifiedCheckSession({
+      attributionCoverage: {
+        state: "mid_run",
+        prescanState: "incomplete",
+        candidatesEnumerated: 10,
+        candidatesAdjudicated: 8,
+        unadjudicatedCandidates: [11, 12],
+        unenumeratedCandidates: 0,
+        budgetExhausted: true,
+      },
+    }),
+  );
+  assert.equal(view.coverage?.marker, "中间结论 · 预算耗尽");
+  assert.equal(view.coverage?.unadjudicatedCount, 2);
+  assert.equal(view.verdict.gaps[0]?.id, "attribution-coverage");
+  assert.match(view.verdict.gaps[0]?.label ?? "", /还有 2 个解决候选未完成机器裁决/);
+  // 呈现层只加文案：状态、缺口尾部、checks 与无 coverage 的基线完全一致。
+  assert.deepEqual(view.verdict.gaps.slice(1), base.verdict.gaps);
+  assert.deepEqual(view.verification.checks, base.verification.checks);
+  assert.equal(view.status, base.status);
+});
+
+test("18-C.2 mid_run 但候选已全部裁决（扫描源失败）：未穷尽文案", () => {
+  const view = buildInvestigationResultView(
+    notVerifiedCheckSession({
+      attributionCoverage: {
+        state: "mid_run",
+        prescanState: "incomplete",
+        candidatesEnumerated: 3,
+        candidatesAdjudicated: 3,
+        unadjudicatedCandidates: [],
+        unenumeratedCandidates: 0,
+        budgetExhausted: false,
+      },
+    }),
+  );
+  assert.equal(view.coverage?.marker, "中间结论 · 未穷尽");
+  assert.match(view.verdict.gaps[0]?.label ?? "", /候选扫描未穷尽/);
+});
+
+test("18-C.3 exhausted：已收敛不加噪", () => {
+  const base = buildInvestigationResultView(notVerifiedCheckSession());
+  const view = buildInvestigationResultView(
+    notVerifiedCheckSession({
+      attributionCoverage: {
+        state: "exhausted",
+        prescanState: "completed",
+        candidatesEnumerated: 10,
+        candidatesAdjudicated: 10,
+        unadjudicatedCandidates: [],
+        unenumeratedCandidates: 0,
+        budgetExhausted: false,
+      },
+    }),
+  );
+  assert.equal(view.coverage?.marker, undefined);
+  assert.deepEqual(view.verdict.gaps, base.verdict.gaps);
+});
+
+test("18-C.4 无 coverage 字段（旧快照）：呈现与基线完全一致", () => {
+  const base = buildInvestigationResultView(notVerifiedCheckSession());
+  const view = buildInvestigationResultView(
+    notVerifiedCheckSession({ attributionCoverage: undefined }),
+  );
+  assert.equal(view.coverage, undefined);
+  assert.deepEqual(view.verdict, base.verdict);
+});

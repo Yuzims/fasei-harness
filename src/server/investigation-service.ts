@@ -389,6 +389,9 @@ export function toInvestigationSessionDTO(
     },
     llmUsage: toLlmUsageDTO(report.llmUsage),
     runtimeBudget: report.runtimeBudget,
+    attributionCoverage: report.run.attributionCoverage
+      ? { ...report.run.attributionCoverage, unadjudicatedCandidates: [...report.run.attributionCoverage.unadjudicatedCandidates] }
+      : undefined,
   };
 }
 

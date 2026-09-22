@@ -495,6 +495,30 @@ export interface ResolutionPrescanRecord {
   unlinkedFixScan?: UnlinkedFixScan;
 }
 
+/**
+ * Phase 18-C attribution coverage machine record: pure field derivation over
+ * the 18-A prescan record and runtime budget counters, zero LLM. Verdict
+ * metadata only — no verifier condition may read it.
+ */
+export interface AttributionCoverage {
+  /**
+   * "exhausted": prescan completed and every enumerated candidate reached a
+   * machine verdict. "mid_run": structured attribution is not exhausted.
+   * "not_assertable": no prescan record, so nothing may be claimed.
+   */
+  state: "exhausted" | "mid_run" | "not_assertable";
+  prescanState: "completed" | "incomplete" | "absent";
+  candidatesEnumerated: number;
+  /** Candidates whose facts were fully read, so field-based rules decided them. */
+  candidatesAdjudicated: number;
+  /** Pull numbers enumerated but not adjudicated (detail fetch failed/skipped). */
+  unadjudicatedCandidates: number[];
+  /** Enumerated candidates cut by the prescan cap — numbers unknown, resume input. */
+  unenumeratedCandidates: number;
+  /** LLM runtime budget fully consumed (calls or wall clock) — not a text judgment. */
+  budgetExhausted: boolean;
+}
+
 export interface InvestigationRun {
   id: string;
   taskId: string;
@@ -510,4 +534,6 @@ export interface InvestigationRun {
   resolutionAnalyses: ResolutionAnalysis[];
   /** Phase 18-A prescan machine record. Absent means no prescan ran. */
   resolutionPrescan?: ResolutionPrescanRecord;
+  /** Phase 18-C coverage metadata. Verifier never reads it; checks stay untouched. */
+  attributionCoverage?: AttributionCoverage;
 }

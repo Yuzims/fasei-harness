@@ -1,4 +1,5 @@
 export type {
+  AttributionCoverage,
   CheckStatus,
   CheckType,
   Claim,
@@ -160,6 +161,8 @@ export type {
 
 export { corroboratedFixPullNumbers, refutedByTemporalOrder } from "./attribution.js";
 export type { TemporalRefutation, TemporalRefutationBasis } from "./attribution.js";
+export { deriveAttributionCoverage } from "./attribution-coverage.js";
+export type { AttributionCoverageInput } from "./attribution-coverage.js";
 
 export { describeResolutionAlignment, contentTokens, identifierTokens } from "./resolution-alignment.js";
 export type { AlignmentOutcome } from "./resolution-alignment.js";

@@ -297,6 +297,17 @@ export interface InvestigationAttemptDTO {
   claimIds: string[];
 }
 
+/** Phase 18-C attribution coverage record. Verdict metadata, never a check input. */
+export interface AttributionCoverageDTO {
+  state: "exhausted" | "mid_run" | "not_assertable";
+  prescanState: "completed" | "incomplete" | "absent";
+  candidatesEnumerated: number;
+  candidatesAdjudicated: number;
+  unadjudicatedCandidates: number[];
+  unenumeratedCandidates: number;
+  budgetExhausted: boolean;
+}
+
 export interface InvestigationSessionDTO {
   mode: InvestigationMode;
   dataSource: InvestigationMode;
@@ -343,6 +354,7 @@ export interface InvestigationSessionDTO {
     maxLlmCalls: number;
     maxWallClockMs: number;
   };
+  attributionCoverage?: AttributionCoverageDTO;
 }
 
 export interface LlmUsageDTO {

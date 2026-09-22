@@ -7,6 +7,7 @@ import type {
 import {
   agentHarnessDisagree,
   buildInvestigationSteps,
+  checkExplanation,
   checkLabel,
   checkMark,
   checkTone,
@@ -17,6 +18,7 @@ import {
   polarityLabel,
   primaryVerificationChecks,
   recoveryActionLabel,
+  requirementLabel,
   type CheckTone,
   type InvestigationStepView,
   verificationLabel,
@@ -147,6 +149,84 @@ export interface HarnessCheckView {
   label: string;
   mark: string;
   tone: CheckTone;
+  explanation?: string;
+}
+
+export interface VerdictGapView {
+  id: string;
+  mark: string;
+  label: string;
+  explanation: string;
+}
+
+export interface InvestigationVerdictView {
+  why: string;
+  gaps: VerdictGapView[];
+  counts: { pass: number; fail: number; unknown: number };
+}
+
+export interface AgentClaimView {
+  id: string;
+  text: string;
+  critical: boolean;
+  supported: boolean;
+}
+
+const GAP_FALLBACK_EXPLANATION: Record<string, string> = {
+  "issue-state": "Issue 目前仍是打开的：修复可能已生效，但记录上未走完关闭流程。",
+  "resolution-effect": "只有文件变更证据，没有测试运行或行为验证记录能证明 bug 已消失。",
+};
+
+function buildInvestigationVerdict(
+  status: InvestigationVerificationStatus | undefined,
+  checks: HarnessCheckView[],
+  missingRequirementIds: string[],
+): InvestigationVerdictView {
+  const counts = {
+    pass: checks.filter((item) => item.tone === "pass").length,
+    fail: checks.filter((item) => item.tone === "fail").length,
+    unknown: checks.filter((item) => item.tone !== "pass" && item.tone !== "fail").length,
+  };
+  const passed = checks.filter((item) => item.tone === "pass").map((item) => item.label);
+  const why =
+    status === "verified_complete"
+      ? `全部验证项通过：${passed.join("、")}。`
+      : passed.length > 0
+        ? `已验证到的部分：${passed.join("、")}。`
+        : "目前没有通过的验证项。";
+
+  const gaps: VerdictGapView[] = [];
+  if (status === "not_verified") {
+    for (const check of checks) {
+      if (check.tone === "fail") {
+        gaps.push({
+          id: check.id,
+          mark: check.mark,
+          label: check.label,
+          explanation: GAP_FALLBACK_EXPLANATION[check.id] ?? check.explanation ?? "",
+        });
+      }
+    }
+  } else if (status === "insufficient_evidence") {
+    for (const check of checks) {
+      if (check.tone !== "pass" && check.tone !== "fail") {
+        gaps.push({
+          id: check.id,
+          mark: "?",
+          label: check.label,
+          explanation: check.explanation ?? "",
+        });
+      }
+    }
+    for (const id of missingRequirementIds) {
+      const label = requirementLabel(id);
+      // 检查项与证据要求是两套 id，同一缺口只保留一条。
+      if (!gaps.some((item) => item.id === id || item.label === label)) {
+        gaps.push({ id, mark: "?", label, explanation: "缺少该类证据。" });
+      }
+    }
+  }
+  return { why, gaps, counts };
 }
 
 export interface VerificationView {
@@ -166,6 +246,7 @@ export interface AgentLaneView {
   judgment: string;
   judgmentNote: string;
   disagreesWithHarness: boolean;
+  claims: AgentClaimView[];
   resolutionAnalyses: ResolutionAnalysisView[];
 }
 
@@ -175,6 +256,7 @@ export interface InvestigationResultViewModel {
   summary: string;
   tone: VerificationTone;
   issueLine: string;
+  verdict: InvestigationVerdictView;
   findings: InvestigationFindingView[];
   evidence: EvidenceView[];
   verification: VerificationView;
@@ -667,25 +749,36 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
     ]),
   ].filter(Boolean);
 
+  const harnessChecks = primaryVerificationChecks(session).map((check) => ({
+    id: check.id,
+    label: checkLabel(check),
+    mark: checkMark(check.status),
+    tone: checkTone(check.status),
+    explanation: checkExplanation(check.id),
+  }));
+  const unsupportedClaimIds = verification?.unsupportedClaimIds ?? [];
+  const agentClaims: AgentClaimView[] = session.claims.map((claim) => ({
+    id: claim.id,
+    text: claim.text,
+    critical: claim.critical,
+    supported: !unsupportedClaimIds.includes(claim.id),
+  }));
+
   return {
     status,
     statusLabel: verificationLabel(verification?.status),
     summary: verificationSubtitle(verification?.status),
     tone: verificationTone(verification?.status),
     issueLine,
+    verdict: buildInvestigationVerdict(status, harnessChecks, verification?.missingRequirementIds ?? []),
     findings: buildInvestigationFindings(session),
     evidence: session.evidence,
     verification: {
       status: verification?.status,
-      checks: primaryVerificationChecks(session).map((check) => ({
-        id: check.id,
-        label: checkLabel(check),
-        mark: checkMark(check.status),
-        tone: checkTone(check.status),
-      })),
+      checks: harnessChecks,
       evidenceCoverage: verification?.evidenceCoverage,
       missingRequirementIds: verification?.missingRequirementIds ?? [],
-      unsupportedClaimIds: verification?.unsupportedClaimIds ?? [],
+      unsupportedClaimIds,
       prematureCompletion: verification?.prematureCompletion ?? false,
       satisfiedLabel: requirement.label,
     },
@@ -698,6 +791,7 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
       judgment: presentAgentJudgment(session),
       judgmentNote: "这是调查阶段产生的判断，不是独立验证结果；是否解决以独立验证为准。",
       disagreesWithHarness: agentHarnessDisagree(session),
+      claims: agentClaims,
       resolutionAnalyses,
     },
     process: {

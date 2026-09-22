@@ -67,15 +67,16 @@ const CHECK_LABELS: Record<string, string> = {
   "resolution code evidence": "代码 / Commit 证据",
   "resolution-effect": "解决效果",
   "resolution effect alignment": "解决效果",
-  "claims-supported": "关键 Claim",
-  "claim support": "关键 Claim",
+  "claims-supported": "关键说法",
+  "claim support": "关键说法",
   "evidence-requirements": "证据要求",
   "evidence requirements": "证据要求",
 };
 
 const REQUIREMENT_LABELS: Record<string, string> = {
   "req-issue": "目标 Issue",
-  "req-pr": "已合并的 Pull Request",
+  // 与 CHECK_LABELS 的 "pr-merged" 用同一措辞，供 verdict 缺口按 label 去重。
+  "req-pr": "已合并 Pull Request",
   "req-commit": "代码 / Commit 证据",
   "issue-identity": "Issue 身份",
   "issue-state": "Issue 状态",
@@ -84,7 +85,7 @@ const REQUIREMENT_LABELS: Record<string, string> = {
   "pr-merged": "已合并的 Pull Request",
   "code-commit": "代码 / Commit 证据",
   "resolution-effect": "解决效果对齐",
-  "claims-supported": "关键 Claim",
+  "claims-supported": "关键说法",
   "evidence-requirements": "证据要求",
 };
 
@@ -249,15 +250,31 @@ export function verificationTone(status?: string): VerificationTone {
 
 export function verificationSubtitle(status?: string): string {
   if (status === "verified_complete") {
-    return "当前证据可以证明这个 Issue 已经解决。";
+    return "全部验证项通过，证据齐备：Harness 可以确认这个 Issue 已解决。";
   }
   if (status === "not_verified") {
-    return "当前没有足够证据证明这个 Issue 已经解决。";
+    return "现有记录不满足\u201c已解决\u201d的认证条件（见下方 ✗ 项）。这不等于确认问题仍存在——若修复确已生效，通常以维护者关闭 Issue 或出现行为验证证据为准。";
   }
   if (status === "insufficient_evidence") {
-    return "当前调查没有获得能够完成验证所需的证据。";
+    return "现有证据无法判断是否解决，缺以下证据；继续调查可能改变结论。";
   }
   return "Harness 尚未给出独立验证结果。";
+}
+
+const CHECK_EXPLANATIONS: Record<string, string> = {
+  "issue-identity": "调查的就是这个 Issue",
+  "issue-state": "Issue 是否已关闭（未关闭不代表 bug 仍在，只是记录上未走完流程）",
+  "closure-semantics": "Issue 的关闭方式能否表达\u201c已解决\u201d",
+  "resolution-candidate": "是否找到了候选的解决记录（如 PR）",
+  "pr-merged": "候选 Pull Request 是否已合并进主干",
+  "code-commit": "合并是否包含实际代码变更",
+  "resolution-effect": "是否有测试运行或行为证据证明修复生效",
+  "claims-supported": "Agent 的关键说法是否都有证据支撑",
+  "evidence-requirements": "验证所需的全部证据类别是否齐备",
+};
+
+export function checkExplanation(id: string): string | undefined {
+  return CHECK_EXPLANATIONS[id];
 }
 
 export function checkTone(status?: string): CheckTone {

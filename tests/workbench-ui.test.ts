@@ -192,7 +192,10 @@ test("UI：example labels 来自 repository / issue，不从 identifier 推导 v
     }),
     { scenarioId: "tool-failure", mode: "snapshot" },
   );
-  assert.equal(verificationSubtitle("verified_complete"), "当前证据可以证明这个 Issue 已经解决。");
+  assert.equal(
+    verificationSubtitle("verified_complete"),
+    "全部验证项通过，证据齐备：Harness 可以确认这个 Issue 已解决。",
+  );
   assert.equal(verificationLabel("insufficient_evidence"), "证据不足");
   assert.equal(investigationMode({ mode: "live" }), "live");
   assert.equal(investigationMode({ dataSource: "snapshot" }), "snapshot");
@@ -215,7 +218,7 @@ test("UI：C01 / C05 / C08 / C09 / C10 结果文案来自 verifier status", () =
 });
 
 test("UI：内部 requirement id 不作为默认展示", () => {
-  assert.equal(requirementLabel("req-pr"), "已合并的 Pull Request");
+  assert.equal(requirementLabel("req-pr"), "已合并 Pull Request");
   assert.equal(requirementLabel("req-commit"), "代码 / Commit 证据");
   assert.equal(checkLabel({ id: "issue-identity", name: "issue identity" }), "Issue 身份");
   assert.equal(checkLabel({ id: "pr-merged", name: "resolution landed" }), "已合并 Pull Request");
@@ -285,7 +288,7 @@ test("UI：内部 enum 映射为中文，不把 runtime 术语直接给用户", 
   assert.equal(isProcessFailure("loop_failure"), true);
   assert.equal(isEvidenceInsufficiency("insufficient_evidence"), true);
   assert.equal(isProcessFailure("insufficient_evidence"), false);
-  assert.equal(requirementLabel("req-pr"), "已合并的 Pull Request");
+  assert.equal(requirementLabel("req-pr"), "已合并 Pull Request");
   assert.notEqual(requirementLabel("req-pr"), "nextRequirementIds");
 });
 
@@ -330,7 +333,7 @@ test("UI：verified_complete 展示已验证解决，不把 Agent 结论当成�
   });
   const view = buildInvestigationResultView(current);
   assert.equal(view.statusLabel, "已验证解决");
-  assert.equal(view.summary, "当前证据可以证明这个 Issue 已经解决。");
+  assert.equal(view.summary, "全部验证项通过，证据齐备：Harness 可以确认这个 Issue 已解决。");
   assert.equal(view.agent.conclusion, "Looks resolved.");
   assert.equal(view.agent.conclusionSource, "agent_report");
   assert.equal(view.agent.judgment, "调查发现：目前证据指向该 Issue 已经解决。");
@@ -447,7 +450,7 @@ test("UI：INSUFFICIENT_EVIDENCE 显示证据不足，不是 Tool Failure", () =
   assert.match(view.agent.conclusion, /本次调查没有产生 Agent 最终回答/);
   assert.deepEqual(view.openQuestions, ["是否存在尚未关联到 Issue 的修复？"]);
   assert.equal(view.verification.satisfiedLabel, "满足 1 / 3 项证据要求");
-  assert.deepEqual(view.incident?.nextEvidence, ["已合并的 Pull Request", "代码 / Commit 证据"]);
+  assert.deepEqual(view.incident?.nextEvidence, ["已合并 Pull Request", "代码 / Commit 证据"]);
   assert.equal(view.incident?.recoverySummary, "调查已停止，避免重复执行相同的检索。");
   assert.equal(JSON.stringify(view.incident).includes("调查失败"), false);
   assert.equal(JSON.stringify(view.verification).includes("33.3%"), false);

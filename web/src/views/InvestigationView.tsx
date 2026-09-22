@@ -1,12 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, fetchInvestigationCatalog, runInvestigationStream } from "../api/client";
 import { AdvancedInfo } from "../components/AdvancedInfo";
-import { AgentAnswerPanel } from "../components/AgentOutput";
+import { AgentOutputFold } from "../components/AgentOutput";
 import { EvidencePanel } from "../components/EvidencePanel";
-import { FindingsPanel } from "../components/FindingsPanel";
 import { InvestigationProcessPanel } from "../components/InvestigationProcessPanel";
-import { OpenQuestionsPanel } from "../components/OpenQuestionsPanel";
-import { IndependentVerificationPanel, InvestigationResultBanner } from "../components/VerificationPanel";
+import { ResultHero } from "../components/ResultHero";
+import { VerificationDetailsFold } from "../components/VerificationDetailsFold";
 import { applyLiveStreamEvent, type LiveProcessItem } from "../lib/investigation-stream";
 import { buildInvestigationResultView } from "../lib/investigation-presentation";
 import {
@@ -32,9 +31,10 @@ import type {
 const WORKFLOW_STEPS = ["Issue", "调查", "证据", "独立验证", "结果"] as const;
 const OUTCOMES = ["verified_complete", "not_verified", "insufficient_evidence"] as const;
 const EMPTY_RESULT_ITEMS = [
-  "调查结论（以 Harness 独立验证为准）",
-  "调查发现与关键证据",
-  "独立验证与待确认事项",
+  "结果判定卡：结论 → 为什么 → 还差什么（以 Harness 独立验证为准）",
+  "证据：调查收集到的 GitHub 原始记录",
+  "验证明细：逐项证据检查、调查发现、待确认事项",
+  "Agent 输出：Agent 的结论与关键说法（未验证输入）",
 ] as const;
 
 function catalogIssue(item: Pick<InvestigationCatalogItemDTO, "owner" | "repository" | "issueNumber">) {
@@ -277,15 +277,13 @@ export function InvestigationView() {
 
       {session && result ? (
         <>
-          <InvestigationResultBanner view={result} />
-          <FindingsPanel
+          <ResultHero view={result} />
+          <EvidencePanel evidence={result.evidence} focusEvidenceIds={focusEvidenceIds} />
+          <VerificationDetailsFold
             view={result}
             onShowEvidence={(evidenceIds) => setFocusEvidenceIds([...evidenceIds])}
           />
-          <EvidencePanel evidence={result.evidence} focusEvidenceIds={focusEvidenceIds} />
-          <IndependentVerificationPanel view={result} />
-          <OpenQuestionsPanel view={result} />
-          <AgentAnswerPanel view={result} />
+          <AgentOutputFold view={result} />
           <AdvancedInfo session={session} view={result} />
         </>
       ) : null}

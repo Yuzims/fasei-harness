@@ -293,3 +293,105 @@ test("17-B1.12C merged 只来自结构化 relation，summary 正则不再参与�
   assert.equal(finding?.text.includes("已合并"), true);
   assert.equal(finding?.tone, "pass");
 });
+
+test("17-B2.1 verified_complete 时 verdict 汇总通过项且没有缺口", () => {
+  const current = session({
+    verification: {
+      status: "verified_complete",
+      evidenceCoverage: 1,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [
+        { id: "issue-identity", name: "issue identity", status: "pass", message: "ok" },
+        { id: "issue-state", name: "issue state", status: "pass", message: "closed" },
+      ],
+    },
+  });
+  const view = buildInvestigationResultView(current);
+  assert.deepEqual(view.verdict.counts, { pass: 2, fail: 0, unknown: 0 });
+  assert.deepEqual(view.verdict.gaps, []);
+  assert.match(view.verdict.why, /^全部验证项通过/);
+});
+
+test("17-B2.2 not_verified 时 verdict 缺口只列 fail 项并带人话解释", () => {
+  const current = session({
+    verification: {
+      status: "not_verified",
+      evidenceCoverage: 0.5,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [
+        { id: "issue-identity", name: "issue identity", status: "pass", message: "ok" },
+        { id: "issue-state", name: "issue state", status: "fail", message: "issue still open" },
+        { id: "resolution-effect", name: "resolution effect", status: "unknown", message: "unknown" },
+      ],
+    },
+  });
+  const view = buildInvestigationResultView(current);
+  assert.deepEqual(view.verdict.gaps.map((item) => item.id), ["issue-state"]);
+  assert.match(view.verdict.gaps[0].explanation, /Issue 目前仍是打开的/);
+  assert.match(view.verdict.why, /已验证到的部分/);
+  assert.deepEqual(view.verdict.counts, { pass: 1, fail: 1, unknown: 1 });
+});
+
+test("17-B2.3 insufficient_evidence 时 verdict 缺口列未知检查与缺失证据要求", () => {
+  const current = session({
+    verification: {
+      status: "insufficient_evidence",
+      evidenceCoverage: 0.2,
+      prematureCompletion: false,
+      missingRequirementIds: ["resolution-evidence"],
+      unsupportedClaimIds: [],
+      checks: [
+        { id: "issue-identity", name: "issue identity", status: "pass", message: "ok" },
+        { id: "resolution-effect", name: "resolution effect", status: "unknown", message: "unknown" },
+      ],
+    },
+  });
+  const view = buildInvestigationResultView(current);
+  assert.deepEqual(view.verdict.gaps.map((item) => item.id), [
+    "resolution-effect",
+    "resolution-evidence",
+  ]);
+  assert.equal(view.verdict.gaps.every((item) => item.mark === "?"), true);
+});
+
+test("17-B2.4 Agent claims 的 supported 只来自 unsupportedClaimIds，不重算", () => {
+  const current = session({
+    claims: [
+      { id: "claim-1", text: "PR #7 fixes the NPE", polarity: "resolved", critical: true },
+      { id: "claim-2", text: "Tests cover the fix", polarity: "resolved", critical: false },
+    ],
+    verification: {
+      status: "not_verified",
+      evidenceCoverage: 0.5,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: ["claim-2"],
+      checks: [],
+    },
+  });
+  const view = buildInvestigationResultView(current);
+  assert.deepEqual(view.agent.claims, [
+    { id: "claim-1", text: "PR #7 fixes the NPE", critical: true, supported: true },
+    { id: "claim-2", text: "Tests cover the fix", critical: false, supported: false },
+  ]);
+});
+
+test("17-B2.5 harness 检查项带 explanation，供验证明细展示人话", () => {
+  const current = session({
+    verification: {
+      status: "insufficient_evidence",
+      evidenceCoverage: 0.2,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [{ id: "resolution-effect", name: "resolution effect", status: "unknown", message: "unknown" }],
+    },
+  });
+  const check = buildInvestigationResultView(current).verification.checks[0];
+  assert.equal(typeof check.explanation, "string");
+  assert.ok(check.explanation && check.explanation.length > 0);
+});

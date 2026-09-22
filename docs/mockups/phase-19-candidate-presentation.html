@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Phase 19-A · 候选感知的结果呈现 + 调查过程面板 — 静态 Mockup</title>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --surface-2: #f8f9fb;
+    --line: #d7dce5;
+    --line-strong: #c3cad6;
+    --text: #1b2430;
+    --muted: #5d6b7c;
+    --accent: #1f4e79;
+    --verified: #0f7a4c;
+    --verified-bg: #e8f6ee;
+    --not-verified: #b42318;
+    --not-verified-bg: #fdeceb;
+    --insufficient: #8a5a00;
+    --insufficient-bg: #fff6de;
+    --running: #175cd3;
+    --running-bg: #eff4ff;
+    --radius: 4px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "IBM Plex Sans", "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  .page { max-width: 880px; margin: 0 auto; padding: 32px 20px 96px; }
+  .state-tag {
+    display: inline-block; margin: 40px 0 8px; padding: 3px 10px;
+    background: var(--text); color: #fff; border-radius: 999px; font-size: 12px; letter-spacing: 1px;
+  }
+  .state-note { color: var(--muted); font-size: 12.5px; margin: 4px 0 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px 22px; margin-bottom: 14px; }
+  .kicker { color: var(--muted); font-size: 12px; margin: 0 0 6px; }
+  h2 { font-size: 20px; margin: 4px 0 8px; }
+  h3 { font-size: 15px; margin: 0 0 10px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12.5px; }
+  a { color: var(--accent); text-decoration: none; }
+
+  /* hero */
+  .hero { border-left: 4px solid var(--not-verified); background: var(--surface); }
+  .hero.converged { border-left-color: var(--not-verified); }
+  .hero.midrun { border-left-color: var(--insufficient); }
+  .hero-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .hero-title h2 { margin: 0; }
+  .chip {
+    font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--insufficient);
+    color: var(--insufficient); white-space: nowrap;
+  }
+  .hero-guidance {
+    margin-top: 12px; padding: 8px 12px; background: var(--surface-2);
+    border: 1px dashed var(--line-strong); border-radius: var(--radius); font-size: 13px;
+  }
+  .counts { margin-top: 12px; font-size: 13px; color: var(--muted); }
+
+  /* 解决候选块 */
+  .cand-table { width: 100%; border-collapse: collapse; }
+  .cand-table th {
+    text-align: left; font-weight: 600; color: var(--muted); font-size: 12px;
+    padding: 6px 8px; border-bottom: 1px solid var(--line);
+  }
+  .cand-table td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .cand-table tr:last-child td { border-bottom: none; }
+  .prnum { font-weight: 650; white-space: nowrap; }
+  .badge {
+    display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  }
+  .badge.fix-pending { background: var(--running-bg); color: var(--running); border: 1px solid #bcd0f7; }
+  .badge.refuted { background: var(--not-verified-bg); color: var(--not-verified); border: 1px solid #f3c6c1; }
+  .badge.hint { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+  .badge.notpr { background: var(--surface-2); color: var(--muted); border: 1px dashed var(--line-strong); }
+  .badge.unknown { background: var(--insufficient-bg); color: var(--insufficient); border: 1px solid #ecd9a8; }
+  .stat-open { color: var(--running); font-weight: 600; }
+  .stat-merged { color: var(--verified); font-weight: 600; }
+  .stat-closed { color: var(--insufficient); font-weight: 600; }
+  .date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hint-sub { margin-top: 14px; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius); }
+  .sha { font-family: Consolas, monospace; font-size: 12px; }
+
+  /* 折叠区（现状保持） */
+  details.fold { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; }
+  details.fold > summary {
+    cursor: pointer; padding: 12px 16px; font-weight: 600; list-style: none;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  details.fold > summary::after { content: "▾"; color: var(--muted); }
+  details.fold[open] > summary::after { content: "▴"; }
+  details.fold .fold-body { padding: 0 16px 14px; border-top: 1px solid var(--line); }
+
+  /* 调查过程面板 */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .panel-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2);
+  }
+  .phase { border-bottom: 1px solid var(--line); }
+  .phase:last-child { border-bottom: none; }
+  .phase-head {
+    display: flex; gap: 8px; align-items: baseline; padding: 10px 16px;
+    font-weight: 650; cursor: default;
+  }
+  .phase-head .tag { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+  .phase-num {
+    display: inline-flex; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 12px; align-items: center; justify-content: center; flex: none;
+  }
+  .step { display: flex; gap: 8px; padding: 4px 16px 4px 40px; font-size: 13px; align-items: baseline; }
+  .step .mark { flex: none; width: 14px; text-align: center; }
+  .step.ok .mark { color: var(--verified); }
+  .step.no .mark { color: var(--not-verified); }
+  .step .res { font-weight: 600; }
+  .agg { color: var(--muted); font-size: 13px; padding: 3px 16px 3px 40px; }
+  .agg b { color: var(--text); font-weight: 600; }
+  .live {
+    background: var(--running-bg); border-top: 1px solid #bcd0f7; border-bottom: 1px solid #bcd0f7;
+    padding: 8px 16px 8px 40px; font-size: 13px; color: var(--running);
+  }
+  .live .dot { display: inline-block; animation: blink 1s infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .2; } }
+  .elapsed { color: var(--muted); font-weight: 500; font-size: 12px; margin-left: auto; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 style="font-size:22px;margin-bottom:2px">Phase 19-A · 候选感知的结果呈现 + 调查过程面板</h1>
+  <p class="muted small">单文件静态 mockup · 全部候选编号 / 日期 / 标题取自 <span class="sha">fixtures/github/react-37610*.json</span> 真实值；
+  未关联线索的 commit SHA 与文件列表取自 Phase 18-B live smoke 真实输出。仅示意，未实现。</p>
+
+  <!-- ============================================================ -->
+  <div class="state-tag">状态一 · 结果页（已收敛：结构化候选全部裁决完毕）</div>
+  <p class="state-note">对应用户看到 react#37610 实跑结果后的痛点 2：机器已知的事实要能被读到。</p>
+
+  <section class="card hero converged">
+    <p class="kicker">调查结果 · facebook/react#37610 · Bug: <code>FragmentInstance.compareDocumentPosition</code> alternates between <code>FOLLOWING</code> and <code>IMPLEMENTATION_SPECIFIC</code> on every other render · 打开</p>
+    <div class="hero-title"><h2>暂未确认解决</h2></div>
+    <p>现有记录不满足“已解决”的认证条件（见下方 ✗ 项）。这不等于确认问题仍存在——若修复确已生效，通常以维护者关闭 Issue 或出现行为验证证据为准。</p>
+
+    <div class="hero-block">
+      <p class="kicker">为什么</p>
+      <p style="margin:0">已验证到的部分：Issue 身份、关闭语义、解决候选、代码 / Commit 证据、关键说法。</p>
+    </div>
+    <div class="hero-block">
+      <p class="kicker">还差什么</p>
+      <ul style="margin:0;padding-left:20px">
+        <li>✗ <b>Issue 状态</b> — Issue 目前仍是打开的：修复可能已生效，但记录上未走完关闭流程。</li>
+        <li>✗ <b>已合并 Pull Request</b> — 候选 Pull Request 是否已合并进主干。</li>
+      </ul>
+    </div>
+
+    <div class="hero-guidance">
+      🔎 最接近解决的候选：<a href="#cands"><b>PR #37626</b>（官方标记将关闭本 Issue，尚未合并）</a> —— <a href="#cands">详见「解决候选」</a>
+      <span class="muted small">（变体 B；若选变体 A，本行为纯链接「详见解决候选（10 个枚举候选 · 机器裁决完毕）」，不引用具体候选）</span>
+    </div>
+
+    <p class="counts">✓ 5 项通过 · ✗ 2 项未通过 · ? 1 项待确认</p>
+  </section>
+
+  <section class="card" id="cands">
+    <h3>解决候选 <span class="muted small">· 机器预扫描枚举 10 个，全部完成机器裁决（0 次模型调用）· 排序：官方关闭引用优先</span></h3>
+    <table class="cand-table">
+      <thead><tr><th>候选</th><th>标题</th><th>状态</th><th>关键日期</th><th>机器裁决</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="prnum">#37626</td>
+          <td>[DOM] Keep Fragment sibling positions stable across renders</td>
+          <td class="stat-open">未合并</td>
+          <td class="date">创建于 2026-09-14</td>
+          <td><span class="badge fix-pending">修复候选 · 官方标记将关闭本 Issue · 尚未合并</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#32722</td>
+          <td>Add compareDocumentPosition to fragment instances</td>
+          <td class="stat-merged">已合并</td>
+          <td class="date">合并于 2025-05-06</td>
+          <td><span class="badge refuted">已驳回 · 合并于 2025-05-06，早于本 Issue 创建（2026-09-12）</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#34069</td>
+          <td>Fix fragmentInstance#compareDocumentPosition nesting and portal cases</td>
+          <td class="stat-merged">已合并</td>
+          <td class="date">合并于 2025-08-15</td>
+          <td><span class="badge refuted">已驳回 · 合并于 2025-08-15，早于本 Issue 创建（2026-09-12）</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#37142</td>
+          <td>[Fragment Refs] Fix DOM/Fiber containment validation</td>
+          <td class="stat-open">未合并</td>
+          <td class="date">创建于 2026-07-29</td>
+          <td><span class="badge hint">无结构化引用 · 仅作线索</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#37162</td>
+          <td>[DOM] Find host siblings for nested empty Fragments</td>
+          <td class="stat-merged">已合并</td>
+          <td class="date">合并于 2026-08-12</td>
+          <td><span class="badge refuted">已驳回 · 合并于 2026-08-12，早于本 Issue 创建（2026-09-12）</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#37163</td>
+          <td>[DOM] Fix Fragment compareDocumentPosition for documentElement and empty portals</td>
+          <td class="stat-merged">已合并</td>
+          <td class="date">合并于 2026-08-12</td>
+          <td><span class="badge refuted">已驳回 · 合并于 2026-08-12，早于本 Issue 创建（2026-09-12）</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#37578</td>
+          <td class="muted">—（非 Pull Request）</td>
+          <td class="muted">—</td>
+          <td class="muted">—</td>
+          <td><span class="badge notpr">GitHub 确认该编号不是 Pull Request · 排除</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#37579</td>
+          <td>[DOM] Fix Fragment compareDocumentPosition(document) TypeError</td>
+          <td class="stat-merged">已合并</td>
+          <td class="date">合并于 2026-09-11</td>
+          <td><span class="badge refuted">已驳回 · 合并于 2026-09-11，早于本 Issue 创建（2026-09-12）</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#37606</td>
+          <td class="muted">—（非 Pull Request）</td>
+          <td class="muted">—</td>
+          <td class="muted">—</td>
+          <td><span class="badge notpr">GitHub 确认该编号不是 Pull Request · 排除</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#37607</td>
+          <td>[DOM] Handle non-element portal roots in Fragment document position</td>
+          <td class="stat-open">未合并</td>
+          <td class="date">创建于 2026-09-11</td>
+          <td><span class="badge hint">无结构化引用 · 仅作线索</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="hint-sub">
+      <b>未关联修复线索</b> <span class="badge hint">假设性 · 不进入任何认证判定</span>
+      <p class="small muted" style="margin:6px 0 0">在主干分支上、本 Issue 创建之后，有 1 个提交改动了与上述候选相同的文件，但未通过任何编号引用关联到本 Issue，值得人工确认是否为静默修复：</p>
+      <p class="small" style="margin:6px 0 0"><span class="sha">9b93853</span> · 触及文件：ReactFiberConfigDOM.js、ReactDOMFragmentRefs-test.js、ReactFiberTreeReflection.js <a href="#">在 GitHub 打开 ↗</a></p>
+    </div>
+  </section>
+
+  <details class="fold"><summary>证据（调查收集到的 26 条 GitHub 原始记录）</summary><div class="fold-body"><p class="muted">折叠区维持现状，不改动：Issue 正文、评论、时间线、8 个 PR 详情、文件与 Commit 证据，逐条可溯源。</p></div></details>
+  <details class="fold"><summary>验证明细（✓ 5 · ✗ 2 · ? 1）</summary><div class="fold-body"><p class="muted">维持现状：逐项检查列表与解释文案不变（本轮明确不允许改动 checks）。</p></div></details>
+  <details class="fold"><summary>Agent 输出（未验证输入）</summary><div class="fold-body"><p class="muted">维持现状。</p></div></details>
+
+  <!-- ============================================================ -->
+  <div class="state-tag">状态二 · 调查过程面板（进行中：流式 + 分阶段归组 + 自动折叠）</div>
+  <p class="state-note">对应用户痛点 1：十几条同文「获得Pull Request证据」刷屏。对齐主流 agent 的 running-steps 范式：只展开最新一行，完成即折叠成计数行；每一步带资源编号；机器预扫描与 Agent 主动调查分组并标注性质。</p>
+
+  <div class="panel">
+    <div class="panel-head">
+      <b>调查过程</b>
+      <span class="elapsed">已用时 34s · 已消耗 3 / 8 次模型调用</span>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-num">1</span> 机器预扫描
+        <span class="tag">0 次模型调用 · 枚举 10 个候选 · 全部完成 · 2.1s <b style="color:var(--muted)">（点击展开 12 条明细）</b></span>
+      </div>
+      <div class="agg">读取 Issue 正文与评论，提取被引用的编号 → 枚举候选 <b>#37626、#32722、#34069、#37142、#37162、#37163、#37578、#37579、#37606、#37607</b></div>
+      <div class="agg">核验官方关闭引用 → <b>1 / 10</b> 个候选命中（#37626）</div>
+      <div class="agg">拉取 PR 详情 <b>×8</b>（#32722、#34069、#37142、#37162、#37163、#37579、#37607、#37626）· 确认非 PR <b>×2</b>（#37578、#37606）· 失败 <b>0</b></div>
+      <div class="agg">扫描候选改动文件的主干提交 → <b>1</b> 条未关联修复线索（假设性，不参与判定）</div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="phase-num">2</span> Agent 调查 <span class="tag">逐轮进行，每轮一次模型决策</span></div>
+      <div class="step ok"><span class="mark">✓</span>拉取 <span class="res">PR #37626</span> 的文件清单 <span class="muted small">· 4 个文件</span></div>
+      <div class="step ok"><span class="mark">✓</span>拉取 <span class="res">PR #37626</span> 的评审记录 <span class="muted small">· 0 条评审</span></div>
+      <div class="live">⟳ 正在检索主干分支中包含 “compareDocumentPosition” 的提交…<span class="dot">▍</span></div>
+      <div class="step muted" style="padding-top:8px"><span class="mark">·</span><span class="muted small">（后续步骤完成后自动折叠为计数行，如「检索提交 ×3 · 共 27 条结果」）</span></div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="phase-num">3</span> 独立验证 <span class="tag">Agent 结束调查后运行，逐项判定</span></div>
+      <div class="agg muted">（等待中——完成后这里逐条出现 8 项检查与解释，与结果页「验证明细」同源）</div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <div class="state-tag">状态三 · 中间结论态（预算耗尽且有候选未完成机器裁决）</div>
+  <p class="state-note">示例数据为构造场景：prescan 的 PR 详情源部分失败（4 个候选 detailState=failed、2 个被上限截断），模型调用 8/8 用尽。hero 结构与状态一完全一致，仅多一枚轻量标记、缺口首行给出剩余数；候选块把未裁决候选排在小结里，为「继续调查」留口。</p>
+
+  <section class="card hero midrun">
+    <p class="kicker">调查结果 · facebook/react#37610 · Bug: <code>FragmentInstance.compareDocumentPosition</code> … · 打开</p>
+    <div class="hero-title">
+      <h2>暂未确认解决</h2>
+      <span class="chip">中间结论 · 预算耗尽</span>
+    </div>
+    <p>现有记录不满足“已解决”的认证条件（见下方 ✗ 项）。</p>
+    <div class="hero-block">
+      <p class="kicker">还差什么</p>
+      <ul style="margin:0;padding-left:20px">
+        <li><b>?</b> <b>中间结论：还有 6 个解决候选未完成机器裁决</b> — 候选枚举或裁决尚未穷尽，本结论不代表已排查完所有解决线索。</li>
+        <li>✗ <b>Issue 状态</b> — Issue 目前仍是打开的。</li>
+        <li>✗ <b>已合并 Pull Request</b> — 候选 Pull Request 是否已合并进主干。</li>
+      </ul>
+    </div>
+    <p class="counts">✓ 4 项通过 · ✗ 2 项未通过 · ? 2 项待确认</p>
+  </section>
+
+  <section class="card">
+    <h3>解决候选 <span class="muted small">· 枚举 16 个，已裁决 10 个 · <b style="color:var(--insufficient)">6 个未完成裁决</b>（详情拉取失败 ×4 · 被数量上限截断 ×2）</span></h3>
+    <table class="cand-table">
+      <tbody>
+        <tr>
+          <td class="prnum">#37626</td>
+          <td>[DOM] Keep Fragment sibling positions stable across renders</td>
+          <td class="stat-open">未合并</td>
+          <td><span class="badge fix-pending">修复候选 · 官方标记将关闭本 Issue · 尚未合并</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#37627</td>
+          <td class="muted">标题未获取（详情拉取失败）</td>
+          <td class="muted">未知</td>
+          <td><span class="badge unknown">待裁决 · 详情拉取失败 · 继续调查可补齐</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">#37631</td>
+          <td class="muted">标题未获取（详情拉取失败）</td>
+          <td class="muted">未知</td>
+          <td><span class="badge unknown">待裁决 · 详情拉取失败 · 继续调查可补齐</span></td>
+        </tr>
+        <tr>
+          <td class="prnum">＋ 另外 4 个候选</td>
+          <td class="muted" colspan="2">2 个详情拉取失败 · 2 个在枚举上限处被截断（编号未知，总数已如实记录）</td>
+          <td><span class="badge unknown">待裁决</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="small muted" style="margin-top:10px">（其余 10 个已裁决候选同状态一的列表；本 mockup 为省版面折叠展示。）</p>
+  </section>
+
+  <hr style="margin:48px 0 8px;border:none;border-top:1px solid var(--line)" />
+  <p class="muted small">样式观感为风格级示意（沿用产品现有色板与卡片语言）；候选编号、日期、标题、裁决徽章全部由 fixtures 真实字段推导，规则见交付报告。本文件不引入任何新的判断逻辑。</p>
+</div>
+</body>
+</html>

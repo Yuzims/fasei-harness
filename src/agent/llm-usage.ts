@@ -359,6 +359,9 @@ export function llmErrorCategory(error: unknown, httpStatus?: number): string {
   if (message.includes("没有 body")) {
     return "empty_stream";
   }
+  if (message.includes("fetch failed")) {
+    return "network_error";
+  }
   if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
     return "runtime_timeout";
   }

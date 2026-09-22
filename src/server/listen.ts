@@ -3,9 +3,10 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { describeLlm } from "../agent/llm-config.js";
 import { createApp } from "./app.js";
-import { loadEnvFile } from "./load-env.js";
+import { enableEnvProxyForFetch, loadEnvFile } from "./load-env.js";
 
 loadEnvFile();
+enableEnvProxyForFetch();
 const llm = describeLlm();
 
 const port = Number(process.env.PORT ?? 8787);

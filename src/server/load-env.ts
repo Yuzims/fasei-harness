@@ -27,3 +27,12 @@ export function loadEnvFile(filePath = ".env"): void {
     }
   }
 }
+
+/**
+ * Node >= 24 global fetch only honors HTTPS_PROXY/NO_PROXY when
+ * NODE_USE_ENV_PROXY is set, and the dispatcher is created lazily on the
+ * first fetch, so calling this at process bootstrap is enough.
+ */
+export function enableEnvProxyForFetch(): void {
+  process.env.NODE_USE_ENV_PROXY ??= "1";
+}

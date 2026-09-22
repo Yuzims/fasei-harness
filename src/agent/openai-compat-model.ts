@@ -417,6 +417,11 @@ function abortFromSignal(signal: AbortSignal): Error {
   return error;
 }
 
+/** undici reports every connection-level failure (DNS/TCP/TLS/proxy) as TypeError("fetch failed"). */
+function isFetchNetworkError(error: unknown): boolean {
+  return error instanceof TypeError && /fetch failed/i.test(error.message);
+}
+
 export class OpenAICompatModel implements Model {
   private readonly fetchImpl: typeof fetch;
   private callCount = 0;
@@ -559,6 +564,11 @@ export class OpenAICompatModel implements Model {
         throw runtimeError;
       }
       recordCall(false, llmErrorCategory(error, httpStatus));
+      if (httpStatus === undefined && isFetchNetworkError(error)) {
+        throw new Error("Could not reach the model service. Check network or proxy settings.", {
+          cause: error,
+        });
+      }
       throw error;
     }
   }

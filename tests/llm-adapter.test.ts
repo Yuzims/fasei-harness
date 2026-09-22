@@ -217,3 +217,28 @@ test("createModel：openai 配置走 OpenAICompatModel", () => {
   });
   assert.equal(model instanceof OpenAICompatModel, true);
 });
+
+test("LLM 连接层 fetch failed 包装为语义化错误并记录 network_error", async () => {
+  const records: Array<{ ok: boolean; errorCategory?: string }> = [];
+  const model = new OpenAICompatModel({
+    apiKey: "test-key",
+    baseUrl: "https://example.invalid/v1",
+    model: "gpt-test",
+    onLlmCall: (record) => records.push(record),
+    fetchImpl: (async () => {
+      throw new TypeError("fetch failed");
+    }) as unknown as typeof fetch,
+  });
+
+  await assert.rejects(
+    model.decide({ id: "t", description: "1 + 1" }, [{ role: "user", content: "1 + 1" }], []),
+    (error: Error) => {
+      assert.match(error.message, /Could not reach the model service/);
+      assert.ok(error.cause instanceof TypeError);
+      return true;
+    },
+  );
+  assert.equal(records.length, 1);
+  assert.equal(records[0].ok, false);
+  assert.equal(records[0].errorCategory, "network_error");
+});

@@ -2,7 +2,7 @@ import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { investigateGitHubIssue } from "../src/server/investigation-service.js";
 import { toInvestigationHttpError } from "../src/server/investigation-errors.js";
-import { loadEnvFile } from "../src/server/load-env.js";
+import { enableEnvProxyForFetch, loadEnvFile } from "../src/server/load-env.js";
 import type { InvestigationSessionDTO } from "../src/api/dto.js";
 import type { InvestigationMode } from "../src/api/dto.js";
 
@@ -123,6 +123,7 @@ export function formatInvestigationSession(session: InvestigationSessionDTO): st
 
 async function main(): Promise<void> {
   loadEnvFile();
+  enableEnvProxyForFetch();
   const { input, mode } = parseArgs(process.argv.slice(2));
   try {
     const session = await investigateGitHubIssue(input, { mode, env: process.env });

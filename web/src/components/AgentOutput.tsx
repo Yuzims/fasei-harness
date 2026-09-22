@@ -39,7 +39,7 @@ export function AgentAnswerPanel({ view }: { view: InvestigationResultViewModel 
             <p className="lane-lead">{agent.conclusion}</p>
           </div>
           <div className="lane-block" data-testid="agent-judgment">
-            <p className="kicker">Agent 判断</p>
+            <p className="kicker">调查判断</p>
             <p className="lane-lead">{agent.judgment}</p>
             <p className="muted">{agent.judgmentNote}</p>
             {agent.disagreesWithHarness ? (

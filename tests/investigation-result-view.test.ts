@@ -111,7 +111,8 @@ test("17-B1.5 finding 通过 evidenceIds 溯源到真实 Evidence", () => {
   assert.deepEqual(findings.find((item) => item.id === "pr-present")?.evidenceIds, ["ev-pr"]);
   assert.deepEqual(findings.find((item) => item.id === "commit-present")?.evidenceIds, ["ev-commit"]);
   assert.deepEqual(findings.find((item) => item.id === "resolution-chain")?.evidenceIds, ["ev-pr", "ev-issue"]);
-  assert.match(findings.find((item) => item.id === "pr-present")?.text ?? "", /#7（已合并）/);
+  // fixes 只证明解决候选关联 Issue，不证明 PR 已合并
+  assert.equal(findings.find((item) => item.id === "pr-present")?.text.includes("已合并"), false);
 });
 
 test("17-B1.6 无可证明关联的 finding evidenceIds 为空数组，不虚构", () => {
@@ -233,22 +234,23 @@ test("17-B1.11 Agent 输出不进入 Evidence 层", () => {
   );
 });
 
-test("17-B1.12 PR merged 判断来自结构化关系，不再依赖 summary 正则", () => {
-  const summaryClaimsMergedWithoutRelation = session({
+test("17-B1.12A fixes relation 单独出现时不得宣称已合并", () => {
+  const current = session({
     evidence: [
       { id: "ev-issue", kind: "issue", summary: "Issue #42 is closed", trust: "external_untrusted" },
       { id: "ev-pr", kind: "pull_request", summary: "PR #7 merged=true", trust: "external_untrusted", resource: "pull/7" },
     ],
-    relations: [],
+    relations: [{ fromEvidenceId: "ev-pr", toEvidenceId: "ev-issue", type: "fixes" }],
   });
-  const claimed = buildInvestigationFindings(summaryClaimsMergedWithoutRelation).find(
-    (item) => item.id === "pr-present",
-  );
-  assert.ok(claimed);
-  assert.equal(claimed?.text.includes("已合并"), false);
-  assert.equal(claimed?.tone, "warn");
+  const finding = buildInvestigationFindings(current).find((item) => item.id === "pr-present");
+  assert.ok(finding);
+  assert.equal(finding?.text.includes("已合并"), false);
+  assert.equal(finding?.text.includes("未合并"), false);
+  assert.equal(finding?.tone, "warn");
+});
 
-  const relationProvesMerged = session({
+test("17-B1.12B fixes + merges→PR 时判定已合并且证据可溯源", () => {
+  const current = session({
     evidence: [
       { id: "ev-issue", kind: "issue", summary: "Issue #42 is closed", trust: "external_untrusted" },
       { id: "ev-pr", kind: "pull_request", summary: "PR #7 fixes NPE", trust: "external_untrusted", resource: "pull/7" },
@@ -259,9 +261,35 @@ test("17-B1.12 PR merged 判断来自结构化关系，不再依赖 summary 正�
       { fromEvidenceId: "ev-merge", toEvidenceId: "ev-pr", type: "merges" },
     ],
   });
-  const proven = buildInvestigationFindings(relationProvesMerged).find((item) => item.id === "pr-present");
-  assert.ok(proven);
-  assert.equal(proven?.text, "发现关联 Pull Request：#7（已合并）");
-  assert.equal(proven?.tone, "pass");
-  assert.deepEqual(proven?.evidenceIds, ["ev-pr", "ev-merge"]);
+  const finding = buildInvestigationFindings(current).find((item) => item.id === "pr-present");
+  assert.equal(finding?.text, "发现关联 Pull Request：#7（已合并）");
+  assert.equal(finding?.tone, "pass");
+  assert.deepEqual(finding?.evidenceIds, ["ev-pr", "ev-merge"]);
+});
+
+test("17-B1.12C merged 只来自结构化 relation，summary 正则不再参与判断", () => {
+  // InvestigationEvidenceDTO 没有结构化 merged 字段，因此 merged=true 只能由
+  // Evidence Graph 的 merges relation 证明；summary 里写 merged=true 不生效。
+  const summaryClaims = session({
+    evidence: [
+      { id: "ev-issue", kind: "issue", summary: "Issue #42 is closed", trust: "external_untrusted" },
+      { id: "ev-pr", kind: "pull_request", summary: "PR #7 merged=true", trust: "external_untrusted", resource: "pull/7" },
+    ],
+    relations: [],
+  });
+  assert.equal(
+    buildInvestigationFindings(summaryClaims).find((item) => item.id === "pr-present")?.text.includes("已合并"),
+    false,
+  );
+  const relationProves = session({
+    evidence: [
+      { id: "ev-issue", kind: "issue", summary: "Issue #42 is closed", trust: "external_untrusted" },
+      { id: "ev-pr", kind: "pull_request", summary: "PR #7 landed via merge commit", trust: "external_untrusted", resource: "pull/7" },
+      { id: "ev-merge", kind: "pull_request", summary: "merge record for PR #7", trust: "harness_derived", resource: "pull/7" },
+    ],
+    relations: [{ fromEvidenceId: "ev-merge", toEvidenceId: "ev-pr", type: "merges" }],
+  });
+  const finding = buildInvestigationFindings(relationProves).find((item) => item.id === "pr-present");
+  assert.equal(finding?.text.includes("已合并"), true);
+  assert.equal(finding?.tone, "pass");
 });

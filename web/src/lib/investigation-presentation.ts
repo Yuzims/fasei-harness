@@ -296,8 +296,10 @@ function issueEvidenceIds(session: InvestigationSessionDTO): Set<string> {
 
 /**
  * Merge state comes only from structured relations recorded by the harness:
- * a PR→Issue "fixes" relation or a "merges" relation pointing at the PR means merged;
- * a PR→Issue "references" relation means not merged. No summary parsing, no inference.
+ * a "merges" relation associated with the PR means landed / merged;
+ * a PR→Issue "references" relation means not merged.
+ * "fixes" marks a resolution candidate, NOT a merge, so it never proves merged.
+ * No summary parsing, no inference.
  */
 function pullMergeStateFromRelations(
   session: InvestigationSessionDTO,
@@ -305,10 +307,7 @@ function pullMergeStateFromRelations(
 ): boolean | undefined {
   const issueIds = issueEvidenceIds(session);
   for (const relation of session.relations) {
-    if (relation.type === "fixes" && relation.fromEvidenceId === pullEvidenceId && issueIds.has(relation.toEvidenceId)) {
-      return true;
-    }
-    if (relation.type === "merges" && relation.toEvidenceId === pullEvidenceId) {
+    if (relation.type === "merges" && (relation.toEvidenceId === pullEvidenceId || relation.fromEvidenceId === pullEvidenceId)) {
       return true;
     }
     if (relation.type === "references" && relation.fromEvidenceId === pullEvidenceId && issueIds.has(relation.toEvidenceId)) {
@@ -697,7 +696,7 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
       conclusionSource: presentedConclusion.source,
       originalConclusion,
       judgment: presentAgentJudgment(session),
-      judgmentNote: "这是 Agent 自身的判断，不是 Harness 的独立验证结果；是否解决以独立验证为准。",
+      judgmentNote: "这是调查阶段产生的判断，不是独立验证结果；是否解决以独立验证为准。",
       disagreesWithHarness: agentHarnessDisagree(session),
       resolutionAnalyses,
     },

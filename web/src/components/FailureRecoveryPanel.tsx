@@ -1,8 +1,7 @@
-import type { InvestigationSessionDTO } from "@dto";
-import { investigationIncident } from "../lib/investigation-presentation";
+import type { InvestigationResultViewModel } from "../lib/investigation-presentation";
 
-export function FailureRecoveryPanel({ session }: { session: InvestigationSessionDTO }) {
-  const incident = investigationIncident(session);
+export function FailureRecoveryPanel({ view }: { view: InvestigationResultViewModel }) {
+  const incident = view.incident;
   if (!incident) {
     return null;
   }

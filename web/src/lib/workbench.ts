@@ -226,7 +226,7 @@ export function verificationLabel(status?: string): string {
     return "已验证解决";
   }
   if (status === "not_verified") {
-    return "未验证完成";
+    return "暂未确认解决";
   }
   if (status === "insufficient_evidence") {
     return "证据不足";
@@ -429,10 +429,6 @@ export function evidenceCoverageLabel(session: InvestigationSessionDTO): string 
     return undefined;
   }
   return `证据覆盖率：${formatMetric("evidenceCoverage", value)}`;
-}
-
-export function agentConclusion(session: InvestigationSessionDTO): string {
-  return session.agentOutput || session.rawAgentOutput || "本次调查没有产生 Agent 最终回答。";
 }
 
 export function agentHarnessDisagree(session: InvestigationSessionDTO): boolean {

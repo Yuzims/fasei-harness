@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { InvestigationEvidenceDTO, InvestigationSessionDTO } from "@dto";
+import { useEffect, useMemo, useState } from "react";
+import type { InvestigationEvidenceDTO } from "@dto";
 import {
   evidenceIdentifier,
   filterEvidence,
@@ -48,18 +48,39 @@ function EvidenceCard({
   );
 }
 
-export function EvidencePanel({ session }: { session: InvestigationSessionDTO }) {
-  const kinds = uniqueEvidenceKinds(session.evidence);
+export function EvidencePanel({
+  evidence,
+  focusEvidenceIds,
+}: {
+  evidence: InvestigationEvidenceDTO[];
+  focusEvidenceIds: string[];
+}) {
+  const kinds = uniqueEvidenceKinds(evidence);
   const [filter, setFilter] = useState("all");
   const [openId, setOpenId] = useState<string>();
+  const [panelOpen, setPanelOpen] = useState(false);
   const items = useMemo(
-    () => filterEvidence(session.evidence, kinds.includes(filter) ? filter : "all"),
-    [filter, kinds, session.evidence],
+    () => filterEvidence(evidence, kinds.includes(filter) ? filter : "all"),
+    [filter, kinds, evidence],
   );
 
+  useEffect(() => {
+    if (focusEvidenceIds.length === 0) {
+      return;
+    }
+    setPanelOpen(true);
+    setFilter("all");
+    setOpenId(focusEvidenceIds[0]);
+  }, [focusEvidenceIds]);
+
   return (
-    <details className="fold" data-testid="evidence-fold">
-      <summary>📚 证据（{session.evidence.length}）</summary>
+    <details
+      className="fold"
+      data-testid="evidence-fold"
+      open={panelOpen}
+      onToggle={(event) => setPanelOpen(event.currentTarget.open)}
+    >
+      <summary>📚 关键证据（{evidence.length}）</summary>
       <p className="muted">证据是事实来源，不是 Agent 判断。</p>
       <div className="filters">
         <button

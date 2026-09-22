@@ -1,5 +1,6 @@
 import type {
   InvestigationAttemptDTO,
+  InvestigationEvidenceDTO,
   InvestigationSessionDTO,
   ResolutionAnalysisDTO,
 } from "@dto";
@@ -94,15 +95,23 @@ const PROCESS_FAILURE_SUMMARY: Record<string, string> = {
   unknown: "调查过程中遇到问题，因此当前结果可能不完整。",
 };
 
-export type InvestigationFindingSource = "investigation_step" | "tool_result" | "agent_report";
+export type InvestigationFindingSource = "evidence" | "investigation_step";
 
 export type AgentConclusionSource = "agent_report" | "presentation_fallback";
 
-export interface InvestigationFinding {
+export type InvestigationVerificationStatus =
+  | "verified_complete"
+  | "not_verified"
+  | "insufficient_evidence";
+
+export type EvidenceView = InvestigationEvidenceDTO;
+
+export interface InvestigationFindingView {
   id: string;
   tone: CheckTone;
   text: string;
   source: InvestigationFindingSource;
+  evidenceIds: string[];
 }
 
 export interface PresentedAnalysisText {
@@ -140,30 +149,38 @@ export interface HarnessCheckView {
   tone: CheckTone;
 }
 
-export interface InvestigationResultView {
-  result: {
-    statusLabel: string;
-    subtitle: string;
-    tone: VerificationTone;
-    issueLine: string;
-  };
-  agent: {
-    conclusion: string;
-    conclusionSource: AgentConclusionSource;
-    originalConclusion: string;
-    findings: InvestigationFinding[];
-    judgment: string;
-    judgmentNote: string;
-    disagreesWithHarness: boolean;
-    unresolvedQuestions: string[];
-    resolutionAnalyses: ResolutionAnalysisView[];
-  };
-  harness: {
-    disclaimer: string;
-    statusLabel: string;
-    checks: HarnessCheckView[];
-    satisfiedLabel?: string;
-  };
+export interface VerificationView {
+  status: string | undefined;
+  checks: HarnessCheckView[];
+  evidenceCoverage: number | undefined;
+  missingRequirementIds: string[];
+  unsupportedClaimIds: string[];
+  prematureCompletion: boolean;
+  satisfiedLabel?: string;
+}
+
+export interface AgentLaneView {
+  conclusion: string;
+  conclusionSource: AgentConclusionSource;
+  originalConclusion: string;
+  judgment: string;
+  judgmentNote: string;
+  disagreesWithHarness: boolean;
+  resolutionAnalyses: ResolutionAnalysisView[];
+}
+
+export interface InvestigationResultViewModel {
+  status: InvestigationVerificationStatus | undefined;
+  statusLabel: string;
+  summary: string;
+  tone: VerificationTone;
+  issueLine: string;
+  findings: InvestigationFindingView[];
+  evidence: EvidenceView[];
+  verification: VerificationView;
+  openQuestions: string[];
+  uncertainty: string[];
+  agent: AgentLaneView;
   process: {
     steps: InvestigationStepView[];
     emptyMessage?: string;
@@ -273,35 +290,84 @@ function pullNumberFromEvidence(item: { summary: string; resource?: string }): s
   return fromSummary ? `#${fromSummary[1]}` : undefined;
 }
 
-function pullMerged(item: { summary: string }): boolean | undefined {
-  const match = item.summary.match(/merged=(true|false)/i);
-  if (!match) {
-    return undefined;
-  }
-  return match[1].toLowerCase() === "true";
+function issueEvidenceIds(session: InvestigationSessionDTO): Set<string> {
+  return new Set(session.evidence.filter((item) => item.kind === "issue").map((item) => item.id));
 }
 
-function pullFindingText(
-  pulls: InvestigationSessionDTO["evidence"],
-): { tone: CheckTone; text: string } {
-  const labels = pulls.map((item) => {
+/**
+ * Merge state comes only from structured relations recorded by the harness:
+ * a PR→Issue "fixes" relation or a "merges" relation pointing at the PR means merged;
+ * a PR→Issue "references" relation means not merged. No summary parsing, no inference.
+ */
+function pullMergeStateFromRelations(
+  session: InvestigationSessionDTO,
+  pullEvidenceId: string,
+): boolean | undefined {
+  const issueIds = issueEvidenceIds(session);
+  for (const relation of session.relations) {
+    if (relation.type === "fixes" && relation.fromEvidenceId === pullEvidenceId && issueIds.has(relation.toEvidenceId)) {
+      return true;
+    }
+    if (relation.type === "merges" && relation.toEvidenceId === pullEvidenceId) {
+      return true;
+    }
+    if (relation.type === "references" && relation.fromEvidenceId === pullEvidenceId && issueIds.has(relation.toEvidenceId)) {
+      return false;
+    }
+  }
+  return undefined;
+}
+
+interface PullGroup {
+  number?: string;
+  label: string;
+  ids: string[];
+  merged: boolean | undefined;
+}
+
+function groupPullEvidence(session: InvestigationSessionDTO, pulls: InvestigationEvidenceDTO[]): PullGroup[] {
+  const groups = new Map<string, PullGroup>();
+  for (const item of pulls) {
     const number = pullNumberFromEvidence(item);
-    const merged = pullMerged(item);
-    if (number && merged === true) {
-      return `${number}（已合并）`;
+    const key = number ?? item.id;
+    let group = groups.get(key);
+    if (!group) {
+      group = { number, label: number ?? item.summary, ids: [], merged: undefined };
+      groups.set(key, group);
     }
-    if (number && merged === false) {
-      return `${number}（未合并）`;
+    group.ids.push(item.id);
+    const state = pullMergeStateFromRelations(session, item.id);
+    if (state === true) {
+      group.merged = true;
+    } else if (state === false && group.merged !== true) {
+      group.merged = false;
     }
-    return number ?? item.summary;
+  }
+  return [...groups.values()];
+}
+
+function pullFinding(
+  session: InvestigationSessionDTO,
+  pulls: InvestigationEvidenceDTO[],
+): { tone: CheckTone; text: string; evidenceIds: string[] } {
+  const groups = groupPullEvidence(session, pulls);
+  const labels = groups.map((group) => {
+    if (group.merged === true) {
+      return `${group.label}（已合并）`;
+    }
+    if (group.merged === false) {
+      return `${group.label}（未合并）`;
+    }
+    return group.label;
   });
   return {
-    tone: pulls.some((item) => pullMerged(item) === true) ? "pass" : "warn",
+    tone: groups.some((group) => group.merged === true) ? "pass" : "warn",
     text: `发现关联 Pull Request：${labels.join("、")}`,
+    evidenceIds: groups.flatMap((group) => group.ids),
   };
 }
 
-function commitFindingText(codeEvidence: InvestigationSessionDTO["evidence"]): string {
+function commitFindingText(codeEvidence: InvestigationEvidenceDTO[]): string {
   const commits = codeEvidence.filter((item) => item.kind === "commit" || item.kind === "code").length;
   const files = codeEvidence.filter((item) => item.kind === "file").length;
   const parts = [
@@ -311,8 +377,8 @@ function commitFindingText(codeEvidence: InvestigationSessionDTO["evidence"]): s
   return `发现代码 / Commit 证据：${parts.join("，")}`;
 }
 
-export function buildInvestigationFindings(session: InvestigationSessionDTO): InvestigationFinding[] {
-  const findings: InvestigationFinding[] = [];
+export function buildInvestigationFindings(session: InvestigationSessionDTO): InvestigationFindingView[] {
+  const findings: InvestigationFindingView[] = [];
   const issueEvidence = session.evidence.find((item) => item.kind === "issue");
   const state = issueStateLabel(session.issue.state);
 
@@ -320,7 +386,8 @@ export function buildInvestigationFindings(session: InvestigationSessionDTO): In
     findings.push({
       id: "issue-state",
       tone: "pass",
-      source: issueEvidence ? "tool_result" : "investigation_step",
+      source: issueEvidence ? "evidence" : "investigation_step",
+      evidenceIds: issueEvidence ? [issueEvidence.id] : [],
       text: state ? `Issue 当前状态：${state}` : `已获取 Issue ${issueRef(session.task)}`,
     });
   } else {
@@ -330,6 +397,7 @@ export function buildInvestigationFindings(session: InvestigationSessionDTO): In
         id: "issue-missing",
         tone: "warn",
         source: "investigation_step",
+        evidenceIds: [],
         text: "已检查 Issue，目前没有获取到可用的 Issue 记录。",
       });
     }
@@ -338,11 +406,12 @@ export function buildInvestigationFindings(session: InvestigationSessionDTO): In
   const pulls = session.evidence.filter((item) => item.kind === "pull_request");
   const prActivity = collectToolActivity(session, PR_RETRIEVAL_TOOLS);
   if (pulls.length > 0) {
-    const presented = pullFindingText(pulls);
+    const presented = pullFinding(session, pulls);
     findings.push({
       id: "pr-present",
       tone: presented.tone,
-      source: "tool_result",
+      source: "evidence",
+      evidenceIds: presented.evidenceIds,
       text: presented.text,
     });
   } else if (checkedEmpty(prActivity)) {
@@ -350,6 +419,7 @@ export function buildInvestigationFindings(session: InvestigationSessionDTO): In
       id: "pr-checked-empty",
       tone: "warn",
       source: "investigation_step",
+      evidenceIds: [],
       text: "已检查关联 Pull Request，目前没有找到可用的关联 PR。",
     });
   }
@@ -362,7 +432,8 @@ export function buildInvestigationFindings(session: InvestigationSessionDTO): In
     findings.push({
       id: "commit-present",
       tone: "pass",
-      source: "tool_result",
+      source: "evidence",
+      evidenceIds: codeEvidence.map((item) => item.id),
       text: commitFindingText(codeEvidence),
     });
   } else if (checkedEmpty(commitActivity)) {
@@ -370,18 +441,27 @@ export function buildInvestigationFindings(session: InvestigationSessionDTO): In
       id: "commit-checked-empty",
       tone: "warn",
       source: "investigation_step",
+      evidenceIds: [],
       text: "已检查 Commit，目前没有找到能够确认修复的 Commit。",
     });
   }
 
-  const hasResolutionLink = session.relations.some(
+  const resolutionRelations = session.relations.filter(
     (item) => item.type === "fixes" || item.type === "merges",
   );
-  if (hasResolutionLink) {
+  if (resolutionRelations.length > 0) {
+    const knownIds = new Set(session.evidence.map((item) => item.id));
     findings.push({
       id: "resolution-chain",
       tone: "pass",
-      source: "tool_result",
+      source: "evidence",
+      evidenceIds: [
+        ...new Set(
+          resolutionRelations
+            .flatMap((item) => [item.fromEvidenceId, item.toEvidenceId])
+            .filter((id) => knownIds.has(id)),
+        ),
+      ],
       text: "当前证据中存在 Issue 与解决记录之间的关联。",
     });
   }
@@ -558,8 +638,16 @@ export function rawAgentOutputText(session: InvestigationSessionDTO): string {
   return session.rawAgentOutput || session.agentOutput || "";
 }
 
-export function buildInvestigationResultView(session: InvestigationSessionDTO): InvestigationResultView {
-  const status = session.verification?.status;
+function asVerificationStatus(status: string | undefined): InvestigationVerificationStatus | undefined {
+  if (status === "verified_complete" || status === "not_verified" || status === "insufficient_evidence") {
+    return status;
+  }
+  return undefined;
+}
+
+export function buildInvestigationResultView(session: InvestigationSessionDTO): InvestigationResultViewModel {
+  const verification = session.verification;
+  const status = asVerificationStatus(verification?.status);
   const steps = buildInvestigationSteps(session);
   const requirement = evidenceRequirementSummary(session);
   const originalConclusion = session.report.conclusion || "";
@@ -572,35 +660,46 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
     .filter(Boolean)
     .join(" · ");
   const presentedConclusion = presentAgentConclusionView(session);
+  const resolutionAnalyses = presentResolutionAnalyses(session.resolutionAnalyses);
+  const openQuestions = [
+    ...new Set([
+      ...presentUnresolvedQuestions(session.report.openQuestions),
+      ...resolutionAnalyses.flatMap((item) => item.unresolvedQuestions),
+    ]),
+  ].filter(Boolean);
 
   return {
-    result: {
-      statusLabel: verificationLabel(status),
-      subtitle: verificationSubtitle(status),
-      tone: verificationTone(status),
-      issueLine,
-    },
-    agent: {
-      conclusion: presentedConclusion.text,
-      conclusionSource: presentedConclusion.source,
-      originalConclusion,
-      findings: buildInvestigationFindings(session),
-      judgment: presentAgentJudgment(session),
-      judgmentNote: "这是根据调查证据整理的调查发现，不是 Agent 原始判断；是否解决以 Harness 独立验证为准。",
-      disagreesWithHarness: agentHarnessDisagree(session),
-      unresolvedQuestions: presentUnresolvedQuestions(session.report.openQuestions),
-      resolutionAnalyses: presentResolutionAnalyses(session.resolutionAnalyses),
-    },
-    harness: {
-      disclaimer: "以下判断由 Harness 根据收集到的证据独立完成，不采用 Agent 的最终结论作为验证依据。",
-      statusLabel: verificationLabel(status),
+    status,
+    statusLabel: verificationLabel(verification?.status),
+    summary: verificationSubtitle(verification?.status),
+    tone: verificationTone(verification?.status),
+    issueLine,
+    findings: buildInvestigationFindings(session),
+    evidence: session.evidence,
+    verification: {
+      status: verification?.status,
       checks: primaryVerificationChecks(session).map((check) => ({
         id: check.id,
         label: checkLabel(check),
         mark: checkMark(check.status),
         tone: checkTone(check.status),
       })),
+      evidenceCoverage: verification?.evidenceCoverage,
+      missingRequirementIds: verification?.missingRequirementIds ?? [],
+      unsupportedClaimIds: verification?.unsupportedClaimIds ?? [],
+      prematureCompletion: verification?.prematureCompletion ?? false,
       satisfiedLabel: requirement.label,
+    },
+    openQuestions,
+    uncertainty: session.report.uncertainty ? [session.report.uncertainty] : [],
+    agent: {
+      conclusion: presentedConclusion.text,
+      conclusionSource: presentedConclusion.source,
+      originalConclusion,
+      judgment: presentAgentJudgment(session),
+      judgmentNote: "这是 Agent 自身的判断，不是 Harness 的独立验证结果；是否解决以独立验证为准。",
+      disagreesWithHarness: agentHarnessDisagree(session),
+      resolutionAnalyses,
     },
     process: {
       steps,

@@ -41,7 +41,7 @@ import {
 
 test("UI：verification status 使用中文，不把 insufficient 显示成 FAILED", () => {
   assert.equal(verificationLabel("verified_complete"), "已验证解决");
-  assert.equal(verificationLabel("not_verified"), "未验证完成");
+  assert.equal(verificationLabel("not_verified"), "暂未确认解决");
   assert.equal(verificationLabel("insufficient_evidence"), "证据不足");
   assert.notEqual(verificationLabel("insufficient_evidence"), "FAILED");
   assert.notEqual(verificationLabel("not_verified"), "FAILED");
@@ -162,7 +162,7 @@ test("UI：example labels 来自 repository / issue，不从 identifier 推导 v
   assert.equal(exampleHeading({ repository: "pytest", issueNumber: 14524 }), "Pytest #14524");
   assert.doesNotMatch(
     exampleHeading({ repository: "vscode", issueNumber: 258694 }),
-    /已验证解决|已验证完成|未验证完成|证据不足|VERIFIED|NOT VERIFIED|INSUFFICIENT/i,
+    /已验证解决|已验证完成|暂未确认解决|证据不足|VERIFIED|NOT VERIFIED|INSUFFICIENT/i,
   );
   assert.deepEqual(
     featuredExamples([{ id: "C01" }, { id: "C02" }, { id: "C03" }, { id: "C04" }]).map((item) => item.id),
@@ -203,7 +203,7 @@ test("UI：example labels 来自 repository / issue，不从 identifier 推导 v
 test("UI：C01 / C05 / C08 / C09 / C10 结果文案来自 verifier status", () => {
   const cases = [
     ["C01", "verified_complete", "已验证解决"],
-    ["C05", "not_verified", "未验证完成"],
+    ["C05", "not_verified", "暂未确认解决"],
     ["C08", "verified_complete", "已验证解决"],
     ["C09", "verified_complete", "已验证解决"],
     ["C10", "insufficient_evidence", "证据不足"],
@@ -277,7 +277,7 @@ test("UI：最终结果来自 verifier，不由 Agent conclusion 决定差异展
 
 test("UI：内部 enum 映射为中文，不把 runtime 术语直接给用户", () => {
   assert.equal(verificationLabel("verified_complete"), "已验证解决");
-  assert.equal(verificationLabel("not_verified"), "未验证完成");
+  assert.equal(verificationLabel("not_verified"), "暂未确认解决");
   assert.equal(verificationLabel("insufficient_evidence"), "证据不足");
   assert.equal(isProcessFailure("tool_failure"), true);
   assert.equal(isProcessFailure("retrieval_failure"), true);
@@ -329,13 +329,12 @@ test("UI：verified_complete 展示已验证解决，不把 Agent 结论当成�
     ],
   });
   const view = buildInvestigationResultView(current);
-  assert.equal(view.result.statusLabel, "已验证解决");
-  assert.equal(view.result.subtitle, "当前证据可以证明这个 Issue 已经解决。");
+  assert.equal(view.statusLabel, "已验证解决");
+  assert.equal(view.summary, "当前证据可以证明这个 Issue 已经解决。");
   assert.equal(view.agent.conclusion, "Looks resolved.");
   assert.equal(view.agent.conclusionSource, "agent_report");
   assert.equal(view.agent.judgment, "调查发现：目前证据指向该 Issue 已经解决。");
-  assert.equal(view.harness.statusLabel, "已验证解决");
-  assert.equal(view.harness.satisfiedLabel, "满足 3 / 3 项证据要求");
+  assert.equal(view.verification.satisfiedLabel, "满足 3 / 3 项证据要求");
   assert.equal(view.incident, undefined);
   assert.equal(view.agent.disagreesWithHarness, false);
 });
@@ -380,14 +379,14 @@ test("UI：not_verified 不显示为调查失败", () => {
     ],
   });
   const view = buildInvestigationResultView(current);
-  assert.equal(view.result.statusLabel, "未验证完成");
-  assert.notEqual(view.result.statusLabel, "调查失败");
+  assert.equal(view.statusLabel, "暂未确认解决");
+  assert.notEqual(view.statusLabel, "调查失败");
   assert.equal(view.agent.conclusion, "本次调查没有产生 Agent 最终回答。");
   assert.equal(view.agent.conclusionSource, "presentation_fallback");
   assert.doesNotMatch(view.agent.conclusion, /我检查了|我发现|我的判断是/);
-  assert.equal(view.agent.findings.find((item) => item.id === "issue-state")?.text, "Issue 当前状态：已关闭");
-  assert.equal(view.agent.findings.some((item) => item.id === "pr-absent" || item.id === "commit-absent"), false);
-  assert.equal(view.agent.findings.some((item) => item.id === "resolution-chain"), false);
+  assert.equal(view.findings.find((item) => item.id === "issue-state")?.text, "Issue 当前状态：已关闭");
+  assert.equal(view.findings.some((item) => item.id === "pr-absent" || item.id === "commit-absent"), false);
+  assert.equal(view.findings.some((item) => item.id === "resolution-chain"), false);
   assert.equal(view.incident, undefined);
   assert.equal(incidentIsInvestigationFailure(view.incident), false);
   assert.equal(JSON.stringify(view).includes("调查失败"), false);
@@ -439,19 +438,19 @@ test("UI：INSUFFICIENT_EVIDENCE 显示证据不足，不是 Tool Failure", () =
     ],
   });
   const view = buildInvestigationResultView(current);
-  assert.equal(view.result.statusLabel, "证据不足");
+  assert.equal(view.statusLabel, "证据不足");
   assert.equal(view.incident?.kind, "insufficient");
   assert.equal(view.incident?.title, "证据不足");
   assert.equal(incidentIsInvestigationFailure(view.incident), false);
   assert.notEqual(view.incident?.kind, "process");
   assert.equal(view.incident?.rawFailureType, "insufficient_evidence");
   assert.match(view.agent.conclusion, /本次调查没有产生 Agent 最终回答/);
-  assert.deepEqual(view.agent.unresolvedQuestions, ["是否存在尚未关联到 Issue 的修复？"]);
-  assert.equal(view.harness.satisfiedLabel, "满足 1 / 3 项证据要求");
+  assert.deepEqual(view.openQuestions, ["是否存在尚未关联到 Issue 的修复？"]);
+  assert.equal(view.verification.satisfiedLabel, "满足 1 / 3 项证据要求");
   assert.deepEqual(view.incident?.nextEvidence, ["已合并的 Pull Request", "代码 / Commit 证据"]);
   assert.equal(view.incident?.recoverySummary, "调查已停止，避免重复执行相同的检索。");
   assert.equal(JSON.stringify(view.incident).includes("调查失败"), false);
-  assert.equal(JSON.stringify(view.harness).includes("33.3%"), false);
+  assert.equal(JSON.stringify(view.verification).includes("33.3%"), false);
   assert.equal(evidenceCoverageLabel(current), "证据覆盖率：33.3%");
 });
 
@@ -578,7 +577,7 @@ test("UI：证据 / 原始 Agent 输出 / 高级信息默认折叠，且不把�
   });
   const view = buildInvestigationResultView(current);
   assert.equal(rawAgentOutputText(current), "model raw output");
-  assert.equal(view.harness.satisfiedLabel, "满足 1 / 3 项证据要求");
+  assert.equal(view.verification.satisfiedLabel, "满足 1 / 3 项证据要求");
   assert.equal(evidenceCoverageLabel(current), "证据覆盖率：33.3%");
   assert.equal(view.rawAgentOutput, "model raw output");
 });
@@ -629,9 +628,9 @@ test("UI：Agent 调查结论与 Harness 验证分开，即使两者不一致也
   });
   const view = buildInvestigationResultView(current);
   assert.equal(view.agent.judgment, "调查发现：目前证据指向该 Issue 已经解决。");
-  assert.equal(view.harness.statusLabel, "证据不足");
+  assert.equal(view.statusLabel, "证据不足");
   assert.equal(view.agent.disagreesWithHarness, true);
-  assert.notEqual(view.agent.judgment, view.harness.statusLabel);
+  assert.notEqual(view.agent.judgment, view.statusLabel);
   assert.equal(view.incident?.kind, "insufficient");
 });
 
@@ -642,7 +641,7 @@ test("UI：调查发现只来自实际调查步骤与结果，不从 Evidence �
   });
   const findings = buildInvestigationFindings(current);
   assert.equal(findings.find((item) => item.id === "issue-state")?.text, "Issue 当前状态：打开");
-  assert.equal(findings.find((item) => item.id === "issue-state")?.source, "tool_result");
+  assert.equal(findings.find((item) => item.id === "issue-state")?.source, "evidence");
   assert.equal(findings.some((item) => item.id === "pr-absent"), false);
   assert.equal(findings.some((item) => item.id === "pr-checked-empty"), false);
   assert.equal(findings.some((item) => item.id === "commit-absent"), false);
@@ -886,6 +885,6 @@ test("UI：真实中文 Agent 结论原样展示，不覆盖也不改写成 Harn
   const view = buildInvestigationResultView(current);
   assert.equal(view.agent.conclusionSource, "agent_report");
   assert.equal(view.agent.judgment, "调查发现：目前证据指向该 Issue 已经解决。");
-  assert.equal(view.harness.statusLabel, "证据不足");
+  assert.equal(view.statusLabel, "证据不足");
   assert.equal(view.agent.disagreesWithHarness, true);
 });

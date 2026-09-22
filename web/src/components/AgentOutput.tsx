@@ -1,6 +1,4 @@
-import type { InvestigationSessionDTO } from "@dto";
-import { checkMark } from "../lib/workbench";
-import { buildInvestigationResultView, type PresentedAnalysisText } from "../lib/investigation-presentation";
+import type { InvestigationResultViewModel, PresentedAnalysisText } from "../lib/investigation-presentation";
 
 function AnalysisText({ value }: { value: PresentedAnalysisText }) {
   if (value.observed || value.inference) {
@@ -24,57 +22,38 @@ function AnalysisText({ value }: { value: PresentedAnalysisText }) {
   return <p>{value.text}</p>;
 }
 
-export function AgentOutput({ session }: { session: InvestigationSessionDTO }) {
-  const view = buildInvestigationResultView(session);
+export function AgentAnswerPanel({ view }: { view: InvestigationResultViewModel }) {
   const { agent } = view;
+  const isRealAnswer = agent.conclusionSource === "agent_report";
 
   return (
-    <section className="panel lane lane-agent" data-testid="agent-panel">
-      <h2 className="section-heading">🤖 Agent 调查</h2>
-      <p className="panel-sub">以下内容来自 Agent 的调查与解释，不是 Harness 的独立验证结果。</p>
-
-      <div className="lane-block" data-testid="agent-conclusion">
-        <p className="kicker">Agent 调查结论</p>
+    <section
+      className="panel lane lane-agent"
+      data-testid={isRealAnswer ? "agent-answer-panel" : "system-notice-panel"}
+    >
+      <h2 className="section-heading">🤖 {isRealAnswer ? "Agent 原始回答" : "系统说明"}</h2>
+      {isRealAnswer ? (
+        <>
+          <p className="panel-sub">以下内容是 Agent 的原始回答，属于未验证输入，不是 Harness 的独立验证结果。</p>
+          <div className="lane-block" data-testid="agent-conclusion">
+            <p className="lane-lead">{agent.conclusion}</p>
+          </div>
+          <div className="lane-block" data-testid="agent-judgment">
+            <p className="kicker">Agent 判断</p>
+            <p className="lane-lead">{agent.judgment}</p>
+            <p className="muted">{agent.judgmentNote}</p>
+            {agent.disagreesWithHarness ? (
+              <p className="compare-note">该判断与 Harness 独立验证结果不同，两者都会保留。</p>
+            ) : null}
+          </div>
+        </>
+      ) : (
         <p className="lane-lead">{agent.conclusion}</p>
-      </div>
-
-      {agent.findings.length > 0 ? (
-        <div className="lane-block" data-testid="agent-findings">
-          <p className="kicker">调查发现</p>
-          <ul className="finding-list">
-            {agent.findings.map((finding) => (
-              <li key={finding.id} className={finding.tone}>
-                <span>{checkMark(finding.tone === "fail" ? "fail" : "pass")}</span>
-                <span>{finding.text}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      <div className="lane-block" data-testid="agent-judgment">
-        <p className="kicker">Agent 判断</p>
-        <p className="lane-lead">{agent.judgment}</p>
-        <p className="muted">{agent.judgmentNote}</p>
-        {agent.disagreesWithHarness ? (
-          <p className="compare-note">该判断与 Harness 独立验证结果不同，两者都会保留。</p>
-        ) : null}
-      </div>
-
-      {agent.unresolvedQuestions.length > 0 ? (
-        <div className="lane-block" data-testid="unresolved-questions">
-          <p className="kicker">尚未确认</p>
-          <ul className="empty-list">
-            {agent.unresolvedQuestions.map((question) => (
-              <li key={question}>{question}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      )}
 
       {agent.resolutionAnalyses.length > 0 ? (
         <div className="lane-block" data-testid="resolution-analysis">
-          <h3 className="section-heading">🧩 代码变更分析</h3>
+          <h3 className="section-heading">🧩 代码变更分析（Agent 推断）</h3>
           <p className="muted">这是 Agent 对代码变更的分析，不是 Harness 验证结果。</p>
           {agent.resolutionAnalyses.map((analysis) => (
             <div key={analysis.candidateEvidenceId} className="analysis-card">
@@ -93,16 +72,6 @@ export function AgentOutput({ session }: { session: InvestigationSessionDTO }) {
                 <p className="kicker">测试支持</p>
                 <AnalysisText value={analysis.testSupport} />
               </div>
-              {analysis.unresolvedQuestions.length > 0 ? (
-                <div className="analysis-field">
-                  <p className="kicker">未解决问题</p>
-                  <ul className="empty-list">
-                    {analysis.unresolvedQuestions.map((question) => (
-                      <li key={question}>{question}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
             </div>
           ))}
         </div>

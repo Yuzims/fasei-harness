@@ -1,9 +1,8 @@
-import type { InvestigationSessionDTO } from "@dto";
 import { checkMark } from "../lib/workbench";
-import { buildInvestigationResultView } from "../lib/investigation-presentation";
+import type { InvestigationResultViewModel } from "../lib/investigation-presentation";
 
-export function InvestigationProcessPanel({ session }: { session: InvestigationSessionDTO }) {
-  const { process } = buildInvestigationResultView(session);
+export function InvestigationProcessPanel({ view }: { view: InvestigationResultViewModel }) {
+  const process = view.process;
 
   return (
     <section className="panel" data-testid="process-panel">

@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, fetchInvestigationCatalog, runInvestigation } from "../api/client";
 import { AdvancedInfo } from "../components/AdvancedInfo";
-import { AgentOutput } from "../components/AgentOutput";
+import { AgentAnswerPanel } from "../components/AgentOutput";
 import { EvidencePanel } from "../components/EvidencePanel";
-import { FailureRecoveryPanel } from "../components/FailureRecoveryPanel";
-import { InvestigationProcessPanel } from "../components/InvestigationProcessPanel";
-import { RawAgentOutput } from "../components/RawAgentOutput";
-import { VerificationChecks, VerificationSummary } from "../components/VerificationPanel";
+import { FindingsPanel } from "../components/FindingsPanel";
+import { OpenQuestionsPanel } from "../components/OpenQuestionsPanel";
+import { IndependentVerificationPanel, InvestigationResultBanner } from "../components/VerificationPanel";
+import { buildInvestigationResultView } from "../lib/investigation-presentation";
 import {
   catalogRunRequest,
   exampleHeading,
@@ -30,9 +30,9 @@ import type {
 const WORKFLOW_STEPS = ["Issue", "调查", "证据", "独立验证", "结果"] as const;
 const OUTCOMES = ["verified_complete", "not_verified", "insufficient_evidence"] as const;
 const EMPTY_RESULT_ITEMS = [
-  "调查结果（Harness 独立验证）",
-  "Agent 调查发现与判断",
-  "Harness 独立验证检查",
+  "调查结论（以 Harness 独立验证为准）",
+  "调查发现与关键证据",
+  "独立验证与待确认事项",
 ] as const;
 
 function catalogIssue(item: Pick<InvestigationCatalogItemDTO, "owner" | "repository" | "issueNumber">) {
@@ -70,7 +70,9 @@ export function InvestigationView() {
   const [phase, setPhase] = useState<RunPhase>("idle");
   const [error, setError] = useState<{ status?: number; message: string; code?: string }>();
   const [requestedMode, setRequestedMode] = useState<"live" | "snapshot">("live");
+  const [focusEvidenceIds, setFocusEvidenceIds] = useState<string[]>([]);
   const mode = session ? investigationMode(session) : requestedMode;
+  const result = session ? buildInvestigationResultView(session) : undefined;
 
   useEffect(() => {
     fetchInvestigationCatalog()
@@ -91,6 +93,7 @@ export function InvestigationView() {
     setPhase("running");
     setError(undefined);
     setSession(undefined);
+    setFocusEvidenceIds([]);
     setRequestedMode(body.mode === "snapshot" || body.caseId || body.scenarioId ? "snapshot" : "live");
     try {
       const result = await runInvestigation(body);
@@ -261,16 +264,18 @@ export function InvestigationView() {
         </section>
       ) : null}
 
-      {session ? (
+      {session && result ? (
         <>
-          <VerificationSummary session={session} />
-          <AgentOutput session={session} />
-          <VerificationChecks session={session} />
-          <InvestigationProcessPanel session={session} />
-          <FailureRecoveryPanel session={session} />
-          <EvidencePanel session={session} />
-          <RawAgentOutput session={session} />
-          <AdvancedInfo session={session} />
+          <InvestigationResultBanner view={result} />
+          <FindingsPanel
+            view={result}
+            onShowEvidence={(evidenceIds) => setFocusEvidenceIds([...evidenceIds])}
+          />
+          <EvidencePanel evidence={result.evidence} focusEvidenceIds={focusEvidenceIds} />
+          <IndependentVerificationPanel view={result} />
+          <OpenQuestionsPanel view={result} />
+          <AgentAnswerPanel view={result} />
+          <AdvancedInfo session={session} view={result} />
         </>
       ) : null}
     </div>

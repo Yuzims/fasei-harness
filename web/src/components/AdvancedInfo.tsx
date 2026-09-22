@@ -1,26 +1,32 @@
 import type { InvestigationSessionDTO } from "@dto";
-import { buildInvestigationResultView } from "../lib/investigation-presentation";
+import type { InvestigationResultViewModel } from "../lib/investigation-presentation";
 import {
   actorLabel,
-  evidenceCoverageLabel,
   issueRef,
   investigationMode,
   investigationModeLabel,
 } from "../lib/workbench";
 import { AttemptPanel } from "./AttemptPanel";
 import { ClaimPanel } from "./ClaimPanel";
+import { FailureRecoveryPanel } from "./FailureRecoveryPanel";
+import { InvestigationProcessPanel } from "./InvestigationProcessPanel";
 import { LlmProfilingPanel } from "./LlmProfilingPanel";
+import { RawAgentOutput } from "./RawAgentOutput";
 import { TraceTimeline } from "./TraceTimeline";
 
-export function AdvancedInfo({ session }: { session: InvestigationSessionDTO }) {
+export function AdvancedInfo({
+  session,
+  view,
+}: {
+  session: InvestigationSessionDTO;
+  view: InvestigationResultViewModel;
+}) {
   const mode = investigationMode(session);
   const checks = session.verification?.checks ?? [];
-  const coverage = evidenceCoverageLabel(session);
-  const view = buildInvestigationResultView(session);
 
   return (
     <details className="fold" data-testid="advanced-fold">
-      <summary>▶ 高级信息</summary>
+      <summary>▶ 技术详情</summary>
       <p className="muted">以下内容保留给开发与演示，不参与最终结论。</p>
 
       <details className="inner-fold" open>
@@ -33,7 +39,10 @@ export function AdvancedInfo({ session }: { session: InvestigationSessionDTO }) 
           <div>执行者：{actorLabel(session.actor)}</div>
           <div>运行状态：{session.runStatus}</div>
           <div>调查状态：{session.status}</div>
-          {coverage ? <div>{coverage}</div> : null}
+          <div>调查尝试次数：{session.attempts.length}</div>
+          {view.uncertainty.length > 0 ? (
+            <div>调查不确定性说明：{view.uncertainty.join("；")}</div>
+          ) : null}
           {view.agent.originalConclusion ? (
             <div>原始 InvestigationReport 结论：{view.agent.originalConclusion}</div>
           ) : null}
@@ -48,6 +57,13 @@ export function AdvancedInfo({ session }: { session: InvestigationSessionDTO }) 
             </div>
           ) : null}
         </div>
+      </details>
+
+      <details className="inner-fold">
+        <summary>调查过程与恢复</summary>
+        <InvestigationProcessPanel view={view} />
+        <FailureRecoveryPanel view={view} />
+        <RawAgentOutput view={view} />
       </details>
 
       <AttemptPanel session={session} />
@@ -89,6 +105,11 @@ export function AdvancedInfo({ session }: { session: InvestigationSessionDTO }) 
             {session.verification?.missingRequirementIds.length ? (
               <div className="mono">
                 missingRequirementIds: {session.verification.missingRequirementIds.join(", ")}
+              </div>
+            ) : null}
+            {session.verification?.unsupportedClaimIds.length ? (
+              <div className="mono">
+                unsupportedClaimIds: {session.verification.unsupportedClaimIds.join(", ")}
               </div>
             ) : null}
           </div>

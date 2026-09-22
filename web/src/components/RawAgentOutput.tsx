@@ -1,8 +1,7 @@
-import type { InvestigationSessionDTO } from "@dto";
-import { rawAgentOutputText } from "../lib/investigation-presentation";
+import type { InvestigationResultViewModel } from "../lib/investigation-presentation";
 
-export function RawAgentOutput({ session }: { session: InvestigationSessionDTO }) {
-  const output = rawAgentOutputText(session);
+export function RawAgentOutput({ view }: { view: InvestigationResultViewModel }) {
+  const output = view.rawAgentOutput;
   if (!output) {
     return null;
   }

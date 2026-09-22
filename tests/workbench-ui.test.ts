@@ -333,7 +333,7 @@ test("UI：verified_complete 展示已验证解决，不把 Agent 结论当成�
   assert.equal(view.result.subtitle, "当前证据可以证明这个 Issue 已经解决。");
   assert.equal(view.agent.conclusion, "Looks resolved.");
   assert.equal(view.agent.conclusionSource, "agent_report");
-  assert.equal(view.agent.judgment, "目前认为该 Issue 已经解决。");
+  assert.equal(view.agent.judgment, "调查发现：目前证据指向该 Issue 已经解决。");
   assert.equal(view.harness.statusLabel, "已验证解决");
   assert.equal(view.harness.satisfiedLabel, "满足 3 / 3 项证据要求");
   assert.equal(view.incident, undefined);
@@ -342,6 +342,8 @@ test("UI：verified_complete 展示已验证解决，不把 Agent 结论当成�
 
 test("UI：not_verified 不显示为调查失败", () => {
   const current = session({
+    agentOutput: undefined,
+    rawAgentOutput: undefined,
     issue: { owner: "cli", repository: "cli", number: 13070, title: "closed not planned", state: "closed" },
     status: "insufficient_evidence",
     runStatus: "not_verified",
@@ -380,7 +382,7 @@ test("UI：not_verified 不显示为调查失败", () => {
   const view = buildInvestigationResultView(current);
   assert.equal(view.result.statusLabel, "未验证完成");
   assert.notEqual(view.result.statusLabel, "调查失败");
-  assert.equal(view.agent.conclusion, "当前没有可展示的 Agent 调查结论。");
+  assert.equal(view.agent.conclusion, "本次调查没有产生 Agent 最终回答。");
   assert.equal(view.agent.conclusionSource, "presentation_fallback");
   assert.doesNotMatch(view.agent.conclusion, /我检查了|我发现|我的判断是/);
   assert.equal(view.agent.findings.find((item) => item.id === "issue-state")?.text, "Issue 当前状态：已关闭");
@@ -393,6 +395,8 @@ test("UI：not_verified 不显示为调查失败", () => {
 
 test("UI：INSUFFICIENT_EVIDENCE 显示证据不足，不是 Tool Failure", () => {
   const current = session({
+    agentOutput: undefined,
+    rawAgentOutput: undefined,
     issue: { owner: "facebook", repository: "react", number: 37395, title: "open issue", state: "open" },
     status: "insufficient_evidence",
     runStatus: "insufficient_evidence",
@@ -441,7 +445,7 @@ test("UI：INSUFFICIENT_EVIDENCE 显示证据不足，不是 Tool Failure", () =
   assert.equal(incidentIsInvestigationFailure(view.incident), false);
   assert.notEqual(view.incident?.kind, "process");
   assert.equal(view.incident?.rawFailureType, "insufficient_evidence");
-  assert.match(view.agent.conclusion, /当前没有可展示的 Agent 调查结论/);
+  assert.match(view.agent.conclusion, /本次调查没有产生 Agent 最终回答/);
   assert.deepEqual(view.agent.unresolvedQuestions, ["是否存在尚未关联到 Issue 的修复？"]);
   assert.equal(view.harness.satisfiedLabel, "满足 1 / 3 项证据要求");
   assert.deepEqual(view.incident?.nextEvidence, ["已合并的 Pull Request", "代码 / Commit 证据"]);
@@ -602,6 +606,7 @@ test("UI：没有 investigation step 时不编造 step，也不把 verifier chec
 
 test("UI：Agent 调查结论与 Harness 验证分开，即使两者不一致也同时保留", () => {
   const current = session({
+    agentOutput: "I think a PR exists.",
     report: { conclusion: "I think a PR exists.", polarity: "resolved", uncertainty: "", openQuestions: [] },
     verification: {
       status: "insufficient_evidence",
@@ -623,7 +628,7 @@ test("UI：Agent 调查结论与 Harness 验证分开，即使两者不一致也
     ],
   });
   const view = buildInvestigationResultView(current);
-  assert.equal(view.agent.judgment, "目前认为该 Issue 已经解决。");
+  assert.equal(view.agent.judgment, "调查发现：目前证据指向该 Issue 已经解决。");
   assert.equal(view.harness.statusLabel, "证据不足");
   assert.equal(view.agent.disagreesWithHarness, true);
   assert.notEqual(view.agent.judgment, view.harness.statusLabel);
@@ -822,7 +827,8 @@ test("UI：缺失 Agent 结论时不伪造第一人称调查结论", () => {
   const current = session({
     issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
     evidence: [{ id: "ev-issue", kind: "issue", summary: "Issue #37395 is open", trust: "external_untrusted" }],
-    agentOutput: "Insufficient evidence to explain how issue #37395 was resolved.",
+    agentOutput: undefined,
+    rawAgentOutput: undefined,
     report: {
       conclusion: "Insufficient evidence to explain how issue #37395 was resolved.",
       polarity: "unknown",
@@ -831,16 +837,17 @@ test("UI：缺失 Agent 结论时不伪造第一人称调查结论", () => {
     },
   });
   const conclusion = presentAgentConclusion(current);
-  assert.equal(conclusion, "当前没有可展示的 Agent 调查结论。");
+  assert.equal(conclusion, "本次调查没有产生 Agent 最终回答。");
   assert.doesNotMatch(conclusion, /我检查了|我发现|我的判断是/);
   const view = buildInvestigationResultView(current);
   assert.equal(view.agent.conclusionSource, "presentation_fallback");
   assert.equal(view.agent.originalConclusion, "Insufficient evidence to explain how issue #37395 was resolved.");
-  assert.equal(presentAgentJudgment(current), "目前无法确认该 Issue 已经解决。");
+  assert.equal(presentAgentJudgment(current), "调查发现：目前无法确认该 Issue 已经解决。");
 });
 
 test("UI：真实英文 Agent 结论原样展示，不翻译也不伪装成前端生成的 Agent 原话", () => {
   const current = session({
+    agentOutput: "The related PR is merged, but runtime proof is still missing.",
     issue: { owner: "facebook", repository: "react", number: 37395, state: "open" },
     report: {
       conclusion: "The related PR is merged, but runtime proof is still missing.",
@@ -854,11 +861,12 @@ test("UI：真实英文 Agent 结论原样展示，不翻译也不伪装成前�
   assert.doesNotMatch(conclusion, /我检查了|我发现|我的判断是/);
   const view = buildInvestigationResultView(current);
   assert.equal(view.agent.conclusionSource, "agent_report");
-  assert.equal(view.agent.judgment, "目前认为该 Issue 仅部分解决。");
+  assert.equal(view.agent.judgment, "调查发现：目前证据指向该 Issue 仅部分解决。");
 });
 
 test("UI：真实中文 Agent 结论原样展示，不覆盖也不改写成 Harness 判断", () => {
   const current = session({
+    agentOutput: "根据已收集的证据，我认为相关修复可能已经合并。",
     report: {
       conclusion: "根据已收集的证据，我认为相关修复可能已经合并。",
       polarity: "resolved",
@@ -877,7 +885,7 @@ test("UI：真实中文 Agent 结论原样展示，不覆盖也不改写成 Harn
   assert.equal(presentAgentConclusion(current), "根据已收集的证据，我认为相关修复可能已经合并。");
   const view = buildInvestigationResultView(current);
   assert.equal(view.agent.conclusionSource, "agent_report");
-  assert.equal(view.agent.judgment, "目前认为该 Issue 已经解决。");
+  assert.equal(view.agent.judgment, "调查发现：目前证据指向该 Issue 已经解决。");
   assert.equal(view.harness.statusLabel, "证据不足");
   assert.equal(view.agent.disagreesWithHarness, true);
 });

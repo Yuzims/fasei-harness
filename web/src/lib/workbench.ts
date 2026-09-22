@@ -432,7 +432,7 @@ export function evidenceCoverageLabel(session: InvestigationSessionDTO): string 
 }
 
 export function agentConclusion(session: InvestigationSessionDTO): string {
-  return session.report.conclusion || session.agentOutput || "当前没有可展示的 Agent 调查结论。";
+  return session.agentOutput || session.rawAgentOutput || "本次调查没有产生 Agent 最终回答。";
 }
 
 export function agentHarnessDisagree(session: InvestigationSessionDTO): boolean {

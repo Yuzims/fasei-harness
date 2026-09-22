@@ -147,8 +147,9 @@ test("LIVE without an LLM key is unconfigured and does not use SnapshotInvestiga
   assert.equal(session.actor, "unconfigured");
   assert.equal(session.status, "unconfigured");
   assert.notEqual(session.actor, "test_driver");
-  assert.match(session.agentOutput, /unconfigured/i);
-  assert.match(session.agentOutput, /no OpenAI-compatible API key/i);
+  assert.equal(session.agentOutput, undefined);
+  assert.match(session.report.conclusion, /unconfigured/i);
+  assert.match(session.report.conclusion, /no OpenAI-compatible API key/i);
   assert.equal(session.verification, undefined);
   assert.ok(calls.some((url) => url.includes("api.github.com/repos/debug-js/debug/issues/1")));
   assert.equal(

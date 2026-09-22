@@ -232,7 +232,8 @@ test("API：live 未配置 LLM 时返回 unconfigured，不走 SnapshotInvestiga
   assert.equal(body.mode, "live");
   assert.equal(body.actor, "unconfigured");
   assert.notEqual(body.actor, "test_driver");
-  assert.match(body.agentOutput, /unconfigured/i);
+  assert.equal(body.agentOutput, undefined);
+  assert.match(body.report.conclusion, /unconfigured/i);
   assert.equal(body.verification, undefined);
 });
 

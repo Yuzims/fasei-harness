@@ -299,7 +299,7 @@ export function toInvestigationSessionDTO(
       description: report.task.description,
     },
     issue: issueFromReport(report),
-    agentOutput: report.report.conclusion,
+    agentOutput: rawAgentOutputFrom(report),
     rawAgentOutput: rawAgentOutputFrom(report),
     verification: report.verification
       ? {

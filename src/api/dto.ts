@@ -276,6 +276,11 @@ export interface InvestigationAttemptDTO {
   strategy?: string;
   verificationStatus?: string;
   checks: InvestigationCheckDTO[];
+  /**
+   * Structured investigation conclusion snapshot (report.conclusion at attempt time).
+   * Compat field only — NOT the raw AgentResult.output. Presentation must use
+   * session.agentOutput / rawAgentOutput for real agent output.
+   */
   agentConclusion?: string;
   failureType?: string;
   failureReason?: string;
@@ -307,7 +312,8 @@ export interface InvestigationSessionDTO {
     description: string;
   };
   issue: InvestigationIssueDTO;
-  agentOutput: string;
+  /** Real AgentResult.output only. Undefined when the agent produced no final output. Never falls back to report.conclusion. */
+  agentOutput?: string;
   /** Original AgentResult.output when present. Presentation only; never a verification verdict. */
   rawAgentOutput?: string;
   verification?: {

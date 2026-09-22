@@ -172,14 +172,8 @@ export interface InvestigationResultView {
   rawAgentOutput: string;
 }
 
-const MISSING_AGENT_CONCLUSION = "当前没有可展示的 Agent 调查结论。";
+const MISSING_AGENT_CONCLUSION = "本次调查没有产生 Agent 最终回答。";
 const UNCONFIGURED_CONCLUSION = "当前未配置可用于调查的大模型，因此没有完成 Agent 调查。";
-
-const HARNESS_FILLED_CONCLUSION = [
-  /^Insufficient evidence to explain how issue #\d+ was resolved\.?$/i,
-  /^Issue #\d+ is closed or related to a PR, but merge evidence is missing\.?$/i,
-  /has a merged PR candidate; this is an investigation claim, not verification\.?$/i,
-];
 
 const ISSUE_TOOLS = ["get_issue"];
 const PR_RETRIEVAL_TOOLS = ["get_pull_request"];
@@ -224,44 +218,11 @@ function checkedEmpty(activity: ToolActivity): boolean {
   return activity.succeeded && !activity.failed;
 }
 
-function isHarnessFilledConclusion(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) {
-    return true;
-  }
-  return HARNESS_FILLED_CONCLUSION.some((pattern) => pattern.test(trimmed));
-}
-
-function looksLikeProseConclusion(text: string): boolean {
-  const trimmed = text.trim();
-  return trimmed.length > 0 && !trimmed.startsWith("{") && !trimmed.startsWith("[");
-}
-
-function pickAuthoredConclusion(text?: string): string | undefined {
-  if (!text || !looksLikeProseConclusion(text) || isHarnessFilledConclusion(text)) {
-    return undefined;
-  }
-  return text.trim();
-}
-
-function realAgentConclusion(session: InvestigationSessionDTO): string | undefined {
-  const fromReport = pickAuthoredConclusion(session.report.conclusion);
-  if (fromReport) {
-    return fromReport;
-  }
-  if (!session.report.conclusion?.trim()) {
-    const fromOutput = pickAuthoredConclusion(session.agentOutput);
-    if (fromOutput) {
-      return fromOutput;
-    }
-  }
-  for (const candidate of [
-    ...[...session.attempts].reverse().map((attempt) => attempt.agentConclusion),
-    session.rawAgentOutput,
-  ]) {
-    const authored = pickAuthoredConclusion(candidate);
-    if (authored) {
-      return authored;
+function realAgentOutput(session: InvestigationSessionDTO): string | undefined {
+  for (const candidate of [session.agentOutput, session.rawAgentOutput]) {
+    const text = candidate?.trim();
+    if (text) {
+      return text;
     }
   }
   return undefined;
@@ -435,7 +396,7 @@ export function presentAgentConclusionView(session: InvestigationSessionDTO): {
   if (session.actor === "unconfigured" || session.status === "unconfigured") {
     return { text: UNCONFIGURED_CONCLUSION, source: "presentation_fallback" };
   }
-  const authored = realAgentConclusion(session);
+  const authored = realAgentOutput(session);
   if (authored) {
     return { text: authored, source: "agent_report" };
   }
@@ -449,15 +410,15 @@ export function presentAgentConclusion(session: InvestigationSessionDTO): string
 export function presentAgentJudgment(session: InvestigationSessionDTO): string {
   const polarity = session.report.polarity;
   if (polarity === "resolved") {
-    return "目前认为该 Issue 已经解决。";
+    return "调查发现：目前证据指向该 Issue 已经解决。";
   }
   if (polarity === "unresolved") {
-    return "目前认为该 Issue 尚未解决。";
+    return "调查发现：目前证据指向该 Issue 尚未解决。";
   }
   if (polarity === "partial") {
-    return "目前认为该 Issue 仅部分解决。";
+    return "调查发现：目前证据指向该 Issue 仅部分解决。";
   }
-  return "目前无法确认该 Issue 已经解决。";
+  return "调查发现：目前无法确认该 Issue 已经解决。";
 }
 
 export function splitObservedInference(text: string): PresentedAnalysisText {
@@ -594,14 +555,14 @@ export function evidenceRequirementSummary(session: InvestigationSessionDTO): {
 }
 
 export function rawAgentOutputText(session: InvestigationSessionDTO): string {
-  return session.rawAgentOutput || session.agentOutput || session.report.conclusion || "";
+  return session.rawAgentOutput || session.agentOutput || "";
 }
 
 export function buildInvestigationResultView(session: InvestigationSessionDTO): InvestigationResultView {
   const status = session.verification?.status;
   const steps = buildInvestigationSteps(session);
   const requirement = evidenceRequirementSummary(session);
-  const originalConclusion = session.report.conclusion || session.agentOutput || "";
+  const originalConclusion = session.report.conclusion || "";
   const issueTitle = session.issue.title || session.issue.summary;
   const issueLine = [
     issueRef(session.task),
@@ -625,7 +586,7 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
       originalConclusion,
       findings: buildInvestigationFindings(session),
       judgment: presentAgentJudgment(session),
-      judgmentNote: "这是 Agent 的判断，不是 Harness 独立验证。",
+      judgmentNote: "这是根据调查证据整理的调查发现，不是 Agent 原始判断；是否解决以 Harness 独立验证为准。",
       disagreesWithHarness: agentHarnessDisagree(session),
       unresolvedQuestions: presentUnresolvedQuestions(session.report.openQuestions),
       resolutionAnalyses: presentResolutionAnalyses(session.resolutionAnalyses),

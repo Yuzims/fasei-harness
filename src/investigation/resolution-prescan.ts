@@ -303,8 +303,12 @@ export async function runResolutionPrescan(
     {
       state: record.state,
       llmCalls: record.llmCalls,
+      startedAt: record.startedAt,
+      completedAt: record.completedAt,
       candidatesEnumerated: record.candidatesEnumerated,
       candidatesTruncated: record.candidatesTruncated,
+      unlinkedScanState: record.unlinkedFixScan?.state,
+      unlinkedHintCount: record.unlinkedFixScan?.hints.length ?? 0,
       candidates: record.candidates.map((candidate) => ({
         pullNumber: candidate.pullNumber,
         enumeratedBy: candidate.enumeratedBy,

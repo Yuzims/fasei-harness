@@ -1,4 +1,5 @@
-import type { InvestigationRequest, InvestigationStreamEvent } from "../api/dto.js";
+import type { InvestigationRequest, InvestigationStreamEvent, LiveEventPhase } from "../api/dto.js";
+import { HARNESS_STRUCTURED_SOURCE } from "../investigation/resolution-prescan.js";
 import { TraceCollector, type TraceEvent } from "../trace/trace-collector.js";
 import type { RunInvestigationOptions } from "./investigation-service.js";
 import { runInvestigation } from "./investigation-service.js";
@@ -72,6 +73,13 @@ function stringField(data: Record<string, unknown>, key: string): string | undef
   return typeof data[key] === "string" ? (data[key] as string) : undefined;
 }
 
+function recordField(data: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
+  const value = data[key];
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
 function toolLabel(tool: string): string {
   return TOOL_LABELS[tool] ?? tool.replaceAll("_", " ");
 }
@@ -80,53 +88,274 @@ function checkLabel(id: string, name?: string): string {
   return CHECK_LABELS[id] ?? (name ? CHECK_LABELS[name] : undefined) ?? id.replaceAll("-", " ");
 }
 
+/** Pure resource identifiers (numbers / short shas) already public in evidence data. */
+function resourceIdentifier(args: Record<string, unknown> | undefined): string {
+  if (!args) {
+    return "";
+  }
+  if (typeof args.pullNumber === "number") {
+    return ` · PR #${args.pullNumber}`;
+  }
+  if (typeof args.issueNumber === "number") {
+    return ` · Issue #${args.issueNumber}`;
+  }
+  if (typeof args.sha === "string" && args.sha.length > 0) {
+    return ` · Commit ${args.sha.slice(0, 7)}`;
+  }
+  return "";
+}
+
+function evidenceResourceLabel(resource: string | undefined): string | undefined {
+  if (!resource) {
+    return undefined;
+  }
+  const direct: Record<string, (n: string) => string> = {
+    issue: (n) => `Issue #${n} 正文`,
+    comments: (n) => `Issue #${n} 评论`,
+    timeline: (n) => `Issue #${n} Timeline`,
+    pull: (n) => `PR #${n} 详情`,
+  };
+  const issueMatch = /^issues\/(\d+)(#(comments|timeline))?$/.exec(resource);
+  if (issueMatch) {
+    const sub = issueMatch[3] ?? "issue";
+    return direct[sub]?.(issueMatch[1]);
+  }
+  const pullMatch = /^pull\/(\d+)(\/(reviews|files)(\/.*)?)?$/.exec(resource);
+  if (pullMatch) {
+    if (pullMatch[3] === "reviews") {
+      return `PR #${pullMatch[1]} 评审`;
+    }
+    if (pullMatch[3] === "files") {
+      return `PR #${pullMatch[1]} 文件清单`;
+    }
+    return `PR #${pullMatch[1]} 详情`;
+  }
+  if (resource === "commits") {
+    return "Commit 列表";
+  }
+  const commitMatch = /^commit\/([0-9a-f]+)$/i.exec(resource);
+  if (commitMatch) {
+    return `Commit ${commitMatch[1].slice(0, 7)}`;
+  }
+  return undefined;
+}
+
+function prescanNumber(n: number): string {
+  return `#${n}`;
+}
+
+interface PrescanCandidateView {
+  pullNumber: number;
+  structuredClosingReference: number | boolean | null;
+  detailState: string;
+}
+
+function prescanCandidateViews(data: Record<string, unknown>): PrescanCandidateView[] {
+  const raw = Array.isArray(data.candidates) ? data.candidates : [];
+  const views: PrescanCandidateView[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    if (typeof record.pullNumber !== "number") {
+      continue;
+    }
+    views.push({
+      pullNumber: record.pullNumber,
+      structuredClosingReference:
+        record.structuredClosingReference === true || record.structuredClosingReference === false
+          ? record.structuredClosingReference
+          : null,
+      detailState: typeof record.detailState === "string" ? record.detailState : "skipped",
+    });
+  }
+  return views;
+}
+
+/**
+ * Phase 19-B: fixed-template aggregate lines for the prescan phase, assembled
+ * purely from record fields (counts, detailState, structured flags). Zero model
+ * involvement; mirrors the conclusion-template rules on the result page.
+ */
+function projectPrescan(event: TraceEvent): InvestigationStreamEvent {
+  const data = event.data;
+  const state: "completed" | "incomplete" =
+    event.type === "resolution_prescan_completed" ? "completed" : "incomplete";
+  const candidates = prescanCandidateViews(data);
+  if (candidates.length === 0 && state === "incomplete" && typeof data.reason === "string") {
+    return {
+      type: "prescan_completed",
+      step: event.step,
+      phase: "prescan",
+      state,
+      summary: "预扫描未完成",
+      lines: ["机器预扫描未完成，本次结论不依赖机器预扫描。"],
+    };
+  }
+  const enumerated = typeof data.candidatesEnumerated === "number" ? data.candidatesEnumerated : candidates.length;
+  const truncated = data.candidatesTruncated === true;
+  const completed = candidates.filter((c) => c.detailState === "completed").length;
+  const notPr = candidates.filter((c) => c.detailState === "not_a_pull_request").length;
+  const failed = candidates.filter((c) => c.detailState === "failed").length;
+  const skipped = candidates.filter((c) => c.detailState === "skipped").length;
+  const closingHits = candidates.filter((c) => c.structuredClosingReference === true);
+  const adjudicated = completed + notPr;
+  let seconds: string | undefined;
+  const startedAt = stringField(data, "startedAt");
+  const completedAt = stringField(data, "completedAt");
+  if (startedAt && completedAt) {
+    const ms = Date.parse(completedAt) - Date.parse(startedAt);
+    if (Number.isFinite(ms) && ms >= 0) {
+      seconds = `${(ms / 1000).toFixed(1)}s`;
+    }
+  }
+  const allChecked = enumerated === candidates.length && failed === 0 && skipped === 0;
+  const summary = [
+    "0 次 AI 调用",
+    candidates.length === 0 && enumerated === 0
+      ? "未找到相关 PR"
+      : `找到 ${enumerated} 个相关 PR`,
+    allChecked ? "全部核对" : `已核对 ${adjudicated} / ${candidates.length} 个`,
+    seconds,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const numbers = candidates.map((c) => prescanNumber(c.pullNumber)).join("、");
+  const lines = [
+    candidates.length === 0
+      ? "读取 Issue 正文与评论，提取被引用的编号 → 未找到相关 PR"
+      : `读取 Issue 正文与评论，提取被引用的编号 → 找到相关 PR ${numbers}${truncated ? "（已达数量上限，多余编号被截断）" : ""}`,
+    `查 GitHub 官方修复标记 → ${closingHits.length} / ${candidates.length} 个 PR 命中${
+      closingHits.length > 0 ? `（${closingHits.map((c) => prescanNumber(c.pullNumber)).join("、")}）` : ""
+    }`,
+  ];
+  if (candidates.length > 0) {
+    const list = (items: PrescanCandidateView[]) =>
+      items.length > 0 ? `（${items.map((c) => prescanNumber(c.pullNumber)).join("、")}）` : "";
+    lines.push(
+      `拉取 PR 详情 ×${completed}${list(
+        candidates.filter((c) => c.detailState === "completed"),
+      )} · 确认非 PR ×${notPr}${list(candidates.filter((c) => c.detailState === "not_a_pull_request"))} · 读取失败 ×${failed}${
+        skipped > 0 ? ` · 因上限未读取 ×${skipped}` : ""
+      }`,
+    );
+  }
+  const hintCount = typeof data.unlinkedHintCount === "number" ? data.unlinkedHintCount : 0;
+  const scanState = stringField(data, "unlinkedScanState");
+  if (hintCount > 0) {
+    lines.push(`扫描这些 PR 改动文件的主干提交 → ${hintCount} 条未关联修复线索（提示性质，不改变结论）`);
+  } else if (scanState === "failed") {
+    lines.push("扫描主干提交 → 未完成（不影响结论）");
+  } else if (scanState === "skipped") {
+    lines.push("扫描主干提交 → 未执行");
+  }
+  return {
+    type: "prescan_completed",
+    step: event.step,
+    phase: "prescan",
+    state,
+    summary,
+    lines,
+  };
+}
+
 /**
  * Per-connection projector: turns internal TraceEvents into minimal public events.
  * Only harness-authored labels cross the boundary; tool arguments, model payloads,
- * evidence payloads and agent reasons never leave the runtime trace.
+ * evidence payloads and agent reasons never leave the runtime trace. Phase 19-B:
+ * each process event also carries its server-side phase group, and summaries gain
+ * resource identifiers extracted from already-public numbers (PR/Issue/sha).
  */
 export function createInvestigationStreamProjector(): (event: TraceEvent) => InvestigationStreamEvent | null {
   let lastTool = "";
+  let lastToolPhase: LiveEventPhase = "agent";
   return (event) => {
     const step = event.step;
     switch (event.type) {
-      case "investigation_started":
-        return { type: "investigation_started", step, timestamp: event.timestamp };
+      case "investigation_started": {
+        const budget = recordField(event.data, "runtimeBudget");
+        const maxLlmCalls =
+          typeof budget?.maxLlmCalls === "number" ? budget.maxLlmCalls : undefined;
+        return {
+          type: "investigation_started",
+          step,
+          timestamp: event.timestamp,
+          ...(maxLlmCalls !== undefined ? { maxLlmCalls } : {}),
+        };
+      }
+      case "resolution_prescan_completed":
+      case "resolution_prescan_incomplete":
+        return projectPrescan(event);
       case "agent_step": {
         const tool = stringField(event.data, "tool");
         return {
           type: "agent_step",
           step,
+          phase: "agent",
           summary: tool ? `计划下一步：${toolLabel(tool)}` : "规划下一步调查",
         };
       }
       case "tool_call": {
         const tool = stringField(event.data, "tool") ?? "";
         lastTool = tool;
-        return { type: "tool_call", step, tool, summary: `正在${toolLabel(tool)}…` };
+        lastToolPhase = "agent";
+        return {
+          type: "tool_call",
+          step,
+          phase: "agent",
+          tool,
+          summary: `正在${toolLabel(tool)}${resourceIdentifier(recordField(event.data, "arguments"))}…`,
+        };
       }
       case "tool_result": {
         const success = event.data.success !== false;
+        let summary = success ? "工具调用完成" : "工具调用未成功";
+        if (success) {
+          const output = event.data.output;
+          const value =
+            output && typeof output === "object" && "value" in output
+              ? (output as { value: unknown }).value
+              : output;
+          if (Array.isArray(value)) {
+            summary = `${value.length} 项结果`;
+          }
+        }
         return {
           type: "tool_result",
           step,
+          phase: lastToolPhase,
           tool: lastTool,
           success,
-          summary: success ? "工具调用完成" : "工具调用未成功",
+          summary,
         };
       }
       case "evidence_added": {
         const kind = stringField(event.data, "kind") ?? "other";
-        return { type: "evidence_added", step, summary: `获得${KIND_LABELS[kind] ?? kind}证据` };
+        const provenance = recordField(event.data, "provenance");
+        const source = provenance ? stringField(provenance, "source") : undefined;
+        const phase: LiveEventPhase = source === HARNESS_STRUCTURED_SOURCE ? "prescan" : "agent";
+        const contentRef = stringField(event.data, "contentRef");
+        const mergeRef = contentRef ? /^pr-merge:(\d+)$/.exec(contentRef) : null;
+        const label = mergeRef
+          ? `PR #${mergeRef[1]} 合并状态`
+          : evidenceResourceLabel(provenance ? stringField(provenance, "resource") : undefined);
+        return {
+          type: "evidence_added",
+          step,
+          phase,
+          summary: `获得${label ?? KIND_LABELS[kind] ?? kind}证据`,
+        };
       }
       case "verification_started":
-        return { type: "verification_started", step, summary: "开始独立验证" };
+        return { type: "verification_started", step, phase: "verification", summary: "开始独立验证" };
       case "verification_check": {
         const id = stringField(event.data, "id") ?? "";
         const status = stringField(event.data, "status") ?? "unknown";
         return {
           type: "verification_check",
           step,
+          phase: "verification",
           summary: `检查 ${checkLabel(id, stringField(event.data, "name"))}：${status}`,
           status,
         };
@@ -136,17 +365,28 @@ export function createInvestigationStreamProjector(): (event: TraceEvent) => Inv
         return {
           type: "verification_completed",
           step,
+          phase: "verification",
           status,
           summary: `独立验证完成：${status}`,
         };
       }
       case "failure_analyzed": {
         const type = stringField(event.data, "primary") ?? "unknown";
-        return { type: "failure", step, summary: FAILURE_LABELS[type] ?? type.replaceAll("_", " ") };
+        return {
+          type: "failure",
+          step,
+          phase: "agent",
+          summary: FAILURE_LABELS[type] ?? type.replaceAll("_", " "),
+        };
       }
       case "recovery_planned": {
         const action = stringField(event.data, "action") ?? "";
-        return { type: "recovery", step, summary: RECOVERY_LABELS[action] ?? action.replaceAll("_", " ") };
+        return {
+          type: "recovery",
+          step,
+          phase: "agent",
+          summary: RECOVERY_LABELS[action] ?? action.replaceAll("_", " "),
+        };
       }
       case "investigation_completed": {
         const status = stringField(event.data, "status") ?? "";

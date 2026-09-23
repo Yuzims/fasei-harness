@@ -361,6 +361,7 @@ function addEvidenceOnce(
     evidenceId: evidence.id,
     kind: evidence.kind,
     summary: evidence.summary,
+    contentRef: evidence.contentRef,
     provenance: evidence.provenance,
   });
   return evidence.id;

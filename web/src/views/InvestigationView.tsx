@@ -6,7 +6,11 @@ import { EvidencePanel } from "../components/EvidencePanel";
 import { InvestigationProcessPanel } from "../components/InvestigationProcessPanel";
 import { ResultHero, tailPhaseNumbers } from "../components/ResultHero";
 import { VerificationDetailsFold } from "../components/VerificationDetailsFold";
-import { applyLiveStreamEvent, type LiveProcessItem } from "../lib/investigation-stream";
+import {
+  applyLiveStreamEvent,
+  emptyLiveStreamState,
+  type LiveStreamState,
+} from "../lib/investigation-stream";
 import { buildInvestigationResultView } from "../lib/investigation-presentation";
 import {
   catalogRunRequest,
@@ -73,7 +77,7 @@ export function InvestigationView() {
   const [error, setError] = useState<{ status?: number; message: string; code?: string }>();
   const [requestedMode, setRequestedMode] = useState<"live" | "snapshot">("live");
   const [focusEvidenceIds, setFocusEvidenceIds] = useState<string[]>([]);
-  const [liveItems, setLiveItems] = useState<LiveProcessItem[]>([]);
+  const [liveState, setLiveState] = useState<LiveStreamState>(emptyLiveStreamState());
   const mode = session ? investigationMode(session) : requestedMode;
   const result = session ? buildInvestigationResultView(session) : undefined;
 
@@ -97,7 +101,7 @@ export function InvestigationView() {
     setError(undefined);
     setSession(undefined);
     setFocusEvidenceIds([]);
-    setLiveItems([]);
+    setLiveState(emptyLiveStreamState());
     setRequestedMode(body.mode === "snapshot" || body.caseId || body.scenarioId ? "snapshot" : "live");
     try {
       await runInvestigationStream(body, (event) => {
@@ -111,7 +115,7 @@ export function InvestigationView() {
           setPhase("failed");
           return;
         }
-        setLiveItems((items) => applyLiveStreamEvent(items, event));
+        setLiveState((current) => applyLiveStreamEvent(current, event));
       });
     } catch (err) {
       const status = err instanceof ApiError ? err.status : undefined;
@@ -271,9 +275,7 @@ export function InvestigationView() {
         </section>
       ) : null}
 
-      {phase === "running" ? (
-        <InvestigationProcessPanel live={{ items: liveItems, running: true }} />
-      ) : null}
+      {phase === "running" ? <InvestigationProcessPanel live={{ state: liveState }} /> : null}
 
       {session && result ? (
         <>

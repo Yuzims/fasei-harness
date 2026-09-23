@@ -359,3 +359,175 @@ test("streamInvestigation：TraceCollector → 投影 → emit，done 携带最�
   assert.ok(completed && completed.type === "investigation_completed");
   assert.equal(completed.status, doneEvent.session.status);
 });
+
+test("Projection 19-B：investigation_started 透传 maxLlmCalls 预算", () => {
+  const project = createInvestigationStreamProjector();
+  const withBudget = project(
+    traceEvent({ type: "investigation_started", data: { runtimeBudget: { maxLlmCalls: 8 } } }),
+  );
+  assert.ok(withBudget && withBudget.type === "investigation_started");
+  assert.equal(withBudget.maxLlmCalls, 8);
+  const withoutBudget = project(traceEvent({ type: "investigation_started", data: {} }));
+  assert.ok(withoutBudget && withoutBudget.type === "investigation_started");
+  assert.equal("maxLlmCalls" in withoutBudget, false);
+});
+
+test("Projection 19-B：tool_call 摘要带资源编号，tool_result 数组计数", () => {
+  const project = createInvestigationStreamProjector();
+  const pr = project(
+    traceEvent({ type: "tool_call", data: { tool: "github_get_pull_request", arguments: { pullNumber: 37626 } } }),
+  );
+  assert.ok(pr && pr.type === "tool_call");
+  assert.equal(pr.summary, "正在获取 Pull Request · PR #37626…");
+  assert.equal(pr.phase, "agent");
+  const commit = project(
+    traceEvent({ type: "tool_call", data: { tool: "github_get_commit", arguments: { sha: "9b93853abcdef0123456789" } } }),
+  );
+  assert.ok(commit && commit.type === "tool_call");
+  assert.equal(commit.summary, "正在获取 Commit 信息 · Commit 9b93853…");
+  const list = project(
+    traceEvent({ type: "tool_result", data: { success: true, output: { value: [{}, {}, {}] } } }),
+  );
+  assert.ok(list && list.type === "tool_result");
+  assert.equal(list.summary, "3 项结果");
+  assert.equal(list.phase, "agent");
+});
+
+test("Projection 19-B：预扫描证据按资源区分且归入 prescan 阶段", () => {
+  const project = createInvestigationStreamProjector();
+  const summaries: string[] = [];
+  for (const pullNumber of [37626, 32722, 34069, 37142, 37162, 37163, 37578, 37579, 37606, 37607]) {
+    const event = project(
+      traceEvent({
+        type: "evidence_added",
+        data: {
+          kind: "pull_request",
+          summary: "RAW-SUMMARY-MUST-NOT-LEAK",
+          provenance: { source: "harness_structured", resource: `pull/${pullNumber}` },
+        },
+      }),
+    );
+    assert.ok(event && event.type === "evidence_added");
+    assert.equal(event.phase, "prescan");
+    summaries.push(event.summary);
+  }
+  assert.equal(new Set(summaries).size, 10, "PR evidence rows must be distinguishable");
+  assert.equal(summaries[0], "获得PR #37626 详情证据");
+  assert.equal(JSON.stringify(summaries).includes("RAW-SUMMARY-MUST-NOT-LEAK"), false);
+  const mergeFact = project(
+    traceEvent({
+      type: "evidence_added",
+      data: {
+        kind: "pull_request",
+        contentRef: "pr-merge:37626",
+        provenance: { source: "harness_structured", resource: "pull/37626" },
+      },
+    }),
+  );
+  assert.ok(mergeFact && mergeFact.type === "evidence_added");
+  assert.equal(mergeFact.summary, "获得PR #37626 合并状态证据");
+  const agentEvent = project(
+    traceEvent({
+      type: "evidence_added",
+      data: { kind: "pull_request", provenance: { source: "github", resource: "pull/37626" } },
+    }),
+  );
+  assert.ok(agentEvent && agentEvent.type === "evidence_added");
+  assert.equal(agentEvent.phase, "agent");
+});
+
+test("Projection 19-B：prescan_completed 聚合行与 mockup 同构，零模型参与", () => {
+  const project = createInvestigationStreamProjector();
+  const detail = (pullNumber: number, overrides: Record<string, unknown> = {}) => ({
+    pullNumber,
+    enumeratedBy: "issue_body",
+    structuredClosingReference: false,
+    detailState: "completed",
+    ...overrides,
+  });
+  const event = project(
+    traceEvent({
+      type: "resolution_prescan_completed",
+      step: 1,
+      data: {
+        state: "completed",
+        llmCalls: 0,
+        startedAt: "2026-09-23T00:00:00.000Z",
+        completedAt: "2026-09-23T00:00:02.100Z",
+        candidatesEnumerated: 10,
+        candidatesTruncated: false,
+        unlinkedScanState: "completed",
+        unlinkedHintCount: 1,
+        candidates: [
+          detail(37626, { structuredClosingReference: true }),
+          detail(32722),
+          detail(34069),
+          detail(37142),
+          detail(37162),
+          detail(37163),
+          detail(37578, { detailState: "not_a_pull_request" }),
+          detail(37579),
+          detail(37606, { detailState: "not_a_pull_request" }),
+          detail(37607),
+        ],
+      },
+    }),
+  );
+  assert.ok(event && event.type === "prescan_completed");
+  assert.equal(event.phase, "prescan");
+  assert.equal(event.state, "completed");
+  assert.equal(event.summary, "0 次 AI 调用 · 找到 10 个相关 PR · 全部核对 · 2.1s");
+  assert.match(event.lines[0], /^读取 Issue 正文与评论，提取被引用的编号 → 找到相关 PR #37626、#32722、#34069/);
+  assert.equal(event.lines[1], "查 GitHub 官方修复标记 → 1 / 10 个 PR 命中（#37626）");
+  assert.match(event.lines[2], /^拉取 PR 详情 ×8（.*） · 确认非 PR ×2（#37578、#37606） · 读取失败 ×0$/);
+  assert.equal(event.lines[3], "扫描这些 PR 改动文件的主干提交 → 1 条未关联修复线索（提示性质，不改变结论）");
+});
+
+test("Projection 19-B：prescan 截断/失败与未完成场景输出诚实行", () => {
+  const project = createInvestigationStreamProjector();
+  const partial = project(
+    traceEvent({
+      type: "resolution_prescan_incomplete",
+      step: 1,
+      data: {
+        state: "incomplete",
+        candidatesEnumerated: 16,
+        candidatesTruncated: true,
+        unlinkedScanState: "failed",
+        unlinkedHintCount: 0,
+        candidates: [
+          { pullNumber: 1, detailState: "completed", structuredClosingReference: false },
+          { pullNumber: 2, detailState: "failed", structuredClosingReference: null },
+          { pullNumber: 3, detailState: "skipped", structuredClosingReference: null },
+        ],
+      },
+    }),
+  );
+  assert.ok(partial && partial.type === "prescan_completed");
+  assert.equal(partial.state, "incomplete");
+  assert.match(partial.summary, /^0 次 AI 调用 · 找到 16 个相关 PR · 已核对 1 \/ 3 个$/);
+  assert.match(partial.lines[0], /已达数量上限，多余编号被截断/);
+  assert.match(partial.lines[2], /因上限未读取 ×1$/);
+  assert.equal(partial.lines[3], "扫描主干提交 → 未完成（不影响结论）");
+  const crashed = project(
+    traceEvent({
+      type: "resolution_prescan_incomplete",
+      step: 1,
+      data: { state: "incomplete", reason: "prescan_crashed", candidates: [] },
+    }),
+  );
+  assert.ok(crashed && crashed.type === "prescan_completed");
+  assert.equal(crashed.summary, "预扫描未完成");
+  assert.deepEqual(crashed.lines, ["机器预扫描未完成，本次结论不依赖机器预扫描。"]);
+});
+
+test("Projection 19-B：verification 事件归入 verification 阶段", () => {
+  const project = createInvestigationStreamProjector();
+  const started = project(traceEvent({ type: "verification_started", data: {} }));
+  assert.ok(started && started.phase === "verification");
+  const check = project(traceEvent({ type: "verification_check", data: { id: "pr-merged", status: "pass" } }));
+  assert.ok(check && check.phase === "verification");
+  assert.equal(check.summary, "检查 已合并 Pull Request：pass");
+  const failure = project(traceEvent({ type: "failure_analyzed", data: { primary: "tool_failure" } }));
+  assert.ok(failure && failure.type === "failure" && failure.phase === "agent");
+});

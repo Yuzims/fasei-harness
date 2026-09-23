@@ -1,7 +1,8 @@
-import type { InvestigationStreamEvent } from "@dto";
+import type { InvestigationStreamEvent, LiveEventPhase } from "@dto";
 
 const EVENT_TYPES = new Set([
   "investigation_started",
+  "prescan_completed",
   "agent_step",
   "tool_call",
   "tool_result",
@@ -36,6 +37,12 @@ export function isInvestigationStreamEvent(value: unknown): value is Investigati
   switch (event.type) {
     case "investigation_started":
       return typeof event.timestamp === "number";
+    case "prescan_completed":
+      return (
+        typeof event.summary === "string" &&
+        Array.isArray(event.lines) &&
+        event.lines.every((line) => typeof line === "string")
+      );
     case "tool_call":
       return typeof event.summary === "string" && typeof event.tool === "string";
     case "tool_result":
@@ -91,13 +98,40 @@ export interface LiveProcessItem {
   id: string;
   label: string;
   state: LiveItemState;
+  phase: LiveEventPhase;
+  /** "head" = completed-phase summary row; "agg" = fixed-template aggregate line. */
+  kind?: "head" | "agg";
 }
 
-function settleLast(items: LiveProcessItem[], idPrefix: string, state: LiveItemState): LiveProcessItem[] {
+export interface LiveStreamState {
+  items: LiveProcessItem[];
+  startedAtMs?: number;
+  maxLlmCalls?: number;
+  thoughtSteps: number;
+}
+
+export function emptyLiveStreamState(): LiveStreamState {
+  return { items: [], thoughtSteps: 0 };
+}
+
+const GENERIC_TOOL_RESULTS = new Set(["工具调用完成", "工具调用未成功"]);
+
+function settleLastActive(
+  items: LiveProcessItem[],
+  phase: LiveEventPhase,
+  idPrefix: string,
+  state: LiveItemState,
+  appendLabel?: string,
+): LiveProcessItem[] {
   const next = [...items];
   for (let index = next.length - 1; index >= 0; index -= 1) {
-    if (next[index].state === "active" && next[index].id.startsWith(idPrefix)) {
-      next[index] = { ...next[index], state };
+    const item = next[index];
+    if (item.state === "active" && item.phase === phase && item.id.startsWith(idPrefix)) {
+      next[index] = {
+        ...item,
+        state,
+        label: appendLabel ? `${item.label} · ${appendLabel}` : item.label,
+      };
       break;
     }
   }
@@ -115,43 +149,145 @@ function checkState(status: string): LiveItemState {
 }
 
 /**
- * Reduces public SSE process events into presentation rows for the live panel.
+ * Reduces public SSE process events into phase-grouped rows for the live panel.
  * Labels come verbatim from server-side projections; the client never re-interprets
  * runtime semantics. `done` / `error` are handled by the caller against the final DTO.
  */
 export function applyLiveStreamEvent(
-  items: LiveProcessItem[],
+  state: LiveStreamState,
   event: InvestigationStreamEvent,
-): LiveProcessItem[] {
+): LiveStreamState {
+  const { items } = state;
   switch (event.type) {
     case "investigation_started":
-      return [...items, { id: `start-${event.step}`, label: "开始调查 Issue", state: "pass" }];
+      return {
+        ...state,
+        startedAtMs: event.timestamp,
+        maxLlmCalls: event.maxLlmCalls,
+      };
+    case "prescan_completed":
+      return {
+        ...state,
+        items: [
+          ...items,
+          {
+            id: `prescan-head-${event.step}`,
+            label: event.summary,
+            state: event.state === "completed" ? "pass" : "warn",
+            phase: "prescan",
+            kind: "head",
+          },
+          ...event.lines.map(
+            (line, index): LiveProcessItem => ({
+              id: `prescan-agg-${event.step}-${index}`,
+              label: line,
+              state: "pass",
+              phase: "prescan",
+              kind: "agg",
+            }),
+          ),
+        ],
+      };
     case "agent_step":
-      // The following tool_call carries the user-visible meaning.
-      return items;
+      return { ...state, thoughtSteps: state.thoughtSteps + 1 };
     case "tool_call":
-      return [...items, { id: `tool-${items.length}`, label: event.summary, state: "active" }];
+      return {
+        ...state,
+        items: [
+          ...items,
+          { id: `tool-${items.length}`, label: event.summary, state: "active", phase: event.phase },
+        ],
+      };
     case "tool_result":
-      return settleLast(items, "tool-", event.success ? "pass" : "fail");
+      return {
+        ...state,
+        items: settleLastActive(
+          items,
+          event.phase,
+          "tool-",
+          event.success ? "pass" : "fail",
+          GENERIC_TOOL_RESULTS.has(event.summary) ? undefined : event.summary,
+        ),
+      };
     case "evidence_added":
-      return [...items, { id: `evidence-${items.length}`, label: event.summary, state: "pass" }];
+      return {
+        ...state,
+        items: [...items, { id: `evidence-${items.length}`, label: event.summary, state: "pass", phase: event.phase }],
+      };
     case "verification_started":
-      return [...items, { id: `verify-${event.step}`, label: "正在进行独立验证……", state: "active" }];
+      return {
+        ...state,
+        items: [
+          ...items,
+          { id: `verify-${event.step}`, label: event.summary, state: "active", phase: "verification" },
+        ],
+      };
     case "verification_check":
-      return [...items, { id: `check-${items.length}`, label: event.summary, state: checkState(event.status) }];
+      return {
+        ...state,
+        items: [
+          ...items,
+          {
+            id: `check-${items.length}`,
+            label: event.summary,
+            state: checkState(event.status),
+            phase: "verification",
+          },
+        ],
+      };
     case "verification_completed":
-      return settleLast(
-        [...items, { id: `verdict-${event.step}`, label: event.summary, state: "pass" }],
-        "verify-",
-        event.status === "verified_complete" ? "pass" : "warn",
-      );
+      return {
+        ...state,
+        items: settleLastActive(
+          [
+            ...items,
+            {
+              id: `verdict-${event.step}`,
+              label: event.summary,
+              state: "pass",
+              phase: "verification",
+            },
+          ],
+          "verification",
+          "verify-",
+          event.status === "verified_complete" ? "pass" : "warn",
+        ),
+      };
     case "failure":
-      return [...items, { id: `failure-${items.length}`, label: `遇到问题：${event.summary}`, state: "fail" }];
+      return {
+        ...state,
+        items: [
+          ...items,
+          {
+            id: `failure-${items.length}`,
+            label: `遇到问题：${event.summary}`,
+            state: "fail",
+            phase: event.phase,
+          },
+        ],
+      };
     case "recovery":
-      return [...items, { id: `recovery-${items.length}`, label: `恢复策略：${event.summary}`, state: "warn" }];
+      return {
+        ...state,
+        items: [
+          ...items,
+          {
+            id: `recovery-${items.length}`,
+            label: `恢复策略：${event.summary}`,
+            state: "warn",
+            phase: event.phase,
+          },
+        ],
+      };
     case "investigation_completed":
-      return [...items, { id: `completed-${event.step}`, label: event.summary, state: "pass" }];
+      return {
+        ...state,
+        items: [
+          ...items,
+          { id: `completed-${event.step}`, label: event.summary, state: "pass", phase: "agent" },
+        ],
+      };
     default:
-      return items;
+      return state;
   }
 }

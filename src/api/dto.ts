@@ -490,27 +490,44 @@ export interface LlmUsageAggregateDTO {
  * Phase 17-B1 public SSE projection of runtime TraceEvents. Observation channel only:
  * never a second source of truth. Summaries are harness-authored; raw agent reasoning,
  * prompts, tool arguments, and evidence payloads must never be placed here.
+ * Phase 19-B adds `phase` grouping (server-side projection) and resource identifiers
+ * inside harness-authored summaries; only numbers/titles already present in public
+ * evidence data ever cross the boundary.
  */
+export type LiveEventPhase = "prescan" | "agent" | "verification";
+
 export type InvestigationStreamEvent =
   | {
       type: "investigation_started";
       step: number;
       timestamp: number;
+      maxLlmCalls?: number;
+    }
+  | {
+      type: "prescan_completed";
+      step: number;
+      phase: "prescan";
+      state: "completed" | "incomplete";
+      summary: string;
+      lines: string[];
     }
   | {
       type: "agent_step";
       step: number;
+      phase: LiveEventPhase;
       summary: string;
     }
   | {
       type: "tool_call";
       step: number;
+      phase: LiveEventPhase;
       tool: string;
       summary: string;
     }
   | {
       type: "tool_result";
       step: number;
+      phase: LiveEventPhase;
       tool: string;
       success: boolean;
       summary: string;
@@ -518,33 +535,39 @@ export type InvestigationStreamEvent =
   | {
       type: "evidence_added";
       step: number;
+      phase: LiveEventPhase;
       summary: string;
     }
   | {
       type: "verification_started";
       step: number;
+      phase: "verification";
       summary: string;
     }
   | {
       type: "verification_check";
       step: number;
+      phase: "verification";
       summary: string;
       status: string;
     }
   | {
       type: "verification_completed";
       step: number;
+      phase: "verification";
       status: string;
       summary: string;
     }
   | {
       type: "failure";
       step: number;
+      phase: LiveEventPhase;
       summary: string;
     }
   | {
       type: "recovery";
       step: number;
+      phase: LiveEventPhase;
       summary: string;
     }
   | {

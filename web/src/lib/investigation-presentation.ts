@@ -52,7 +52,16 @@ const QUESTION_PRESENTATION: Record<string, string> = {
     "当前调查上下文是否包含可分析的代码差异？",
   "File metadata alone cannot prove runtime behavior.": "仅有文件元数据能否证明运行时行为？",
   "Some changed files have metadata only and no bounded patch.": "部分变更文件是否缺少可分析的代码差异？",
+  "LLM is not configured; investigation did not run.": "LLM 未配置，调查未执行。",
 };
+
+// 固定中文模板句：由结构化字段（PR 编号）拼装，零 LLM。
+const QUESTION_PRESENTATION_TEMPLATES: Array<{ match: RegExp; render: (m: RegExpMatchArray) => string }> = [
+  {
+    match: /^PR #(\d+) is related but not merged; issue closed is not sufficient resolution evidence\.$/,
+    render: (m) => `#${m[1]} 相关但未合并；仅靠 Issue 关闭不足以证明已解决`,
+  },
+];
 
 const ANALYSIS_TEXT_PRESENTATION: Record<string, string> = {
   "insufficient code-change context": "当前没有足够的代码变更上下文。",
@@ -408,6 +417,12 @@ function presentKnownText(text: string, table: Record<string, string>): string {
 }
 
 export function presentUnresolvedQuestion(question: string): string {
+  for (const template of QUESTION_PRESENTATION_TEMPLATES) {
+    const matched = question.match(template.match);
+    if (matched) {
+      return template.render(matched);
+    }
+  }
   return presentKnownText(question, QUESTION_PRESENTATION);
 }
 

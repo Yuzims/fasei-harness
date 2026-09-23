@@ -77,6 +77,35 @@ function labelNames(value: unknown): string[] | undefined {
   return names.length > 0 ? names : undefined;
 }
 
+/**
+ * Phase 19-B F1: GitHub-returned `html_url` is untrusted transport data — a
+ * local transparent proxy has been observed rewriting its owner segment
+ * (facebook/react → react/react) while every other field stays correct. Use it
+ * verbatim only when it agrees with the requested repo identity; otherwise
+ * rebuild from the arguments the request was actually made with.
+ */
+export function issueHtmlUrl(html: string, repository: string, number: number): string {
+  const fallback = `https://github.com/${repository}/issues/${number}`;
+  if (!html) {
+    return fallback;
+  }
+  try {
+    const url = new URL(html);
+    const path = `${url.hostname}${url.pathname}`.replace(/\/+$/, "").toLowerCase();
+    if (
+      url.protocol === "https:" &&
+      path === `github.com/${repository.toLowerCase()}/issues/${number}` &&
+      url.search === "" &&
+      url.hash === ""
+    ) {
+      return html;
+    }
+  } catch {
+    // malformed html_url falls back below
+  }
+  return fallback;
+}
+
 export function normalizeIssue(
   raw: unknown,
   owner: string,
@@ -99,7 +128,7 @@ export function normalizeIssue(
     closedAt: item.closed_at == null ? null : str(item.closed_at),
     ...(labels ? { labels } : {}),
     source: GITHUB_SOURCE,
-    url: str(item.html_url) || `https://github.com/${repository}/issues/${number}`,
+    url: issueHtmlUrl(str(item.html_url), repository, number),
     retrievedAt,
     trust: UNTRUSTED,
   };

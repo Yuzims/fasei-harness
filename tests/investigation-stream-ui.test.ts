@@ -222,6 +222,95 @@ test("Stream：预扫描事件归入 prescan 阶段，prescan_completed 折叠�
   assert.equal(state.items.filter((item) => item.phase === "prescan" && !item.kind).length, 1);
 });
 
+test("Stream：连续同标签证据行聚合为单行 ×N（纯展示层，事件流不变）", () => {
+  let state = emptyLiveStreamState();
+  for (let i = 0; i < 5; i += 1) {
+    state = applyLiveStreamEvent(state, {
+      type: "evidence_added",
+      step: 2,
+      phase: "agent",
+      summary: "获得PR #32722 文件清单证据",
+    });
+  }
+  assert.equal(state.items.length, 1);
+  assert.equal(state.items[0].label, "获得PR #32722 文件清单证据");
+  assert.equal(state.items[0].count, 5);
+  assert.equal(state.items[0].state, "pass");
+  // 新事件到达 → 计数 +1，行不新增。
+  state = applyLiveStreamEvent(state, {
+    type: "evidence_added",
+    step: 2,
+    phase: "agent",
+    summary: "获得PR #32722 文件清单证据",
+  });
+  assert.equal(state.items.length, 1);
+  assert.equal(state.items[0].count, 6);
+  // 标签不同 → 新行；不吞并。
+  state = applyLiveStreamEvent(state, {
+    type: "evidence_added",
+    step: 2,
+    phase: "agent",
+    summary: "获得PR #34069 文件清单证据",
+  });
+  assert.equal(state.items.length, 2);
+  assert.equal(state.items[1].count, undefined);
+});
+
+test("Stream：聚合不跨越其他行；settleLast 语义不受影响", () => {
+  let state = applyLiveStreamEvent(emptyLiveStreamState(), {
+    type: "evidence_added",
+    step: 1,
+    phase: "agent",
+    summary: "获得PR #32722 文件清单证据",
+  });
+  state = applyLiveStreamEvent(state, {
+    type: "tool_call",
+    step: 2,
+    phase: "agent",
+    tool: "github_get_pull_request_files",
+    summary: "正在查看 PR 文件变更 · PR #32722…",
+  });
+  // 活动行隔断聚合：同名证据不与首行合并，另起一行。
+  state = applyLiveStreamEvent(state, {
+    type: "evidence_added",
+    step: 2,
+    phase: "agent",
+    summary: "获得PR #32722 文件清单证据",
+  });
+  assert.equal(state.items.length, 3);
+  assert.equal(state.items[0].count, undefined);
+  assert.equal(state.items[1].state, "active");
+  assert.equal(state.items[2].state, "pass");
+  // tool_result 仍收敛那条 active 行。
+  state = applyLiveStreamEvent(state, {
+    type: "tool_result",
+    step: 2,
+    phase: "agent",
+    tool: "github_get_pull_request_files",
+    success: true,
+    summary: "工具调用完成",
+  });
+  assert.equal(state.items[1].state, "pass");
+  assert.equal(state.items[1].label, "正在查看 PR 文件变更 · PR #32722…");
+  // 之后的同标签证据与最后一行继续聚合。
+  state = applyLiveStreamEvent(state, {
+    type: "evidence_added",
+    step: 3,
+    phase: "agent",
+    summary: "获得PR #32722 文件清单证据",
+  });
+  assert.equal(state.items.length, 3);
+  assert.equal(state.items[2].count, 2);
+  state = applyLiveStreamEvent(state, {
+    type: "evidence_added",
+    step: 3,
+    phase: "agent",
+    summary: "获得PR #32722 文件清单证据",
+  });
+  assert.equal(state.items.length, 3);
+  assert.equal(state.items[2].count, 3);
+});
+
 test("Stream：done / error 不改变实时行（终态由调用方对照最终 DTO 处理）", () => {
   const state = applyLiveStreamEvent(emptyLiveStreamState(), {
     type: "investigation_started",

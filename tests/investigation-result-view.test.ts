@@ -172,6 +172,29 @@ test("17-B1.7 openQuestions 合并去重且保留来源语义", () => {
   assert.deepEqual(view.uncertainty, ["Agent conclusion is not verification."]);
 });
 
+test("19-B.12 F3 待确认事项：harness 英文问句映射为固定中文模板句", () => {
+  const current = session({
+    agentOutput: undefined,
+    rawAgentOutput: undefined,
+    report: {
+      conclusion: "x",
+      polarity: "unknown",
+      uncertainty: "",
+      openQuestions: [
+        "PR #37626 is related but not merged; issue closed is not sufficient resolution evidence.",
+        "LLM is not configured; investigation did not run.",
+      ],
+    },
+  });
+  const view = buildInvestigationResultView(current);
+  assert.deepEqual(view.openQuestions, [
+    "#37626 相关但未合并；仅靠 Issue 关闭不足以证明已解决",
+    "LLM 未配置，调查未执行。",
+  ]);
+  // 允许内部术语（Issue/PR/LLM），但不允许成句英文残留。
+  assert.doesNotMatch(view.openQuestions.join(" "), /resolution evidence|not merged|did not run/i);
+});
+
 test("17-B1.8 unsupportedClaimIds 直接进入 result.verification，不重算", () => {
   const current = session({
     verification: {

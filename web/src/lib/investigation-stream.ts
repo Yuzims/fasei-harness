@@ -101,6 +101,8 @@ export interface LiveProcessItem {
   phase: LiveEventPhase;
   /** "head" = completed-phase summary row; "agg" = fixed-template aggregate line. */
   kind?: "head" | "agg";
+  /** Phase 19-B F2: display-only aggregation of consecutive identical rows (≥2). */
+  count?: number;
 }
 
 export interface LiveStreamState {
@@ -146,6 +148,26 @@ function checkState(status: string): LiveItemState {
     return "fail";
   }
   return "warn";
+}
+
+/**
+ * F2 pure display-layer aggregation: when the row being appended is a settled
+ * row identical (phase + label + state) to the current last settled row, bump
+ * its count instead of adding a duplicate. Active rows never merge — settle
+ * semantics of tool_call/tool_result pairs are untouched.
+ */
+function appendSettled(items: LiveProcessItem[], item: LiveProcessItem): LiveProcessItem[] {
+  const last = items[items.length - 1];
+  if (
+    last &&
+    last.state !== "active" &&
+    last.phase === item.phase &&
+    last.state === item.state &&
+    last.label === item.label
+  ) {
+    return [...items.slice(0, -1), { ...last, count: (last.count ?? 1) + 1 }];
+  }
+  return [...items, item];
 }
 
 /**
@@ -212,7 +234,12 @@ export function applyLiveStreamEvent(
     case "evidence_added":
       return {
         ...state,
-        items: [...items, { id: `evidence-${items.length}`, label: event.summary, state: "pass", phase: event.phase }],
+        items: appendSettled(items, {
+          id: `evidence-${items.length}`,
+          label: event.summary,
+          state: "pass",
+          phase: event.phase,
+        }),
       };
     case "verification_started":
       return {

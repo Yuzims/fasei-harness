@@ -23,7 +23,10 @@ function StepRow({ item }: { item: LiveProcessItem }) {
   return (
     <div className={`step ${tone ?? ""}`.trim()}>
       <span className="mark">{stepMarker(item.state)}</span>
-      <span>{item.label}</span>
+      <span>
+        {item.label}
+        {item.count && item.count > 1 ? ` ×${item.count}` : ""}
+      </span>
     </div>
   );
 }

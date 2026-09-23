@@ -28,6 +28,7 @@ import { LiveGitHubProvider } from "../github/live-provider.js";
 import { GithubGraphQlClient, type ResolutionReferenceSource } from "../github/graphql.js";
 import { GithubCommitHintSource, type UnlinkedFixCommitSource } from "../github/commit-hints.js";
 import { parseGitHubIssueInput, type ParsedGitHubIssue } from "../github/issue-input.js";
+import { issueHtmlUrl } from "../github/normalize.js";
 import { InvestigationHttpError } from "./investigation-errors.js";
 
 function splitRepository(repository: string): { owner: string; repository: string } {
@@ -230,7 +231,11 @@ function issueFromReport(report: InvestigationAgentReport): InvestigationIssueDT
     state,
     createdAt,
     labels: labels && labels.length > 0 ? labels : undefined,
-    url: evidence?.provenance.url ?? target.url,
+    url: issueHtmlUrl(
+      evidence?.provenance.url ?? target.url ?? "",
+      `${target.owner}/${target.repository}`,
+      target.issueNumber,
+    ),
     summary: evidence?.summary,
   };
 }

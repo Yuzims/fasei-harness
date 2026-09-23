@@ -340,6 +340,38 @@ test("19-B.10 标签字段搬运：normalizeIssue 原样保留 GitHub 标签名"
   assert.equal(legacy.labels, undefined, "无标签字段的老快照保持 undefined，fixtures 真值不动");
 });
 
+test("19-B.11 F1 链接回归：被改写的 html_url 按请求身份重建，DTO 链接指向 facebook/react", async () => {
+  const poisoned = normalizeIssue(
+    {
+      number: 37610,
+      title: "t",
+      body: "b",
+      state: "open",
+      html_url: "https://github.com/react/react/issues/37610",
+    },
+    "facebook",
+    "react",
+    "2026-09-23T00:00:00Z",
+  );
+  assert.equal(poisoned.url, "https://github.com/facebook/react/issues/37610", "owner 与请求不符 → 用请求身份重建");
+  const verbatim = normalizeIssue(
+    {
+      number: 37610,
+      title: "t",
+      body: "b",
+      state: "open",
+      html_url: "https://github.com/Facebook/react/issues/37610",
+    },
+    "facebook",
+    "react",
+    "2026-09-23T00:00:00Z",
+  );
+  assert.equal(verbatim.url, "https://github.com/Facebook/react/issues/37610", "身份一致时保留 html_url 原文");
+  const session = await replaySession();
+  assert.ok(session.issue.url?.includes("/facebook/react/"), "结果页链接源必须含请求的 org（fixtures 真值未动）");
+  assert.equal(session.issue.url, "https://github.com/facebook/react/issues/37610");
+});
+
 function candidate(
   overrides: Partial<ResolutionPrescanCandidateDTO> & { pullNumber: number },
 ): ResolutionPrescanCandidateDTO {

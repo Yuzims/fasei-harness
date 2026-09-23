@@ -27,6 +27,7 @@ export {
   extractCommitShas,
   extractMentionedNumbers,
   extractPullRequestNumbers,
+  issueHtmlUrl,
   normalizeFileChange,
   textClosesIssue,
 } from "./normalize.js";

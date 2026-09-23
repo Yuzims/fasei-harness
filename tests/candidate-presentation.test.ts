@@ -12,6 +12,7 @@ import test from "node:test";
 import type { InvestigationSessionDTO, ResolutionPrescanCandidateDTO } from "../src/api/dto.ts";
 import { SnapshotGitHubProvider, githubFixturePath } from "../src/github/index.ts";
 import type { ClosingReferenceFacts } from "../src/github/index.ts";
+import { normalizeIssue } from "../src/github/normalize.ts";
 import { investigate } from "../src/investigation/index.ts";
 import { toInvestigationSessionDTO } from "../src/server/investigation-service.ts";
 import { buildConclusionNarrative } from "../web/src/lib/candidate-presentation.ts";
@@ -212,7 +213,9 @@ test("19-B.6 文案快照扫描：用户可见面板零内部术语", async () =
   const narrative = view.narrative;
   assert.ok(narrative, "react#37610 重放必须走叙述层");
   const midRun = buildConclusionNarrative(midRunSession({}))!;
-  for (const block of [narrative, midRun]) {
+  const zeroA = buildConclusionNarrative(zeroClueSession())!;
+  const zeroB = buildConclusionNarrative(zeroClueSession({ labels: ["Type: Bug"] }))!;
+  for (const block of [narrative, midRun, zeroA, zeroB]) {
     const visible: string[] = [
       block.phaseTitle,
       block.marker ?? "",
@@ -246,10 +249,165 @@ test("19-B.6 文案快照扫描：用户可见面板零内部术语", async () =
   }
 });
 
+test("19-B.7 分支 A · Issue 信息不足（Status: Unconfirmed）：全部字段模板句", () => {
+  const narrative = buildConclusionNarrative(zeroClueSession());
+  assert.ok(narrative, "零线索 + 未确认标记必须走分支 A，而不是通用「暂未确认解决」");
+  assert.equal(narrative.phaseTitle, "结论 · Issue 信息不足");
+  assert.equal(narrative.marker, undefined);
+  assert.equal(
+    narrative.headline,
+    "无法判断是否修复：这条 Issue 的 GitHub 记录里没有留下可核对的修复线索——正文、评论和时间线没有出现任何 PR 编号，官方修复登记里也没有修复它的 PR，仓库还把本 Issue 标记为「Status: Unconfirmed」。这不是调查没做完，而是记录层面根本没有可核对的线索。",
+  );
+  assert.equal(
+    narrative.uncertainty,
+    "要回答 bug 还在不在，只能靠实际行为验证（在最新版本上复现），或等信息补全后由维护者跟进。",
+  );
+  assert.deepEqual(narrative.whyBullets, [
+    "机器预扫描通读了 Issue 正文、评论和时间线，逐条提取被引用的 PR 编号：一个都没有找到。",
+    "GitHub 的官方修复登记里也没有本 Issue——没有任何已合并 PR 被登记为会修复它。",
+    "仓库当前给本 Issue 打的标记是「Status: Unconfirmed」，即这条记录尚待维护者确认。",
+    "Issue 至今没人关闭。",
+  ]);
+  assert.deepEqual(narrative.nextBullets, [
+    "补充复现步骤、版本环境和错误信息（或等维护者跟进确认）后，可以重新调查。",
+    "要确认 bug 是否还在，最快的办法是在最新版本上直接复现一次。",
+  ]);
+  assert.equal(narrative.guidance, "🔎 记录层面没有可核对的修复线索 —— 机器预扫描已通读正文、评论与时间线");
+  assert.equal(narrative.rows.length, 0);
+});
+
+test("19-B.8 分支 B · 零线索但 Issue 有效（无未确认标记）", () => {
+  const narrative = buildConclusionNarrative(zeroClueSession({ labels: ["Type: Bug"] }));
+  assert.ok(narrative, "无未确认标记的零线索 Issue 走分支 B");
+  assert.equal(narrative.phaseTitle, "结论 · 记录里没有修复线索");
+  assert.equal(
+    narrative.headline,
+    "机器核查了正文、评论、时间线和官方修复登记：没有任何 PR 与这条 Issue 产生关联，Issue 至今开放。",
+  );
+  assert.equal(narrative.uncertainty, "要回答 bug 还在不在，只能靠实际行为验证或等维护者跟进。");
+  assert.deepEqual(narrative.whyBullets, [
+    "机器预扫描通读了 Issue 正文、评论和时间线，逐条提取被引用的 PR 编号：一个都没有找到。",
+    "GitHub 的官方修复登记里也没有本 Issue——没有任何已合并 PR 被登记为会修复它。",
+    "Issue 至今没人关闭。",
+  ]);
+  assert.deepEqual(narrative.nextBullets, [
+    "在受影响版本和最新版本各复现一次——这是确认 bug 是否还在的最快途径。",
+    "如果怀疑某个 PR 或有新的复现信息，补充到 Issue 评论后可以重新调查。",
+  ]);
+  assert.equal(narrative.guidance, "🔎 记录层面 0 个关联 PR —— 判断 bug 是否还在需要实际行为验证");
+
+  const closed = buildConclusionNarrative(zeroClueSession({ labels: [], state: "closed" }));
+  assert.ok(closed);
+  assert.equal(
+    closed.headline,
+    "机器核查了正文、评论、时间线和官方修复登记：没有任何 PR 与这条 Issue 产生关联，也没有任何 PR 被登记为修复它。",
+  );
+  assert.ok(!closed.whyBullets.includes("Issue 至今没人关闭。"), "已关闭 Issue 不得声称仍开放");
+});
+
+test("19-B.9 空态区块 + Agent 输出默认展开：全部按字段计数判定", () => {
+  const zeroView = buildInvestigationResultView(zeroClueSession());
+  assert.ok(zeroView.narrative);
+  assert.equal(zeroView.narrative.rowsTag, "机器预扫描找到 0 个相关 PR，已全部核对（0 次 AI 调用）");
+  assert.equal(zeroView.narrative.summaryLine, "机器预扫描完成：0 条关联线索", "0 候选时区块显示诚实空态，不得整块隐藏");
+  assert.equal(zeroView.agentOutputExpanded, true, "零候选 ∧ 无 PR 侧证据 → 默认展开");
+
+  // 反例门：Agent 真读到过 PR 时，既不走零线索分支，也不默认展开。
+  const withPr = zeroClueSession();
+  withPr.evidence.push({ id: "ev-pr", kind: "pull_request", summary: "获得PR 详情证据", trust: "external_untrusted" });
+  assert.equal(buildConclusionNarrative(withPr), undefined);
+  assert.equal(buildInvestigationResultView(withPr).agentOutputExpanded, false);
+
+  const midRunView = buildInvestigationResultView(midRunSession({}));
+  assert.equal(midRunView.agentOutputExpanded, false, "有已核对记录时维持折叠");
+});
+
+test("19-B.10 标签字段搬运：normalizeIssue 原样保留 GitHub 标签名", () => {
+  const snapshot = normalizeIssue(
+    {
+      number: 37269,
+      title: "La pantalla se cierra sola",
+      body: "",
+      state: "open",
+      labels: [{ name: "Status: Unconfirmed" }, { name: "" }, "Type: Bug"],
+    },
+    "facebook",
+    "react",
+    "2026-09-23T00:00:00Z",
+  );
+  assert.deepEqual(snapshot.labels, ["Status: Unconfirmed", "Type: Bug"]);
+  const legacy = normalizeIssue({ number: 1, title: "", body: "", state: "open" }, "o", "r", "2026-09-23T00:00:00Z");
+  assert.equal(legacy.labels, undefined, "无标签字段的老快照保持 undefined，fixtures 真值不动");
+});
+
 function candidate(
   overrides: Partial<ResolutionPrescanCandidateDTO> & { pullNumber: number },
 ): ResolutionPrescanCandidateDTO {
   return { enumeratedBy: ["comment_mention"], detailState: "completed", ...overrides };
+}
+
+/**
+ * Phase 19-B addendum: #37269-style zero-clue session — completed prescan,
+ * 0 enumerated related records, issue/comment/timeline evidence only, and
+ * coverage exhausted (machine ran to completion; the records are empty).
+ */
+function zeroClueSession(
+  options: { labels?: string[]; state?: "open" | "closed" } = {},
+): InvestigationSessionDTO {
+  return {
+    mode: "snapshot",
+    dataSource: "snapshot",
+    actor: "test_driver",
+    status: "investigated",
+    runStatus: "not_verified",
+    task: { owner: "facebook", repository: "react", issueNumber: 37269, description: "investigate" },
+    issue: {
+      owner: "facebook",
+      repository: "react",
+      number: 37269,
+      title: "La pantalla se cierra sola",
+      state: options.state ?? "open",
+      createdAt: "2026-08-30T10:00:00Z",
+      labels: options.labels ?? ["Status: Unconfirmed"],
+    },
+    verification: {
+      status: "not_verified",
+      evidenceCoverage: 0.5,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [],
+    },
+    evidence: [
+      { id: "ev-issue", kind: "issue", summary: "Issue #37269 is open", trust: "external_untrusted" },
+      { id: "ev-timeline", kind: "timeline", summary: "获得 Issue #37269 Timeline 证据", trust: "external_untrusted" },
+    ],
+    relations: [],
+    claims: [],
+    claimEvidence: [],
+    steps: [],
+    attempts: [],
+    report: { conclusion: "", polarity: "unknown", uncertainty: "", openQuestions: [] },
+    runtimeBudget: { maxLlmCalls: 8, maxWallClockMs: 60000 },
+    resolutionPrescan: {
+      state: "completed",
+      startedAt: "2026-09-23T00:00:00.000Z",
+      completedAt: "2026-09-23T00:00:01.200Z",
+      llmCalls: 0 as const,
+      candidatesEnumerated: 0,
+      candidatesTruncated: false,
+      candidates: [],
+    },
+    attributionCoverage: {
+      state: "exhausted",
+      prescanState: "completed",
+      candidatesEnumerated: 0,
+      candidatesAdjudicated: 0,
+      unadjudicatedCandidates: [],
+      unenumeratedCandidates: 0,
+      budgetExhausted: false,
+    },
+  } satisfies InvestigationSessionDTO;
 }
 
 /**

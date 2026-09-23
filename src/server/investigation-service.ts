@@ -219,6 +219,9 @@ function issueFromReport(report: InvestigationAgentReport): InvestigationIssueDT
       : typeof payload?.created_at === "string"
         ? payload.created_at
         : undefined;
+  const labels = Array.isArray(payload?.labels)
+    ? (payload.labels as unknown[]).filter((name): name is string => typeof name === "string" && name.length > 0)
+    : undefined;
   return {
     owner: target.owner,
     repository: target.repository,
@@ -226,6 +229,7 @@ function issueFromReport(report: InvestigationAgentReport): InvestigationIssueDT
     title,
     state,
     createdAt,
+    labels: labels && labels.length > 0 ? labels : undefined,
     url: evidence?.provenance.url ?? target.url,
     summary: evidence?.summary,
   };

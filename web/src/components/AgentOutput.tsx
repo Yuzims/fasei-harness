@@ -12,13 +12,16 @@ export function AgentOutputFold({ view, num }: { view: InvestigationResultViewMo
   const { agent } = view;
   const isRealAnswer = agent.conclusionSource === "agent_report";
   const unsupportedCount = agent.claims.filter((claim) => !claim.supported).length;
+  // Phase 19-B addendum: in zero-clue runs the Agent text is the only content
+  // worth reading, so the fold starts open — but it stays labeled unverified.
+  const expanded = view.agentOutputExpanded;
 
   return (
-    <details className="phase" data-testid="agent-output-fold">
+    <details className="phase" data-testid="agent-output-fold" open={expanded ? true : undefined}>
       <summary className="phase-head">
         <span className="phase-num">{num}</span>
         Agent 输出（未验证输入）
-        <span className="tag">（点击展开）</span>
+        <span className="tag">{expanded ? "（默认展开 · 未经机器验证）" : "（点击展开）"}</span>
       </summary>
       <div className="phase-body">
       <p className="muted">

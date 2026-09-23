@@ -11,7 +11,8 @@ export function CandidatePhase({ narrative }: { narrative: ConclusionNarrativeVi
           <span className="phase-num">2</span>
           相关修复 PR
           <span className="tag">
-            {narrative.rowsTag}（点击展开 {narrative.rows.length} 条明细）
+            {narrative.rowsTag}
+            {narrative.rows.length > 0 ? `（点击展开 ${narrative.rows.length} 条明细）` : ""}
           </span>
         </div>
       </summary>

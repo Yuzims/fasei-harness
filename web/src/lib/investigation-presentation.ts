@@ -26,7 +26,7 @@ import {
   verificationTone,
   type VerificationTone,
 } from "./workbench";
-import { buildConclusionNarrative, type ConclusionNarrativeView } from "./candidate-presentation";
+import { buildConclusionNarrative, PR_EVIDENCE_KINDS, type ConclusionNarrativeView } from "./candidate-presentation";
 
 const PROCESS_FAILURE_TYPES = new Set([
   "tool_failure",
@@ -314,6 +314,12 @@ export interface InvestigationResultViewModel {
   coverage?: AttributionCoverageView;
   /** Phase 19-B field-template narrative for unconfirmed-resolution results. */
   narrative?: ConclusionNarrativeView;
+  /**
+   * Phase 19-B addendum: zero prescan candidates ∧ zero PR-side evidence ⇒
+   * the Agent free text is the only content of value, so its fold starts open.
+   * Field counts only — never text analysis.
+   */
+  agentOutputExpanded: boolean;
   findings: InvestigationFindingView[];
   evidence: EvidenceView[];
   verification: VerificationView;
@@ -839,6 +845,10 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
     ),
     coverage,
     narrative: buildConclusionNarrative(session),
+    agentOutputExpanded:
+      session.resolutionPrescan !== undefined &&
+      session.resolutionPrescan.candidates.length === 0 &&
+      !session.evidence.some((item) => PR_EVIDENCE_KINDS.includes(item.kind)),
     findings: buildInvestigationFindings(session),
     evidence: session.evidence,
     verification: {

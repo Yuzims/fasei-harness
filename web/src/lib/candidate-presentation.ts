@@ -44,6 +44,9 @@ export interface ConclusionNarrativeView {
 
 const CN_NUMERALS = ["零", "一", "两", "三", "四", "五", "六", "七", "八", "九", "十"];
 
+/** Evidence kinds that carry PR-side behavioral facts (addendum zero-clue gate). */
+export const PR_EVIDENCE_KINDS = ["pull_request", "review", "file", "commit", "code"];
+
 function cnCount(count: number): string {
   return CN_NUMERALS[count] ?? String(count);
 }
@@ -177,6 +180,14 @@ export function buildConclusionNarrative(
   const unreadable =
     coverage.unadjudicatedCandidates.length + coverage.unenumeratedCandidates;
 
+  // Phase 19-B addendum: an exhausted prescan with zero related records is a
+  // record-level fact, not an unfinished investigation — outrank the generic
+  // 「暂未确认解决」 fallback. Field gate only; no text analysis.
+  const hasPrEvidence = session.evidence.some((item) => PR_EVIDENCE_KINDS.includes(item.kind));
+  if (coverage.state === "exhausted" && candidates.length === 0 && !hasPrEvidence) {
+    return buildZeroClueNarrative(session, issueOpen);
+  }
+
   const headline = midRun
     ? buildMidRunHeadline(session, coverage.unadjudicatedCandidates, coverage.unenumeratedCandidates, best)
     : buildExhaustedHeadline(best, issueOpen);
@@ -286,6 +297,68 @@ export function buildConclusionNarrative(
     summaryLine,
     hints,
     hintsLead,
+  };
+}
+
+const ZERO_CLUE_ROWS_TAG = "机器预扫描找到 0 个相关 PR，已全部核对（0 次 AI 调用）";
+const ZERO_CLUE_SUMMARY_LINE = "机器预扫描完成：0 条关联线索";
+
+function findUnconfirmedLabel(labels: string[] | undefined): string | undefined {
+  return labels?.find((label) => /unconfirmed/i.test(label) || label.includes("待确认"));
+}
+
+/**
+ * Phase 19-B addendum branches A/B: exhausted prescan, zero related records.
+ * Branch A (「Issue 信息不足」) additionally requires an unconfirmed marker in the
+ * verbatim GitHub label list; B covers valid-but-unlinked issues. Grounded
+ * clauses only: 0 enumerated ∧ 0 closing registrations ∧ label/state fields.
+ */
+function buildZeroClueNarrative(
+  session: InvestigationSessionDTO,
+  issueOpen: boolean,
+): ConclusionNarrativeView {
+  const unconfirmedLabel = findUnconfirmedLabel(session.issue.labels);
+  const base = {
+    marker: undefined,
+    rows: [] as CandidateRowView[],
+    rowsTag: ZERO_CLUE_ROWS_TAG,
+    summaryLine: ZERO_CLUE_SUMMARY_LINE,
+    hints: [] as UnlinkedHintView[],
+    hintsLead: undefined,
+  };
+  const readThrough = "机器预扫描通读了 Issue 正文、评论和时间线，逐条提取被引用的 PR 编号：一个都没有找到。";
+  const noClosing = "GitHub 的官方修复登记里也没有本 Issue——没有任何已合并 PR 被登记为会修复它。";
+  const stillOpen = issueOpen ? ["Issue 至今没人关闭。"] : [];
+  if (unconfirmedLabel) {
+    return {
+      ...base,
+      phaseTitle: "结论 · Issue 信息不足",
+      headline: `无法判断是否修复：这条 Issue 的 GitHub 记录里没有留下可核对的修复线索——正文、评论和时间线没有出现任何 PR 编号，官方修复登记里也没有修复它的 PR，仓库还把本 Issue 标记为「${unconfirmedLabel}」。这不是调查没做完，而是记录层面根本没有可核对的线索。`,
+      uncertainty: "要回答 bug 还在不在，只能靠实际行为验证（在最新版本上复现），或等信息补全后由维护者跟进。",
+      whyBullets: [
+        readThrough,
+        noClosing,
+        `仓库当前给本 Issue 打的标记是「${unconfirmedLabel}」，即这条记录尚待维护者确认。`,
+        ...stillOpen,
+      ],
+      nextBullets: [
+        "补充复现步骤、版本环境和错误信息（或等维护者跟进确认）后，可以重新调查。",
+        "要确认 bug 是否还在，最快的办法是在最新版本上直接复现一次。",
+      ],
+      guidance: "🔎 记录层面没有可核对的修复线索 —— 机器预扫描已通读正文、评论与时间线",
+    };
+  }
+  return {
+    ...base,
+    phaseTitle: "结论 · 记录里没有修复线索",
+    headline: `机器核查了正文、评论、时间线和官方修复登记：没有任何 PR 与这条 Issue 产生关联${issueOpen ? "，Issue 至今开放。" : "，也没有任何 PR 被登记为修复它。"}`,
+    uncertainty: "要回答 bug 还在不在，只能靠实际行为验证或等维护者跟进。",
+    whyBullets: [readThrough, noClosing, ...stillOpen],
+    nextBullets: [
+      "在受影响版本和最新版本各复现一次——这是确认 bug 是否还在的最快途径。",
+      "如果怀疑某个 PR 或有新的复现信息，补充到 Issue 评论后可以重新调查。",
+    ],
+    guidance: "🔎 记录层面 0 个关联 PR —— 判断 bug 是否还在需要实际行为验证",
   };
 }
 

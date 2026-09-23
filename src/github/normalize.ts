@@ -67,6 +67,16 @@ export function normalizeRepository(
   };
 }
 
+function labelNames(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const names = value
+    .map((label) => (typeof label === "string" ? label : str(asRecord(label).name)))
+    .filter((name) => name.length > 0);
+  return names.length > 0 ? names : undefined;
+}
+
 export function normalizeIssue(
   raw: unknown,
   owner: string,
@@ -76,6 +86,7 @@ export function normalizeIssue(
   const item = asRecord(raw);
   const number = num(item.number);
   const repository = repoName(owner, repo);
+  const labels = labelNames(item.labels);
   return {
     id: `issue:${repository}#${number}`,
     repository,
@@ -86,6 +97,7 @@ export function normalizeIssue(
     stateReason: item.state_reason == null ? null : str(item.state_reason),
     createdAt: item.created_at == null ? null : str(item.created_at),
     closedAt: item.closed_at == null ? null : str(item.closed_at),
+    ...(labels ? { labels } : {}),
     source: GITHUB_SOURCE,
     url: str(item.html_url) || `https://github.com/${repository}/issues/${number}`,
     retrievedAt,

@@ -28,6 +28,8 @@ export interface IssueSnapshot extends ResourceMeta {
   stateReason?: string | null;
   createdAt?: string | null;
   closedAt?: string | null;
+  /** GitHub label display names, verbatim. Phase 19-B addendum field transport. */
+  labels?: string[];
 }
 
 export interface CommentSnapshot extends ResourceMeta {

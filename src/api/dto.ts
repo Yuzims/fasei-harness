@@ -185,6 +185,8 @@ export interface InvestigationIssueDTO {
   state?: string;
   /** Raw GitHub issue createdAt, transported for presentation-side date facts. */
   createdAt?: string;
+  /** GitHub label display names, verbatim (Phase 19-B addendum field transport). */
+  labels?: string[];
   url?: string;
   summary?: string;
 }

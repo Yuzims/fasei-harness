@@ -26,19 +26,31 @@ function AnalysisText({ value }: { value: PresentedAnalysisText }) {
 export function VerificationDetailsFold({
   view,
   onShowEvidence,
+  num,
 }: {
   view: InvestigationResultViewModel;
   onShowEvidence: (evidenceIds: string[]) => void;
+  num: number;
 }) {
   const verification = view.verification;
   const coverage =
     typeof verification.evidenceCoverage === "number" && Number.isFinite(verification.evidenceCoverage)
       ? formatMetric("evidenceCoverage", verification.evidenceCoverage)
       : undefined;
+  const counts = [
+    view.verdict.counts.pass > 0 ? `✓ ${view.verdict.counts.pass}` : undefined,
+    view.verdict.counts.fail > 0 ? `✗ ${view.verdict.counts.fail}` : undefined,
+    view.verdict.counts.unknown > 0 ? `? ${view.verdict.counts.unknown}` : undefined,
+  ].filter(Boolean);
 
   return (
-    <details className="fold" data-testid="verification-details">
-      <summary>🔍 验证明细（{verification.checks.length} 项）</summary>
+    <details className="phase" data-testid="verification-details">
+      <summary className="phase-head">
+        <span className="phase-num">{num}</span>
+        验证明细（{counts.join(" · ") || `${verification.checks.length} 项`}）
+        <span className="tag">（点击展开）</span>
+      </summary>
+      <div className="phase-body">
       <p className="muted">
         以下检查由 Harness 根据证据独立完成，不采用 Agent 的结论作为验证依据。✓ 通过、✗ 未通过、? 无法判断。
       </p>
@@ -149,6 +161,7 @@ export function VerificationDetailsFold({
           ))}
         </div>
       ) : null}
+      </div>
     </details>
   );
 }

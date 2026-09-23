@@ -26,6 +26,7 @@ import {
   verificationTone,
   type VerificationTone,
 } from "./workbench";
+import { buildConclusionNarrative, type ConclusionNarrativeView } from "./candidate-presentation";
 
 const PROCESS_FAILURE_TYPES = new Set([
   "tool_failure",
@@ -304,9 +305,15 @@ export interface InvestigationResultViewModel {
   summary: string;
   tone: VerificationTone;
   issueLine: string;
+  /** Phase 19-B panel-head label `owner/repo#number` and the raw Bug line. */
+  issueRefLine: string;
+  issueTitle?: string;
+  issueUrl?: string;
   verdict: InvestigationVerdictView;
   /** Phase 18-C. Undefined on legacy snapshot runs — coverage not assertable. */
   coverage?: AttributionCoverageView;
+  /** Phase 19-B field-template narrative for unconfirmed-resolution results. */
+  narrative?: ConclusionNarrativeView;
   findings: InvestigationFindingView[];
   evidence: EvidenceView[];
   verification: VerificationView;
@@ -821,6 +828,9 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
     summary: verificationSubtitle(verification?.status),
     tone: verificationTone(verification?.status),
     issueLine,
+    issueRefLine: issueRef(session.task),
+    issueTitle: session.issue.title ?? undefined,
+    issueUrl: session.issue.url,
     verdict: buildInvestigationVerdict(
       status,
       harnessChecks,
@@ -828,6 +838,7 @@ export function buildInvestigationResultView(session: InvestigationSessionDTO): 
       coverage,
     ),
     coverage,
+    narrative: buildConclusionNarrative(session),
     findings: buildInvestigationFindings(session),
     evidence: session.evidence,
     verification: {

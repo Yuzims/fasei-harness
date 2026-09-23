@@ -7,6 +7,7 @@ import type {
   InvestigationRequest,
   InvestigationSessionDTO,
   LlmUsageAggregateDTO,
+  ResolutionPrescanDTO,
 } from "../api/dto.js";
 import {
   convertCaseToScenario,
@@ -212,12 +213,19 @@ function issueFromReport(report: InvestigationAgentReport): InvestigationIssueDT
       : undefined;
   const title = typeof payload?.title === "string" ? payload.title : undefined;
   const state = typeof payload?.state === "string" ? payload.state : undefined;
+  const createdAt =
+    typeof payload?.createdAt === "string"
+      ? payload.createdAt
+      : typeof payload?.created_at === "string"
+        ? payload.created_at
+        : undefined;
   return {
     owner: target.owner,
     repository: target.repository,
     number: target.issueNumber,
     title,
     state,
+    createdAt,
     url: evidence?.provenance.url ?? target.url,
     summary: evidence?.summary,
   };
@@ -282,6 +290,69 @@ function toLlmUsageDTO(usage: InvestigationAgentReport["llmUsage"]): LlmUsageAgg
       ok: call.ok,
       errorCategory: call.errorCategory,
     })),
+  };
+}
+
+/**
+ * GitHub PR titles are raw payload fields on ingested pull_request evidence
+ * (`resource: pull/<n>`). Joining them onto prescan candidates is field
+ * transport only — no text parsing, no judgment.
+ */
+function pullTitlesByNumber(report: InvestigationAgentReport): Map<number, string> {
+  const titles = new Map<number, string>();
+  for (const item of report.evidence) {
+    if (item.kind !== "pull_request") {
+      continue;
+    }
+    const match = item.provenance.resource?.match(/^pull\/(\d+)$/);
+    const payload = item.payload;
+    if (!match || !payload || typeof payload !== "object" || Array.isArray(payload)) {
+      continue;
+    }
+    const title = (payload as Record<string, unknown>).title;
+    if (typeof title === "string" && title.trim()) {
+      titles.set(Number(match[1]), title);
+    }
+  }
+  return titles;
+}
+
+function toResolutionPrescanDTO(report: InvestigationAgentReport): ResolutionPrescanDTO | undefined {
+  const prescan = report.run.resolutionPrescan;
+  if (!prescan) {
+    return undefined;
+  }
+  const titles = pullTitlesByNumber(report);
+  const scan = prescan.unlinkedFixScan;
+  return {
+    state: prescan.state,
+    startedAt: prescan.startedAt,
+    completedAt: prescan.completedAt,
+    llmCalls: prescan.llmCalls,
+    candidatesEnumerated: prescan.candidatesEnumerated,
+    candidatesTruncated: prescan.candidatesTruncated,
+    candidates: prescan.candidates.map((candidate) => ({
+      pullNumber: candidate.pullNumber,
+      title: titles.get(candidate.pullNumber),
+      enumeratedBy: [...candidate.enumeratedBy],
+      structuredClosingReference: candidate.structuredClosingReference,
+      merged: candidate.merged,
+      mergedAt: candidate.mergedAt,
+      prCreatedAt: candidate.prCreatedAt,
+      baseRefName: candidate.baseRefName,
+      mergeCommitSha: candidate.mergeCommitSha,
+      detailState: candidate.detailState,
+    })),
+    unlinkedFixScan: scan
+      ? {
+          state: scan.state,
+          hints: scan.hints.map((hint) => ({ sha: hint.sha, files: [...hint.files] })),
+          filesExamined: scan.filesExamined,
+          filesTruncated: scan.filesTruncated,
+          windowStart: scan.windowStart,
+          reason: scan.reason,
+        }
+      : undefined,
   };
 }
 
@@ -392,6 +463,7 @@ export function toInvestigationSessionDTO(
     attributionCoverage: report.run.attributionCoverage
       ? { ...report.run.attributionCoverage, unadjudicatedCandidates: [...report.run.attributionCoverage.unadjudicatedCandidates] }
       : undefined,
+    resolutionPrescan: toResolutionPrescanDTO(report),
   };
 }
 

@@ -183,6 +183,8 @@ export interface InvestigationIssueDTO {
   number: number;
   title?: string;
   state?: string;
+  /** Raw GitHub issue createdAt, transported for presentation-side date facts. */
+  createdAt?: string;
   url?: string;
   summary?: string;
 }
@@ -308,6 +310,50 @@ export interface AttributionCoverageDTO {
   budgetExhausted: boolean;
 }
 
+/**
+ * Phase 19-B: pure field transport of the 18-A prescan candidate record.
+ * `title` is the raw GitHub PR title verbatim from the ingested PR-detail
+ * evidence payload; undefined when the detail was never fetched.
+ */
+export interface ResolutionPrescanCandidateDTO {
+  pullNumber: number;
+  title?: string;
+  enumeratedBy: string[];
+  structuredClosingReference?: boolean;
+  merged?: boolean;
+  mergedAt?: string | null;
+  prCreatedAt?: string | null;
+  baseRefName?: string | null;
+  mergeCommitSha?: string | null;
+  detailState: string;
+}
+
+export interface UnlinkedFixHintDTO {
+  sha: string;
+  files: string[];
+}
+
+/** Phase 19-B transport of the 18-B hint scan. Hints are hypotheses, never verdicts. */
+export interface UnlinkedFixScanDTO {
+  state: string;
+  hints: UnlinkedFixHintDTO[];
+  filesExamined: number;
+  filesTruncated: boolean;
+  windowStart?: string;
+  reason?: string;
+}
+
+export interface ResolutionPrescanDTO {
+  state: "completed" | "incomplete";
+  startedAt: string;
+  completedAt?: string;
+  llmCalls: 0;
+  candidates: ResolutionPrescanCandidateDTO[];
+  candidatesEnumerated: number;
+  candidatesTruncated: boolean;
+  unlinkedFixScan?: UnlinkedFixScanDTO;
+}
+
 export interface InvestigationSessionDTO {
   mode: InvestigationMode;
   dataSource: InvestigationMode;
@@ -355,6 +401,8 @@ export interface InvestigationSessionDTO {
     maxWallClockMs: number;
   };
   attributionCoverage?: AttributionCoverageDTO;
+  /** Phase 19-B presentation transport of the 18-A/18-B machine records. */
+  resolutionPrescan?: ResolutionPrescanDTO;
 }
 
 export interface LlmUsageDTO {

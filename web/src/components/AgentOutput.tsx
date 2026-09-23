@@ -8,14 +8,19 @@ function prettyJson(text: string): string {
   }
 }
 
-export function AgentOutputFold({ view }: { view: InvestigationResultViewModel }) {
+export function AgentOutputFold({ view, num }: { view: InvestigationResultViewModel; num: number }) {
   const { agent } = view;
   const isRealAnswer = agent.conclusionSource === "agent_report";
   const unsupportedCount = agent.claims.filter((claim) => !claim.supported).length;
 
   return (
-    <details className="fold" data-testid="agent-output-fold">
-      <summary>🤖 Agent 输出</summary>
+    <details className="phase" data-testid="agent-output-fold">
+      <summary className="phase-head">
+        <span className="phase-num">{num}</span>
+        Agent 输出（未验证输入）
+        <span className="tag">（点击展开）</span>
+      </summary>
+      <div className="phase-body">
       <p className="muted">
         {isRealAnswer
           ? "以下是 Agent 自己的回答与说法清单，属于未验证输入，不是 Harness 的独立验证结果。"
@@ -65,6 +70,7 @@ export function AgentOutputFold({ view }: { view: InvestigationResultViewModel }
           ) : null}
         </>
       ) : null}
+      </div>
     </details>
   );
 }

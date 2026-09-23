@@ -4,7 +4,7 @@ import { AdvancedInfo } from "../components/AdvancedInfo";
 import { AgentOutputFold } from "../components/AgentOutput";
 import { EvidencePanel } from "../components/EvidencePanel";
 import { InvestigationProcessPanel } from "../components/InvestigationProcessPanel";
-import { ResultHero } from "../components/ResultHero";
+import { ResultHero, tailPhaseNumbers } from "../components/ResultHero";
 import { VerificationDetailsFold } from "../components/VerificationDetailsFold";
 import { applyLiveStreamEvent, type LiveProcessItem } from "../lib/investigation-stream";
 import { buildInvestigationResultView } from "../lib/investigation-presentation";
@@ -277,13 +277,19 @@ export function InvestigationView() {
 
       {session && result ? (
         <>
-          <ResultHero view={result} />
-          <EvidencePanel evidence={result.evidence} focusEvidenceIds={focusEvidenceIds} />
-          <VerificationDetailsFold
-            view={result}
-            onShowEvidence={(evidenceIds) => setFocusEvidenceIds([...evidenceIds])}
-          />
-          <AgentOutputFold view={result} />
+          <ResultHero view={result}>
+            <EvidencePanel
+              evidence={result.evidence}
+              focusEvidenceIds={focusEvidenceIds}
+              num={tailPhaseNumbers(result).evidence}
+            />
+            <VerificationDetailsFold
+              view={result}
+              num={tailPhaseNumbers(result).verification}
+              onShowEvidence={(evidenceIds) => setFocusEvidenceIds([...evidenceIds])}
+            />
+            <AgentOutputFold view={result} num={tailPhaseNumbers(result).agent} />
+          </ResultHero>
           <AdvancedInfo session={session} view={result} />
         </>
       ) : null}

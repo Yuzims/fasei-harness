@@ -51,9 +51,11 @@ function EvidenceCard({
 export function EvidencePanel({
   evidence,
   focusEvidenceIds,
+  num,
 }: {
   evidence: InvestigationEvidenceDTO[];
   focusEvidenceIds: string[];
+  num: number;
 }) {
   const kinds = uniqueEvidenceKinds(evidence);
   const [filter, setFilter] = useState("all");
@@ -75,12 +77,17 @@ export function EvidencePanel({
 
   return (
     <details
-      className="fold"
+      className="phase"
       data-testid="evidence-fold"
       open={panelOpen}
       onToggle={(event) => setPanelOpen(event.currentTarget.open)}
     >
-      <summary>📚 关键证据（{evidence.length}）</summary>
+      <summary className="phase-head">
+        <span className="phase-num">{num}</span>
+        证据（调查收集到的 {evidence.length} 条 GitHub 原始记录）
+        <span className="tag">（点击展开）</span>
+      </summary>
+      <div className="phase-body">
       <p className="muted">证据是事实来源，不是 Agent 判断。</p>
       <div className="filters">
         <button
@@ -115,6 +122,7 @@ export function EvidencePanel({
           ))}
         </div>
       )}
+      </div>
     </details>
   );
 }

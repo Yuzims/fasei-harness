@@ -253,7 +253,7 @@ export function verificationSubtitle(status?: string): string {
     return "全部验证项通过，证据齐备：Harness 可以确认这个 Issue 已解决。";
   }
   if (status === "not_verified") {
-    return "现有记录不满足\u201c已解决\u201d的认证条件（见下方 ✗ 项）。这不等于确认问题仍存在——若修复确已生效，通常以维护者关闭 Issue 或出现行为验证证据为准。";
+    return "现有记录还不能确认问题已经修好（见「验证明细」里的 ✗ 项）。这不等于确认 bug 还在——若修复确已生效，通常以维护者关闭 Issue 或实际行为验证为准。";
   }
   if (status === "insufficient_evidence") {
     return "现有证据无法判断是否解决，缺以下证据；继续调查可能改变结论。";

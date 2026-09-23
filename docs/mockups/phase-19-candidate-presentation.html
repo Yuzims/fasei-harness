@@ -60,27 +60,18 @@
   }
   .counts { margin-top: 12px; font-size: 13px; color: var(--muted); }
 
-  /* 解决候选块 */
-  .cand-table { width: 100%; border-collapse: collapse; }
-  .cand-table th {
-    text-align: left; font-weight: 600; color: var(--muted); font-size: 12px;
-    padding: 6px 8px; border-bottom: 1px solid var(--line);
-  }
-  .cand-table td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  .cand-table tr:last-child td { border-bottom: none; }
+  /* 解决候选块（修改1：每候选一行的简洁列表，无彩色徽章） */
+  .cand-list { list-style: none; margin: 0; padding: 0; }
+  .cand-list li { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .cand-list li:last-child { border-bottom: none; }
   .prnum { font-weight: 650; white-space: nowrap; }
+  .cand-why { color: var(--muted); }
+  .impl-note { margin-top: 14px; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius); color: var(--muted); font-size: 12.5px; }
+  .impl-note p { margin: 4px 0; }
   .badge {
     display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
   }
-  .badge.fix-pending { background: var(--running-bg); color: var(--running); border: 1px solid #bcd0f7; }
-  .badge.refuted { background: var(--not-verified-bg); color: var(--not-verified); border: 1px solid #f3c6c1; }
   .badge.hint { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
-  .badge.notpr { background: var(--surface-2); color: var(--muted); border: 1px dashed var(--line-strong); }
-  .badge.unknown { background: var(--insufficient-bg); color: var(--insufficient); border: 1px solid #ecd9a8; }
-  .stat-open { color: var(--running); font-weight: 600; }
-  .stat-merged { color: var(--verified); font-weight: 600; }
-  .stat-closed { color: var(--insufficient); font-weight: 600; }
-  .date { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .hint-sub { margin-top: 14px; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius); }
   .sha { font-family: Consolas, monospace; font-size: 12px; }
 
@@ -156,8 +147,7 @@
     </div>
 
     <div class="hero-guidance">
-      🔎 最接近解决的候选：<a href="#cands"><b>PR #37626</b>（官方标记将关闭本 Issue，尚未合并）</a> —— <a href="#cands">详见「解决候选」</a>
-      <span class="muted small">（变体 B；若选变体 A，本行为纯链接「详见解决候选（10 个枚举候选 · 机器裁决完毕）」，不引用具体候选）</span>
+      🔎 最接近解决的候选：<a href="#cands"><b>PR #37626</b>（官方标记将关闭本 Issue，尚未合并）</a> —— 已枚举 10 个候选并全部完成机器裁决，<a href="#cands">详见「解决候选」</a>
     </div>
 
     <p class="counts">✓ 5 项通过 · ✗ 2 项未通过 · ? 1 项待确认</p>
@@ -165,81 +155,24 @@
 
   <section class="card" id="cands">
     <h3>解决候选 <span class="muted small">· 机器预扫描枚举 10 个，全部完成机器裁决（0 次模型调用）· 排序：官方关闭引用优先</span></h3>
-    <table class="cand-table">
-      <thead><tr><th>候选</th><th>标题</th><th>状态</th><th>关键日期</th><th>机器裁决</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="prnum">#37626</td>
-          <td>[DOM] Keep Fragment sibling positions stable across renders</td>
-          <td class="stat-open">未合并</td>
-          <td class="date">创建于 2026-09-14</td>
-          <td><span class="badge fix-pending">修复候选 · 官方标记将关闭本 Issue · 尚未合并</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#32722</td>
-          <td>Add compareDocumentPosition to fragment instances</td>
-          <td class="stat-merged">已合并</td>
-          <td class="date">合并于 2025-05-06</td>
-          <td><span class="badge refuted">已驳回 · 合并于 2025-05-06，早于本 Issue 创建（2026-09-12）</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#34069</td>
-          <td>Fix fragmentInstance#compareDocumentPosition nesting and portal cases</td>
-          <td class="stat-merged">已合并</td>
-          <td class="date">合并于 2025-08-15</td>
-          <td><span class="badge refuted">已驳回 · 合并于 2025-08-15，早于本 Issue 创建（2026-09-12）</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#37142</td>
-          <td>[Fragment Refs] Fix DOM/Fiber containment validation</td>
-          <td class="stat-open">未合并</td>
-          <td class="date">创建于 2026-07-29</td>
-          <td><span class="badge hint">无结构化引用 · 仅作线索</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#37162</td>
-          <td>[DOM] Find host siblings for nested empty Fragments</td>
-          <td class="stat-merged">已合并</td>
-          <td class="date">合并于 2026-08-12</td>
-          <td><span class="badge refuted">已驳回 · 合并于 2026-08-12，早于本 Issue 创建（2026-09-12）</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#37163</td>
-          <td>[DOM] Fix Fragment compareDocumentPosition for documentElement and empty portals</td>
-          <td class="stat-merged">已合并</td>
-          <td class="date">合并于 2026-08-12</td>
-          <td><span class="badge refuted">已驳回 · 合并于 2026-08-12，早于本 Issue 创建（2026-09-12）</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#37578</td>
-          <td class="muted">—（非 Pull Request）</td>
-          <td class="muted">—</td>
-          <td class="muted">—</td>
-          <td><span class="badge notpr">GitHub 确认该编号不是 Pull Request · 排除</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#37579</td>
-          <td>[DOM] Fix Fragment compareDocumentPosition(document) TypeError</td>
-          <td class="stat-merged">已合并</td>
-          <td class="date">合并于 2026-09-11</td>
-          <td><span class="badge refuted">已驳回 · 合并于 2026-09-11，早于本 Issue 创建（2026-09-12）</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#37606</td>
-          <td class="muted">—（非 Pull Request）</td>
-          <td class="muted">—</td>
-          <td class="muted">—</td>
-          <td><span class="badge notpr">GitHub 确认该编号不是 Pull Request · 排除</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#37607</td>
-          <td>[DOM] Handle non-element portal roots in Fragment document position</td>
-          <td class="stat-open">未合并</td>
-          <td class="date">创建于 2026-09-11</td>
-          <td><span class="badge hint">无结构化引用 · 仅作线索</span></td>
-        </tr>
-      </tbody>
-    </table>
+    <ul class="cand-list">
+      <li><span class="prnum">PR #37626</span> · [DOM] Keep Fragment sibling positions stable across renders · 未合并（2026-09-14 创建）<span class="cand-why">—— 官方标记将关闭本 Issue，当前最强修复候选</span></li>
+      <li><span class="prnum">PR #32722</span> · Add compareDocumentPosition to fragment instances · 已合并 2025-05-06 <span class="cand-why">—— 为 fragment 实例首次加入 compareDocumentPosition 支持；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></li>
+      <li><span class="prnum">PR #34069</span> · Fix fragmentInstance#compareDocumentPosition nesting and portal cases · 已合并 2025-08-15 <span class="cand-why">—— 修复 fragment 嵌套与 portal 场景下的位置判定；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复<sup>†</sup></span></li>
+      <li><span class="prnum">PR #37142</span> · [Fragment Refs] Fix DOM/Fiber containment validation · 未合并（2026-07-29 创建）<span class="cand-why">—— 修复 Fragment ref 的 DOM/Fiber 包含校验；与本 Issue 无官方关闭引用，仅作线索</span></li>
+      <li><span class="prnum">PR #37162</span> · [DOM] Find host siblings for nested empty Fragments · 已合并 2026-08-12 <span class="cand-why">—— 为嵌套空 Fragment 查找宿主兄弟节点；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></li>
+      <li><span class="prnum">PR #37163</span> · [DOM] Fix Fragment compareDocumentPosition for documentElement and empty portals · 已合并 2026-08-12 <span class="cand-why">—— 修复 documentElement 与空 portal 场景的位置判定；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></li>
+      <li><span class="prnum">#37578</span> <span class="cand-why">—— GitHub 确认该编号不是 Pull Request，排除</span></li>
+      <li><span class="prnum">PR #37579</span> · [DOM] Fix Fragment compareDocumentPosition(document) TypeError · 已合并 2026-09-11 <span class="cand-why">—— 修复对 document 取位置时的 TypeError；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></li>
+      <li><span class="prnum">#37606</span> <span class="cand-why">—— GitHub 确认该编号不是 Pull Request，排除</span></li>
+      <li><span class="prnum">PR #37607</span> · [DOM] Handle non-element portal roots in Fragment document position · 未合并（2026-09-11 创建）<span class="cand-why">—— 处理非元素 portal 根的位置判定；与本 Issue 无官方关闭引用，仅作线索</span></li>
+    </ul>
+
+    <div class="impl-note">
+      <p><b>实现注记（19-B 对照用，不进入用户可见文案）</b></p>
+      <p>· 每行 = 编号（<span class="sha">pullNumber</span>）· 标题（GitHub <span class="sha">title</span> 字段<b>原文直出，禁止翻译 / LLM 改写</b>）· 状态与日期（<span class="sha">merged / mergedAt / prCreatedAt</span>）· 「——」后的排除理由为固定文案模板，由 <span class="sha">mergedAt</span> 与 <span class="sha">issue.createdAt</span> 的大小比较、<span class="sha">structuredClosingReference</span>、<span class="sha">detailState=not_a_pull_request</span> 三类字段拼装，零模型调用。行内中文短语（如「为 fragment 实例首次加入…支持」）仅为 mockup 阶段对英文标题的人工释义示意。</p>
+      <p>· <sup>†</sup> 「实际调查确认它正是引入本 bug 的变更」这一子句<b>不展示</b>：当前证据图中不存在「引入缺陷」类型的结构化事实（18-B 只产出时间驳回与引用关联），此句仅当该类事实存在时才有资格出现，列于此仅示意最终形态。</p>
+    </div>
 
     <div class="hint-sub">
       <b>未关联修复线索</b> <span class="badge hint">假设性 · 不进入任何认证判定</span>
@@ -289,7 +222,7 @@
 
   <!-- ============================================================ -->
   <div class="state-tag">状态三 · 中间结论态（预算耗尽且有候选未完成机器裁决）</div>
-  <p class="state-note">示例数据为构造场景：prescan 的 PR 详情源部分失败（4 个候选 detailState=failed、2 个被上限截断），模型调用 8/8 用尽。hero 结构与状态一完全一致，仅多一枚轻量标记、缺口首行给出剩余数；候选块把未裁决候选排在小结里，为「继续调查」留口。</p>
+  <p class="state-note">示例数据为构造场景：prescan 的 PR 详情源部分失败（4 个候选 detailState=failed、2 个被上限截断），模型调用 8/8 用尽。hero 结构与状态一完全一致，仅多一枚轻量标记、缺口首行给出剩余数；候选块只展示有真实信息的行，未获取详情的候选全部合并为一行诚实小结，为「继续调查」留口。</p>
 
   <section class="card hero midrun">
     <p class="kicker">调查结果 · facebook/react#37610 · Bug: <code>FragmentInstance.compareDocumentPosition</code> … · 打开</p>
@@ -311,38 +244,15 @@
 
   <section class="card">
     <h3>解决候选 <span class="muted small">· 枚举 16 个，已裁决 10 个 · <b style="color:var(--insufficient)">6 个未完成裁决</b>（详情拉取失败 ×4 · 被数量上限截断 ×2）</span></h3>
-    <table class="cand-table">
-      <tbody>
-        <tr>
-          <td class="prnum">#37626</td>
-          <td>[DOM] Keep Fragment sibling positions stable across renders</td>
-          <td class="stat-open">未合并</td>
-          <td><span class="badge fix-pending">修复候选 · 官方标记将关闭本 Issue · 尚未合并</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#37627</td>
-          <td class="muted">标题未获取（详情拉取失败）</td>
-          <td class="muted">未知</td>
-          <td><span class="badge unknown">待裁决 · 详情拉取失败 · 继续调查可补齐</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">#37631</td>
-          <td class="muted">标题未获取（详情拉取失败）</td>
-          <td class="muted">未知</td>
-          <td><span class="badge unknown">待裁决 · 详情拉取失败 · 继续调查可补齐</span></td>
-        </tr>
-        <tr>
-          <td class="prnum">＋ 另外 4 个候选</td>
-          <td class="muted" colspan="2">2 个详情拉取失败 · 2 个在枚举上限处被截断（编号未知，总数已如实记录）</td>
-          <td><span class="badge unknown">待裁决</span></td>
-        </tr>
-      </tbody>
-    </table>
-    <p class="small muted" style="margin-top:10px">（其余 10 个已裁决候选同状态一的列表；本 mockup 为省版面折叠展示。）</p>
+    <ul class="cand-list">
+      <li><span class="prnum">PR #37626</span> · [DOM] Keep Fragment sibling positions stable across renders · 未合并（2026-09-14 创建）<span class="cand-why">—— 官方标记将关闭本 Issue，当前最强修复候选</span></li>
+      <li class="cand-why">另有 6 个候选未能获取详情（#37627、#37631 等 4 个详情拉取失败 · 2 个在枚举上限处被截断，编号未知），已在证据缺口中标记，可继续调查补齐。</li>
+    </ul>
+    <p class="small muted" style="margin-top:10px">（其余 9 个已裁决候选同状态一的列表；本 mockup 为省版面折叠展示。无真实信息的候选不再逐行占位。）</p>
   </section>
 
   <hr style="margin:48px 0 8px;border:none;border-top:1px solid var(--line)" />
-  <p class="muted small">样式观感为风格级示意（沿用产品现有色板与卡片语言）；候选编号、日期、标题、裁决徽章全部由 fixtures 真实字段推导，规则见交付报告。本文件不引入任何新的判断逻辑。</p>
+  <p class="muted small">样式观感为风格级示意（沿用产品现有色板与卡片语言）；候选编号、日期、标题、每行排除理由全部由 fixtures 真实字段拼装，字段来源与展示策略见候选区「实现注记」。本文件不引入任何新的判断逻辑。</p>
 </div>
 </body>
 </html>

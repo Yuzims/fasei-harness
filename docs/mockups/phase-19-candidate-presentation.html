@@ -76,7 +76,7 @@
   未关联线索的 commit SHA 与文件列表取自 Phase 18-B live smoke 真实输出。仅示意，未实现。</p>
 
   <!-- ============================================================ -->
-  <div class="state-tag">状态一 · 结果页（已收敛：结构化候选全部裁决完毕）</div>
+  <div class="state-tag">状态一 · 结果页（已查完：10 个相关 PR 全部核对完毕）</div>
   <p class="state-note">对应用户看到 react#37610 实跑结果后的痛点 2：机器已知的事实要能被读到。本轮与状态二/三共用同一套面板类，无独立 hero 样式。</p>
 
   <div class="panel">
@@ -86,37 +86,45 @@
     </div>
 
     <div class="phase">
-      <div class="phase-head"><span class="phase-num">1</span> 结论 · 暂未确认解决 <span class="tag">已收敛 · 候选机器裁决全部完成</span></div>
+      <div class="phase-head"><span class="phase-num">1</span> 结论 · 修复还没完成 <span class="tag">10 个相关 PR 已全部核对完毕</span></div>
+      <div class="agg">官方修复 PR #37626 已于 9 月 14 日提交，至今未合并进主干，Issue 也仍挂着。</div>
+      <div class="agg">但也不能断定 bug 还在：修复可能已经生效，只是 GitHub 记录上没走完——最终以维护者关闭 Issue 或实际行为验证为准。</div>
       <div class="agg">Bug: <code>FragmentInstance.compareDocumentPosition</code> alternates between <code>FOLLOWING</code> and <code>IMPLEMENTATION_SPECIFIC</code> on every other render · 打开</div>
-      <div class="agg">现有记录不满足“已解决”的认证条件（见下方 ✗ 项）。这不等于确认问题仍存在——若修复确已生效，通常以维护者关闭 Issue 或出现行为验证证据为准。</div>
-      <div class="agg"><b>为什么</b> 已验证到的部分：Issue 身份、关闭语义、解决候选、代码 / Commit 证据、关键说法。</div>
-      <div class="agg"><b>还差什么</b></div>
-      <div class="agg">✗ <b>Issue 状态</b> — Issue 目前仍是打开的：修复可能已生效，但记录上未走完关闭流程。</div>
-      <div class="agg">✗ <b>已合并 Pull Request</b> — 候选 Pull Request 是否已合并进主干。</div>
-      <div class="agg">🔎 最接近解决的候选：<a href="#cands"><b>PR #37626</b>（官方标记将关闭本 Issue，尚未合并）</a> —— 已枚举 10 个候选并全部完成机器裁决，<a href="#cands">详见「解决候选」</a></div>
+      <div class="agg"><b>为什么</b></div>
+      <div class="agg">· GitHub 官方记录里，只有 PR #37626（[DOM] Keep Fragment sibling positions stable across renders）被标记为修复本 Issue，但它还在等待评审合并。</div>
+      <div class="agg">· 其余已合并的相关 PR（#32722、#34069、#37162、#37163、#37579）全部在本 Issue 创建（9 月 12 日）之前就已合并，时间上不可能修这个 bug。</div>
+      <div class="agg">· 另有 2 个未合并的 PR（#37142、#37607）与本 Issue 没有官方关联，只能作为线索；#37578、#37606 两个编号不是 PR。</div>
+      <div class="agg">· Issue 至今没人关闭。</div>
+      <div class="agg"><b>接下来</b></div>
+      <div class="agg">· 等 #37626 通过评审、合并进主干，维护者关闭 Issue，结论就会变成「已解决」。</div>
+      <div class="agg">· 如果急需可用的修复，可以先试装 #37626 的分支验证效果。</div>
+      <div class="agg">🔎 最接近修好的：<a href="#cands"><b>PR #37626</b>（官方标记将关闭本 Issue，尚未合并）</a> —— 10 个相关 PR 已全部核对，<a href="#cands">详见「相关修复 PR」</a></div>
     </div>
 
     <div class="phase" id="cands">
-      <div class="phase-head"><span class="phase-num">2</span> 解决候选 <span class="tag">机器预扫描枚举 10 个，全部完成机器裁决（0 次模型调用）· 排序：官方关闭引用优先（点击展开 10 条明细）</span></div>
-      <div class="step"><span class="mark">·</span><span class="res">PR #37626</span><span>[DOM] Keep Fragment sibling positions stable across renders · 未合并（2026-09-14 创建）</span><span class="muted">—— 官方标记将关闭本 Issue，当前最强修复候选</span></div>
+      <div class="phase-head"><span class="phase-num">2</span> 相关修复 PR <span class="tag">机器预扫描找到 10 个，已全部核对（0 次 AI 调用）· 排序：官方标记修复本 Issue 的排最前（点击展开 10 条明细）</span></div>
+      <div class="step"><span class="mark">·</span><span class="res">PR #37626</span><span>[DOM] Keep Fragment sibling positions stable across renders · 未合并（2026-09-14 创建）</span><span class="muted">—— 官方标记将关闭本 Issue，目前最可能真正修好它的一个</span></div>
       <div class="step"><span class="mark">·</span><span class="res">PR #32722</span><span>Add compareDocumentPosition to fragment instances · 已合并 2025-05-06</span><span class="muted">—— 为 fragment 实例首次加入 compareDocumentPosition 支持；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></div>
       <div class="step"><span class="mark">·</span><span class="res">PR #34069</span><span>Fix fragmentInstance#compareDocumentPosition nesting and portal cases · 已合并 2025-08-15</span><span class="muted">—— 修复 fragment 嵌套与 portal 场景下的位置判定；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复<sup>†</sup></span></div>
-      <div class="step"><span class="mark">·</span><span class="res">PR #37142</span><span>[Fragment Refs] Fix DOM/Fiber containment validation · 未合并（2026-07-29 创建）</span><span class="muted">—— 修复 Fragment ref 的 DOM/Fiber 包含校验；与本 Issue 无官方关闭引用，仅作线索</span></div>
+      <div class="step"><span class="mark">·</span><span class="res">PR #37142</span><span>[Fragment Refs] Fix DOM/Fiber containment validation · 未合并（2026-07-29 创建）</span><span class="muted">—— 修复 Fragment ref 的 DOM/Fiber 包含校验；与本 Issue 没有官方修复关联，仅作线索</span></div>
       <div class="step"><span class="mark">·</span><span class="res">PR #37162</span><span>[DOM] Find host siblings for nested empty Fragments · 已合并 2026-08-12</span><span class="muted">—— 为嵌套空 Fragment 查找宿主兄弟节点；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></div>
       <div class="step"><span class="mark">·</span><span class="res">PR #37163</span><span>[DOM] Fix Fragment compareDocumentPosition for documentElement and empty portals · 已合并 2026-08-12</span><span class="muted">—— 修复 documentElement 与空 portal 场景的位置判定；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></div>
       <div class="step"><span class="mark">·</span><span class="res">#37578</span><span class="muted">—— GitHub 确认该编号不是 Pull Request，排除</span></div>
       <div class="step"><span class="mark">·</span><span class="res">PR #37579</span><span>[DOM] Fix Fragment compareDocumentPosition(document) TypeError · 已合并 2026-09-11</span><span class="muted">—— 修复对 document 取位置时的 TypeError；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></div>
       <div class="step"><span class="mark">·</span><span class="res">#37606</span><span class="muted">—— GitHub 确认该编号不是 Pull Request，排除</span></div>
-      <div class="step"><span class="mark">·</span><span class="res">PR #37607</span><span>[DOM] Handle non-element portal roots in Fragment document position · 未合并（2026-09-11 创建）</span><span class="muted">—— 处理非元素 portal 根的位置判定；与本 Issue 无官方关闭引用，仅作线索</span></div>
+      <div class="step"><span class="mark">·</span><span class="res">PR #37607</span><span>[DOM] Handle non-element portal roots in Fragment document position · 未合并（2026-09-11 创建）</span><span class="muted">—— 处理非元素 portal 根的位置判定；与本 Issue 没有官方修复关联，仅作线索</span></div>
       <div class="agg" style="padding-top:10px"><b>实现注记（19-B 对照用，不进入用户可见文案）</b></div>
       <div class="agg">· 每行 = 编号（<span class="sha">pullNumber</span>）· 标题（GitHub <span class="sha">title</span> 字段<b>原文直出，禁止翻译 / LLM 改写</b>）· 状态与日期（<span class="sha">merged / mergedAt / prCreatedAt</span>）· 「——」后的排除理由为固定文案模板，由 <span class="sha">mergedAt</span> 与 <span class="sha">issue.createdAt</span> 的大小比较、<span class="sha">structuredClosingReference</span>、<span class="sha">detailState=not_a_pull_request</span> 三类字段拼装，零模型调用。行内中文短语（如「为 fragment 实例首次加入…支持」）仅为 mockup 阶段对英文标题的人工释义示意。</div>
       <div class="agg">· <sup>†</sup> 「实际调查确认它正是引入本 bug 的变更」这一子句<b>不展示</b>：当前证据图中不存在「引入缺陷」类型的结构化事实（18-B 只产出时间驳回与引用关联），此句仅当该类事实存在时才有资格出现，列于此仅示意最终形态。</div>
       <div class="agg">· 19-B 实现时 <span class="sha">web/src/styles.css</span> 新增组件应基于这套统一面板类（<span class="sha">panel / panel-head / phase / phase-head / step / agg</span>），不再新增 hero 专属样式。</div>
+      <div class="agg">· 结论区（标题句 / 为什么 / 接下来）每一句都是字段模板拼装，禁止 LLM 参与文案；句子→字段全量映射见交付报告。</div>
+      <div class="agg">· 「如果急需可用的修复，可以先试装 #37626 的分支验证效果」= 固定尾句模板：<span class="sha">merged===false ∧ structuredClosingReference===true</span> 时在「接下来」输出，编号取该 PR 的 <span class="sha">pullNumber</span>。</div>
+      <div class="agg">· 术语禁区：认证条件 / 机器裁决 / 关闭语义 / Issue 身份 / 佐证 / 候选 / 裁决 等内部词只允许出现在折叠区「验证明细」与本实现注记内，用户可见的结论区、标题、行内文案一律使用日常语言（19-B 以文案快照测试锁死）。</div>
     </div>
 
     <div class="phase">
-      <div class="phase-head"><span class="phase-num">3</span> 未关联修复线索 <span class="tag">假设性 · 不进入任何认证判定</span></div>
-      <div class="agg">在主干分支上、本 Issue 创建之后，有 1 个提交改动了与上述候选相同的文件，但未通过任何编号引用关联到本 Issue，值得人工确认是否为静默修复：</div>
+      <div class="phase-head"><span class="phase-num">3</span> 未关联修复线索 <span class="tag">仅提示 · 不改变上面第 1 节的结论</span></div>
+      <div class="agg">在主干分支上、本 Issue 创建之后，有 1 个提交改动了与上述 PR 相同的文件，但没有任何编号把它和本 Issue 连起来，值得人工确认是否为静默修复：</div>
       <div class="step"><span class="mark">·</span><span class="sha">9b93853</span><span>· 触及文件：ReactFiberConfigDOM.js、ReactDOMFragmentRefs-test.js、ReactFiberTreeReflection.js <a href="#">在 GitHub 打开 ↗</a></span></div>
     </div>
 
@@ -143,22 +151,22 @@
   <div class="panel">
     <div class="panel-head">
       <b>调查过程</b>
-      <span class="elapsed">已用时 34s · 已消耗 3 / 8 次模型调用</span>
+      <span class="elapsed">已用时 34s · AI 已思考 3 步（共 8 步预算）</span>
     </div>
 
     <div class="phase">
       <div class="phase-head">
         <span class="phase-num">1</span> 机器预扫描
-        <span class="tag">0 次模型调用 · 枚举 10 个候选 · 全部完成 · 2.1s <b style="color:var(--muted)">（点击展开 12 条明细）</b></span>
+        <span class="tag">0 次 AI 调用 · 找到 10 个相关 PR · 全部核对 · 2.1s <b style="color:var(--muted)">（点击展开 12 条明细）</b></span>
       </div>
-      <div class="agg">读取 Issue 正文与评论，提取被引用的编号 → 枚举候选 <b>#37626、#32722、#34069、#37142、#37162、#37163、#37578、#37579、#37606、#37607</b></div>
-      <div class="agg">核验官方关闭引用 → <b>1 / 10</b> 个候选命中（#37626）</div>
+      <div class="agg">读取 Issue 正文与评论，提取被引用的编号 → 找到相关 PR <b>#37626、#32722、#34069、#37142、#37162、#37163、#37578、#37579、#37606、#37607</b></div>
+      <div class="agg">查 GitHub 官方修复标记 → <b>1 / 10</b> 个 PR 命中（#37626）</div>
       <div class="agg">拉取 PR 详情 <b>×8</b>（#32722、#34069、#37142、#37162、#37163、#37579、#37607、#37626）· 确认非 PR <b>×2</b>（#37578、#37606）· 失败 <b>0</b></div>
-      <div class="agg">扫描候选改动文件的主干提交 → <b>1</b> 条未关联修复线索（假设性，不参与判定）</div>
+      <div class="agg">扫描这些 PR 改动文件的主干提交 → <b>1</b> 条未关联修复线索（提示性质，不改变结论）</div>
     </div>
 
     <div class="phase">
-      <div class="phase-head"><span class="phase-num">2</span> Agent 调查 <span class="tag">逐轮进行，每轮一次模型决策</span></div>
+      <div class="phase-head"><span class="phase-num">2</span> Agent 调查 <span class="tag">逐轮进行，每轮 AI 思考一次</span></div>
       <div class="step ok"><span class="mark">✓</span>拉取 <span class="res">PR #37626</span> 的文件清单 <span class="muted small">· 4 个文件</span></div>
       <div class="step ok"><span class="mark">✓</span>拉取 <span class="res">PR #37626</span> 的评审记录 <span class="muted small">· 0 条评审</span></div>
       <div class="live">⟳ 正在检索主干分支中包含 “compareDocumentPosition” 的提交…<span class="dot">▍</span></div>
@@ -172,8 +180,8 @@
   </div>
 
   <!-- ============================================================ -->
-  <div class="state-tag">状态三 · 中间结论态（预算耗尽且有候选未完成机器裁决）</div>
-  <p class="state-note">示例数据为构造场景：prescan 的 PR 详情源部分失败（4 个候选 detailState=failed、2 个被上限截断），模型调用 8/8 用尽。面板结构与状态一完全一致，仅结论标题旁多一个中性文本标记「中间结论 · 预算耗尽」；候选块只展示有真实信息的行，未获取详情的候选全部合并为一行诚实小结，为「继续调查」留口。</p>
+  <div class="state-tag">状态三 · 中间结论态（AI 步数用尽，还有 PR 没来得及核对）</div>
+  <p class="state-note">示例数据为构造场景：prescan 的 PR 详情源部分失败（4 个候选 detailState=failed、2 个被上限截断），模型调用 8/8 用尽。面板结构与状态一完全一致，仅结论标题旁多一个中性文本标记「中间结论 · AI 步数用尽」；候选块只展示有真实信息的行，未获取详情的候选全部合并为一行诚实小结，为「继续调查」留口。</p>
 
   <div class="panel">
     <div class="panel-head">
@@ -182,20 +190,20 @@
     </div>
 
     <div class="phase">
-      <div class="phase-head"><span class="phase-num">1</span> 结论 · 暂未确认解决 <span class="tag">中间结论 · 预算耗尽</span></div>
+      <div class="phase-head"><span class="phase-num">1</span> 结论 · 还没查完，修复未确认 <span class="tag">中间结论 · AI 步数用尽</span></div>
+      <div class="agg">8 步调查预算已用尽，还有 6 个相关 PR 没来得及核对。目前已核对的部分里，PR #37626 仍是最可能的修复，尚未合并。</div>
+      <div class="agg">下面的结论只基于已核对完的记录，继续调查后可能改变。</div>
       <div class="agg">Bug: <code>FragmentInstance.compareDocumentPosition</code> … · 打开</div>
-      <div class="agg">现有记录不满足“已解决”的认证条件（见下方 ✗ 项）。</div>
-      <div class="agg"><b>还差什么</b></div>
-      <div class="agg">? <b>中间结论：还有 6 个解决候选未完成机器裁决</b> — 候选枚举或裁决尚未穷尽，本结论不代表已排查完所有解决线索。</div>
-      <div class="agg">✗ <b>Issue 状态</b> — Issue 目前仍是打开的。</div>
-      <div class="agg">✗ <b>已合并 Pull Request</b> — 候选 Pull Request 是否已合并进主干。</div>
+      <div class="agg"><b>接下来</b></div>
+      <div class="agg">· 继续调查，把剩下 6 个 PR 的内容补齐（见下方「相关修复 PR」小结行）。</div>
+      <div class="agg">· Issue 还开着，最可能的修复 PR #37626 也还没合并进主干——这两件事都发生前，没法确认 bug 已修好。</div>
     </div>
 
     <div class="phase">
-      <div class="phase-head"><span class="phase-num">2</span> 解决候选 <span class="tag">枚举 16 个，已裁决 10 个 · <b>6 个未完成裁决</b>（详情拉取失败 ×4 · 被数量上限截断 ×2）</span></div>
-      <div class="step"><span class="mark">·</span><span class="res">PR #37626</span><span>[DOM] Keep Fragment sibling positions stable across renders · 未合并（2026-09-14 创建）</span><span class="muted">—— 官方标记将关闭本 Issue，当前最强修复候选</span></div>
-      <div class="agg">另有 6 个候选未能获取详情（#37627、#37631 等 4 个详情拉取失败 · 2 个在枚举上限处被截断，编号未知），已在证据缺口中标记，可继续调查补齐。</div>
-      <div class="agg">（其余 9 个已裁决候选同状态一的列表；本 mockup 为省版面折叠展示。无真实信息的候选不再逐行占位。）</div>
+      <div class="phase-head"><span class="phase-num">2</span> 相关修复 PR <span class="tag">找到 16 个，已核对 10 个 · <b>6 个没来得及核对</b>（4 个没能读到内容 · 2 个因数量上限被截断）</span></div>
+      <div class="step"><span class="mark">·</span><span class="res">PR #37626</span><span>[DOM] Keep Fragment sibling positions stable across renders · 未合并（2026-09-14 创建）</span><span class="muted">—— 官方标记将关闭本 Issue，目前最可能的修复，尚未合并</span></div>
+      <div class="agg">另有 6 个相关 PR 这次没能读到内容（#37627、#37631 等 4 个 · 2 个因数量上限被截断，编号未知），已记入「证据缺口」，继续调查即可补齐。</div>
+      <div class="agg">（其余 9 个已核对的 PR 同状态一的列表；本 mockup 为省版面折叠展示。没能读到内容的 PR 不再逐行占位。）</div>
     </div>
   </div>
 

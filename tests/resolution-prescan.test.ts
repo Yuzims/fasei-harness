@@ -431,3 +431,220 @@ test("investigate() 接线：prescan 先于任何模型调用完成，记录与�
   assert.ok(modelAt >= 0, "agent loop still runs after prescan");
   assert.ok(prescanAt < modelAt, "prescan precedes the first LLM call");
 });
+
+// ---- Phase 19-B enumeration fix: issue-side GraphQL channels ----
+
+function issue37652Provider(): GitHubDataProvider {
+  // react#37652 形态：正文只提 #37651；无评论；时间线只有 labeled；
+  // #37653 在 Issue 侧零信号，只存在于 closedByPullRequestsReferences。
+  return {
+    async getIssue() {
+      return {
+        number: 37652,
+        repository: "react/react",
+        title: "Bug: view-transition-class is replaced",
+        body: "I've already opened a pull request #37651 that will close this issue.",
+        state: "open",
+        url: "https://github.com/react/react/issues/37652",
+        source: "github",
+        retrievedAt: FIXED_NOW,
+        trust: "external_untrusted",
+      };
+    },
+    async getIssueComments() {
+      return [];
+    },
+    async getIssueTimeline() {
+      return [
+        {
+          id: "timeline:1",
+          repository: "react/react",
+          event: "labeled",
+          actor: "bot",
+          body: "",
+          source: "github",
+          url: "",
+          retrievedAt: FIXED_NOW,
+          trust: "external_untrusted",
+        },
+      ];
+    },
+    async getPullRequest({ pullNumber }: { pullNumber: number }) {
+      return {
+        number: pullNumber,
+        repository: "react/react",
+        title: `PR ${pullNumber}`,
+        body: "",
+        state: "open",
+        merged: false,
+        url: `https://github.com/react/react/pull/${pullNumber}`,
+        source: "github",
+        retrievedAt: FIXED_NOW,
+        trust: "external_untrusted",
+      };
+    },
+  } as unknown as GitHubDataProvider;
+}
+
+function closingFact(pullNumber: number, closing: boolean): ClosingReferenceFacts {
+  return {
+    pullNumber,
+    found: true,
+    state: "OPEN",
+    merged: false,
+    mergedAt: null,
+    createdAt: FIXED_NOW,
+    baseRefName: "main",
+    url: `https://github.com/react/react/pull/${pullNumber}`,
+    closingIssueNumbers: closing ? [37652] : [],
+  };
+}
+
+test("19-C closed_by 渠道：Issue 侧零提及的官方链接 PR 也被枚举并富化", async () => {
+  const session = makeSession("react", "react", 37652);
+  const record = await runResolutionPrescan({
+    session,
+    provider: issue37652Provider(),
+    graphQl: {
+      async getClosingReferences({ pullNumbers }) {
+        return {
+          facts: [37651, 37653]
+            .filter((n) => pullNumbers.includes(n))
+            .map((n) => closingFact(n, true)),
+        };
+      },
+      async getIssueLinkedPulls() {
+        return { closedBy: [37651, 37653], connected: [], truncated: false };
+      },
+    },
+    now: () => FIXED_NOW,
+  });
+
+  assert.equal(record.candidatesEnumerated, 2);
+  const first = candidate(record.candidates, 37651);
+  assert.ok(first.enumeratedBy.includes("issue_body_mention"));
+  assert.ok(first.enumeratedBy.includes("graphql_closed_by"), "双渠道在场");
+  const second = candidate(record.candidates, 37653);
+  assert.deepEqual(second.enumeratedBy, ["graphql_closed_by"]);
+  assert.equal(second.structuredClosingReference, true, "新候选同样经过 closing-reference 富化");
+  assert.equal(second.detailState, "completed", "新候选进入详情摄取");
+  assert.equal(record.state, "completed");
+  const linked = record.sources.find((s) => s.source === "graphql_issue_linked");
+  assert.equal(linked?.state, "completed");
+});
+
+test("19-C commit 反查渠道：timeline commit 的关联 PR 进入候选", async () => {
+  const session = makeSession("acme", "box", 9);
+  const provider = {
+    async getIssue() {
+      return {
+        number: 9,
+        repository: "acme/box",
+        title: "Bug",
+        body: "no references",
+        state: "open",
+        url: "",
+        source: "github",
+        retrievedAt: FIXED_NOW,
+        trust: "external_untrusted",
+      };
+    },
+    async getIssueComments() {
+      return [];
+    },
+    async getIssueTimeline() {
+      return [
+        {
+          id: "timeline:1",
+          repository: "acme/box",
+          event: "committed",
+          actor: "dev",
+          body: "",
+          commitId: "abc123abc123abc123abc123abc123abc123abcd",
+          source: "github",
+          url: "",
+          retrievedAt: FIXED_NOW,
+          trust: "external_untrusted",
+        },
+      ];
+    },
+    async getPullRequest({ pullNumber }: { pullNumber: number }) {
+      return {
+        number: pullNumber,
+        repository: "acme/box",
+        title: `PR ${pullNumber}`,
+        body: "",
+        state: "closed",
+        merged: true,
+        url: "",
+        source: "github",
+        retrievedAt: FIXED_NOW,
+        trust: "external_untrusted",
+      };
+    },
+  } as unknown as GitHubDataProvider;
+
+  const record = await runResolutionPrescan({
+    session,
+    provider,
+    graphQl: {
+      async getClosingReferences() {
+        return { facts: [closingFact(77, false)] };
+      },
+      async getPullsForCommits({ oids }) {
+        assert.deepEqual(oids, ["abc123abc123abc123abc123abc123abc123abcd"]);
+        return [{ oid: oids[0]!, pullNumbers: [77] }];
+      },
+    },
+    now: () => FIXED_NOW,
+  });
+
+  const c77 = candidate(record.candidates, 77);
+  assert.deepEqual(c77.enumeratedBy, ["commit_associated_pr"]);
+  assert.equal(record.state, "completed");
+  assert.ok(record.sources.some((s) => s.source === "graphql_commit_associated_prs" && s.state === "completed"));
+});
+
+test("19-C 能力缺失：旧 GraphQL 实现不新增来源条目，18-A 记录逐字不变", async () => {
+  const session = makeSession("facebook", "react", 37610);
+  const record = await runResolutionPrescan({
+    session,
+    provider: new SnapshotGitHubProvider(githubFixturePath("react-37610")),
+    graphQl: fixtureGraphQl(),
+    now: () => FIXED_NOW,
+  });
+  assert.equal(
+    record.sources.some((s) => s.source === "graphql_issue_linked" || s.source === "graphql_commit_associated_prs"),
+    false,
+    "无能力的实现不得改变记录形状",
+  );
+  assert.equal(record.candidatesEnumerated, 10);
+  assert.equal(record.state, "completed");
+});
+
+test("19-C closed_by 失败：诚实降级 incomplete，REST 枚举不受影响", async () => {
+  const session = makeSession("react", "react", 37652);
+  const record = await runResolutionPrescan({
+    session,
+    provider: issue37652Provider(),
+    graphQl: {
+      async getClosingReferences() {
+        return { facts: [] };
+      },
+      async getIssueLinkedPulls() {
+        throw new GitHubProviderError({
+          code: "unauthorized",
+          operation: "getIssueLinkedPulls",
+          message: "Resource not accessible",
+          retryable: false,
+        });
+      },
+    },
+    now: () => FIXED_NOW,
+  });
+  assert.equal(record.state, "incomplete");
+  const linked = record.sources.find((s) => s.source === "graphql_issue_linked");
+  assert.equal(linked?.state, "failed");
+  assert.equal(linked?.errorCode, "unauthorized");
+  assert.equal(record.candidatesEnumerated, 1, "#37651 仍来自正文提及");
+});

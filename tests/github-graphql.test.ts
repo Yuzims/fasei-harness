@@ -247,3 +247,60 @@ test("fetch 抛异常按 network_error 包装（与 REST 客户端一致）", as
     (error: unknown) => error instanceof GitHubProviderError && error.code === "network_error",
   );
 });
+
+test("19-C getIssueLinkedPulls：closed_by 与 timeline 挂接编号解析（#37652 渠道）", async () => {
+  const { client, requests } = stubClient(() => ({
+    data: {
+      repository: {
+        issue: {
+          closedByPullRequestsReferences: { nodes: [{ number: 37651 }, { number: 37653 }] },
+          timelineItems: {
+            nodes: [
+              { __typename: "LabeledEvent" },
+              { __typename: "ConnectedEvent", subject: { __typename: "PullRequest", number: 4242 } },
+              { __typename: "CrossReferencedEvent", source: { __typename: "Issue", number: 999 } },
+            ],
+          },
+        },
+      },
+    },
+  }));
+
+  const facts = await client.getIssueLinkedPulls({ ...repo, issueNumber: 37652 });
+
+  assert.deepEqual(facts.closedBy, [37651, 37653]);
+  assert.deepEqual(facts.connected, [4242], "只有 PullRequest 类型挂接计入 PR 编号");
+  assert.equal(facts.truncated, false);
+  assert.equal(requests.length, 1);
+  assert.match(requests[0]!.body.query, /closedByPullRequestsReferences\(first:\s*50\)/);
+  assert.match(requests[0]!.body.query, /ConnectedEvent \{ subject/);
+  assert.equal(requests[0]!.body.variables.number, 37652);
+});
+
+test("19-C getPullsForCommits：别名查询声明全部 $oid 变量并解析关联 PR", async () => {
+  const { client, requests } = stubClient(() => ({
+    data: {
+      repository: {
+        c0: { associatedPullRequests: { nodes: [{ number: 36734 }] } },
+        c1: null,
+      },
+    },
+  }));
+
+  const results = await client.getPullsForCommits({
+    owner: repo.owner,
+    repo: repo.repo,
+    oids: ["OID-A", " OID-A ", "OID-B", ""],
+  });
+
+  assert.deepEqual(results, [
+    { oid: "OID-A", pullNumbers: [36734] },
+    { oid: "OID-B", pullNumbers: [] },
+  ]);
+  assert.equal(requests.length, 1, "去重后两个 oid 一次别名查询");
+  assert.match(
+    requests[0]!.body.query,
+    /query\(\$owner: String!, \$name: String!, \$oid0: GitObjectID!, \$oid1: GitObjectID!\)/,
+  );
+  assert.equal(requests[0]!.body.variables.oid1, "OID-B");
+});

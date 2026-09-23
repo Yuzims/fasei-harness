@@ -423,6 +423,8 @@ export interface ResolutionPrescanSourceRecord {
     | "rest_issue_mentions"
     | "rest_comment_mentions"
     | "rest_timeline_references"
+    | "graphql_issue_linked"
+    | "graphql_commit_associated_prs"
     | "graphql_closing_references"
     | "pr_detail_fetch";
   state: ResolutionPrescanSourceState;

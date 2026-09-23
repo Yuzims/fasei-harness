@@ -9,10 +9,16 @@ export {
   validateSnapshot,
 } from "./snapshot-store.js";
 export { GitHubProviderError } from "./errors.js";
-export { GithubGraphQlClient, CLOSING_REFERENCES_QUERY_TEMPLATE } from "./graphql.js";
+export {
+  GithubGraphQlClient,
+  CLOSING_REFERENCES_QUERY_TEMPLATE,
+  COMMIT_PULLS_QUERY_TEMPLATE,
+} from "./graphql.js";
 export type {
   ClosingReferenceFacts,
   ClosingReferencesQuery,
+  CommitAssociatedPullsFacts,
+  IssueLinkedPullsFacts,
   ResolutionReferenceSource,
 } from "./graphql.js";
 export { GithubCommitHintSource } from "./commit-hints.js";

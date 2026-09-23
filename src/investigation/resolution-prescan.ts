@@ -28,6 +28,9 @@ export const PRESCAN_MAX_CANDIDATES = 12;
 /** Deterministic bound on how many distinct files the hint scan may query. */
 export const PRESCAN_MAX_HINT_FILES = 40;
 
+/** Deterministic bound on timeline-commit → associated-PR reverse lookups. */
+export const PRESCAN_MAX_COMMIT_PR_LOOKUPS = 20;
+
 export interface ResolutionPrescanDeps {
   session: InvestigationSession;
   provider: GitHubDataProvider;
@@ -162,6 +165,61 @@ export async function runResolutionPrescan(
       errorCode: providerErrorCode(error),
       detail: providerErrorMessage(error),
     });
+  }
+
+  // 3.5 Phase 19-B enumeration fix: issue-side GraphQL linked PRs. GitHub's
+  // issue-header chip renders closedByPullRequestsReferences; REST timeline
+  // can hold zero matching events (react#37652: #37653 is only visible here).
+  // Capability-gated: implementations without the method keep 18-A records.
+  if (graphQl?.getIssueLinkedPulls) {
+    try {
+      const linked = await graphQl.getIssueLinkedPulls(ref);
+      addEnumerated(linked.closedBy, "graphql_closed_by");
+      addEnumerated(linked.connected, "graphql_connected");
+      sources.push({
+        source: "graphql_issue_linked",
+        state: "completed",
+        detail: linked.truncated ? "bounded query reached its page limit" : undefined,
+      });
+    } catch (error) {
+      sources.push({
+        source: "graphql_issue_linked",
+        state: "failed",
+        errorCode: providerErrorCode(error),
+        detail: providerErrorMessage(error),
+      });
+    }
+  }
+
+  // 3.7 Commits already surfaced by the timeline can name their PR: a fix
+  // referenced only in a commit message still has a structured association.
+  if (graphQl?.getPullsForCommits && timelineCommitShas.length > 0) {
+    const oids = [...new Set(timelineCommitShas.map((sha) => sha.toLowerCase()))].slice(
+      0,
+      PRESCAN_MAX_COMMIT_PR_LOOKUPS,
+    );
+    try {
+      const results = await graphQl.getPullsForCommits({
+        owner: target.owner,
+        repo: target.repository,
+        oids,
+      });
+      for (const result of results) {
+        addEnumerated(result.pullNumbers, "commit_associated_pr");
+      }
+      sources.push({
+        source: "graphql_commit_associated_prs",
+        state: "completed",
+        detail: `${oids.length} timeline commit(s) queried`,
+      });
+    } catch (error) {
+      sources.push({
+        source: "graphql_commit_associated_prs",
+        state: "failed",
+        errorCode: providerErrorCode(error),
+        detail: providerErrorMessage(error),
+      });
+    }
   }
 
   const candidatesEnumerated = enumerated.size;

@@ -80,6 +80,7 @@ function isNonPull(candidate: ResolutionPrescanCandidateDTO): boolean {
 function rowFor(
   candidate: ResolutionPrescanCandidateDTO,
   issueCreatedAtDay: string | undefined,
+  closingUnmergedNumbers: number[],
 ): CandidateRowView | undefined {
   const numberLabel = isNonPull(candidate) ? `#${candidate.pullNumber}` : `PR #${candidate.pullNumber}`;
   const base = {
@@ -129,7 +130,15 @@ function rowFor(
         : "未合并"
       : undefined;
   if (candidate.structuredClosingReference === true) {
-    return { ...base, statusText, reasonText: "官方标记将关闭本 Issue，目前最可能真正修好它的一个" };
+    const peers = closingUnmergedNumbers.filter((n) => n !== candidate.pullNumber);
+    return {
+      ...base,
+      statusText,
+      reasonText:
+        peers.length === 0
+          ? "官方标记将关闭本 Issue，目前最可能真正修好它的一个"
+          : `官方标记将关闭本 Issue；与之并列的还有 ${joinList(peers.map((n) => `#${n}`))}，均未合并`,
+    };
   }
   return { ...base, statusText, reasonText: "与本 Issue 没有官方修复关联，仅作线索" };
 }
@@ -151,13 +160,13 @@ export function buildConclusionNarrative(
   const issueDay = isoDay(session.issue.createdAt);
   const issueOpen = (session.issue.state ?? "open").toLowerCase() !== "closed";
   const candidates = prescan.candidates;
-  const rows = candidates
-    .map((candidate) => rowFor(candidate, issueDay))
-    .filter((row): row is CandidateRowView => Boolean(row));
-
   const closingUnmerged = candidates.filter(
     (candidate) => candidate.structuredClosingReference === true && candidate.merged === false,
   );
+  const rows = candidates
+    .map((candidate) => rowFor(candidate, issueDay, closingUnmerged.map((c) => c.pullNumber)))
+    .filter((row): row is CandidateRowView => Boolean(row));
+
   const mergedPreIssue = candidates.filter(
     (candidate) =>
       candidate.merged === true &&
@@ -189,8 +198,8 @@ export function buildConclusionNarrative(
   }
 
   const headline = midRun
-    ? buildMidRunHeadline(session, coverage.unadjudicatedCandidates, coverage.unenumeratedCandidates, best)
-    : buildExhaustedHeadline(best, issueOpen);
+    ? buildMidRunHeadline(session, coverage.unadjudicatedCandidates, coverage.unenumeratedCandidates, closingUnmerged)
+    : buildExhaustedHeadline(closingUnmerged, issueOpen);
   if (!headline) {
     return undefined;
   }
@@ -242,14 +251,22 @@ export function buildConclusionNarrative(
       );
     }
   } else {
-    if (best && issueOpen) {
+    const closingNumbers = closingUnmerged.map((c) => `#${c.pullNumber}`);
+    if (closingNumbers.length > 0 && issueOpen) {
       nextBullets.push(
-        `等 #${best.pullNumber} 通过评审、合并进主干，维护者关闭 Issue，结论就会变成「已解决」。`,
+        closingNumbers.length === 1
+          ? `等 #${closingUnmerged[0].pullNumber} 通过评审、合并进主干，维护者关闭 Issue，结论就会变成「已解决」。`
+          : `等 ${joinList(closingNumbers)} 通过评审、合并进主干，维护者关闭 Issue，结论就会变成「已解决」。`,
       );
     }
-    if (best) {
-      // 固定尾句模板：merged===false ∧ structuredClosingReference===true 时输出。
-      nextBullets.push(`如果急需可用的修复，可以先试装 #${best.pullNumber} 的分支验证效果。`);
+    if (closingNumbers.length > 0) {
+      // 固定尾句模板：merged===false ∧ structuredClosingReference===true 时输出；
+      // 多个并列修复时不评价装哪个。
+      nextBullets.push(
+        closingNumbers.length === 1
+          ? `如果急需可用的修复，可以先试装 #${closingUnmerged[0].pullNumber} 的分支验证效果。`
+          : `如果急需可用的修复，可以先试装 ${closingNumbers.join(" 或 ")} 的分支验证效果。`,
+      );
     }
   }
 
@@ -287,11 +304,12 @@ export function buildConclusionNarrative(
       : "但也不能断定 bug 还在：修复可能已经生效，只是 GitHub 记录上没走完——最终以维护者关闭 Issue 或实际行为验证为准。",
     whyBullets,
     nextBullets,
-    guidance: best
-      ? midRun
-        ? undefined
-        : `🔎 最接近修好的：PR #${best.pullNumber}（官方标记将关闭本 Issue，尚未合并）—— ${prescan.candidatesEnumerated} 个相关 PR 已全部核对`
-      : undefined,
+    guidance:
+      best && !midRun
+        ? `🔎 最接近修好的：PR ${joinList(closingUnmerged.map((c) => `#${c.pullNumber}`))}（官方标记将关闭本 Issue，${
+            closingUnmerged.length === 1 ? "尚未合并" : "均未合并"
+          }）—— ${prescan.candidatesEnumerated} 个相关 PR 已全部核对`
+        : undefined,
     rows,
     rowsTag,
     summaryLine,
@@ -363,21 +381,29 @@ function buildZeroClueNarrative(
 }
 
 function buildExhaustedHeadline(
-  best: ResolutionPrescanCandidateDTO | undefined,
+  closingUnmerged: ResolutionPrescanCandidateDTO[],
   issueOpen: boolean,
 ): string | undefined {
-  if (!best) {
+  const first = closingUnmerged[0];
+  if (!first) {
     return undefined;
   }
-  const submitted = monthDay(best.prCreatedAt);
-  return `官方修复 PR #${best.pullNumber} ${submitted ? `已于 ${submitted}提交，` : ""}至今未合并进主干${issueOpen ? "，Issue 也仍挂着。" : "。"}`;
+  const suffix = issueOpen ? "，Issue 也仍挂着。" : "。";
+  if (closingUnmerged.length === 1) {
+    const submitted = monthDay(first.prCreatedAt);
+    return `官方修复 PR #${first.pullNumber} ${submitted ? `已于 ${submitted}提交，` : ""}至今未合并进主干${suffix}`;
+  }
+  const days = closingUnmerged.map((c) => monthDay(c.prCreatedAt));
+  const sharedDay = days.every((day) => day !== undefined && day === days[0]) ? days[0] : undefined;
+  const numbers = joinList(closingUnmerged.map((c) => `#${c.pullNumber}`));
+  return `官方修复 PR ${numbers} ${sharedDay ? `已于 ${sharedDay}提交，` : ""}至今均未合并进主干${suffix}`;
 }
 
 function buildMidRunHeadline(
   session: InvestigationSessionDTO,
   unadjudicated: number[],
   unenumerated: number,
-  best: ResolutionPrescanCandidateDTO | undefined,
+  closingUnmerged: ResolutionPrescanCandidateDTO[],
 ): string | undefined {
   const remaining = unadjudicated.length + unenumerated;
   if (remaining === 0) {
@@ -387,9 +413,14 @@ function buildMidRunHeadline(
   const lead = budget
     ? `${budget} 步调查预算已用尽，还有 ${remaining} 个相关 PR 没来得及核对。`
     : `还有 ${remaining} 个相关 PR 没来得及核对。`;
-  return best
-    ? `${lead}目前已核对的部分里，PR #${best.pullNumber} 仍是最可能的修复，尚未合并。`
-    : `${lead}目前已核对的部分里，还没有出现官方登记的修复。`;
+  if (closingUnmerged.length === 0) {
+    return `${lead}目前已核对的部分里，还没有出现官方登记的修复。`;
+  }
+  if (closingUnmerged.length === 1) {
+    return `${lead}目前已核对的部分里，PR #${closingUnmerged[0].pullNumber} 仍是最可能的修复，尚未合并。`;
+  }
+  const numbers = joinList(closingUnmerged.map((c) => `#${c.pullNumber}`));
+  return `${lead}目前已核对的部分里，PR ${numbers} 仍是最可能的修复（官方登记，均未合并）。`;
 }
 
 function buildSummaryLine(unadjudicated: number[], unenumerated: number): string | undefined {

@@ -372,6 +372,184 @@ test("19-B.11 F1 链接回归：被改写的 html_url 按请求身份重建，DT
   assert.equal(session.issue.url, "https://github.com/facebook/react/issues/37610");
 });
 
+test("19-B.12 多官方修复 PR 结论一致性：#37651/#37653 并列时全部文案点名整组", () => {
+  const session = twoClosingSession();
+  const narrative = buildConclusionNarrative(session);
+  assert.ok(narrative, "两个官方修复 PR 的 exhausted 会话必须走叙述层");
+
+  // (a) 两行行尾句不同且各含对方编号；标题逐字渲染。
+  const row51 = narrative.rows.find((row) => row.key === "pr-37651");
+  const row53 = narrative.rows.find((row) => row.key === "pr-37653");
+  assert.ok(row51 && row53, "两个候选行都必须在场");
+  assert.equal(row51.reasonText, "官方标记将关闭本 Issue；与之并列的还有 #37653，均未合并");
+  assert.equal(row53.reasonText, "官方标记将关闭本 Issue；与之并列的还有 #37651，均未合并");
+  assert.notEqual(row51.reasonText, row53.reasonText);
+  assert.equal(row51.statusText, "未合并（2026-09-17 创建）");
+  assert.equal(row51.title, "[Fizz] Fix `view-transition-class` being restored as the name");
+  assert.equal(row53.title, "Fix Fizz view transition class restoration");
+
+  // (b) 标题含两编号，且仅在创建日相同时输出共同日期子句。
+  assert.equal(
+    narrative.headline,
+    "官方修复 PR #37651、#37653 已于 9 月 17 日提交，至今均未合并进主干，Issue 也仍挂着。",
+  );
+
+  // (c) guidance 含两编号。
+  assert.equal(
+    narrative.guidance,
+    "🔎 最接近修好的：PR #37651、#37653（官方标记将关闭本 Issue，均未合并）—— 2 个相关 PR 已全部核对",
+  );
+
+  // (d) nextBullets 含两编号；试装句不评价装哪个。
+  assert.deepEqual(narrative.nextBullets, [
+    "等 #37651、#37653 通过评审、合并进主干，维护者关闭 Issue，结论就会变成「已解决」。",
+    "如果急需可用的修复，可以先试装 #37651 或 #37653 的分支验证效果。",
+  ]);
+
+  // whyBullets 第一条保持全量列表（19-B 既有行为），编号顺序 = prescan 枚举顺序。
+  assert.deepEqual(narrative.whyBullets, [
+    "GitHub 官方记录里，只有 PR #37651（[Fizz] Fix `view-transition-class` being restored as the name）、PR #37653（Fix Fizz view transition class restoration）被标记为修复本 Issue，但它们还在等待评审合并。",
+    "Issue 至今没人关闭。",
+  ]);
+
+  // (f) 禁词扫描 + (g) 含「最可能」的可见文案不得再出现单数「一个」。
+  const banned = ["认证条件", "机器裁决", "关闭语义", "Issue 身份", "佐证", "候选", "裁决"];
+  const visible = visibleNarrativeText(narrative);
+  for (const text of visible) {
+    for (const term of banned) {
+      assert.ok(!text.includes(term), `用户可见文案不得包含「${term}」：${text}`);
+    }
+    if (text.includes("最可能")) {
+      assert.ok(!text.includes("一个"), `并列修复时「最可能」句不得出现单数「一个」：${text}`);
+    }
+  }
+
+  // 创建日不同 → 省略共同日期子句（仅字段模板，不做推断）。
+  const splitDay = twoClosingSession();
+  const later = splitDay.resolutionPrescan?.candidates.find((c) => c.pullNumber === 37653);
+  assert.ok(later);
+  later.prCreatedAt = "2026-09-18T13:40:00Z";
+  const splitNarrative = buildConclusionNarrative(splitDay);
+  assert.ok(splitNarrative);
+  assert.equal(
+    splitNarrative.headline,
+    "官方修复 PR #37651、#37653 至今均未合并进主干，Issue 也仍挂着。",
+  );
+
+  // (e) 单候选快照逐字不变由 19-B.2/19-B.3 的既有精确断言锁定。
+});
+
+test("19-B.13 中间结论态并列修复：标题点名整组（官方登记，均未合并）", () => {
+  const narrative = buildConclusionNarrative(twoClosingSession("mid_run"));
+  assert.ok(narrative);
+  assert.equal(
+    narrative.headline,
+    "8 步调查预算已用尽，还有 1 个相关 PR 没来得及核对。目前已核对的部分里，PR #37651、#37653 仍是最可能的修复（官方登记，均未合并）。",
+  );
+  assert.equal(narrative.guidance, undefined, "mid_run 不输出最接近修好指引（既有规则）");
+  const row51 = narrative.rows.find((row) => row.key === "pr-37651");
+  assert.equal(row51?.reasonText, "官方标记将关闭本 Issue；与之并列的还有 #37653，均未合并");
+});
+
+function visibleNarrativeText(narrative: NonNullable<ReturnType<typeof buildConclusionNarrative>>): string[] {
+  return [
+    narrative.phaseTitle,
+    narrative.marker ?? "",
+    narrative.headline,
+    narrative.uncertainty,
+    narrative.guidance ?? "",
+    narrative.rowsTag,
+    narrative.summaryLine ?? "",
+    narrative.hintsLead ?? "",
+    ...narrative.whyBullets,
+    ...narrative.nextBullets,
+    ...narrative.rows.flatMap((row) => [row.numberLabel, row.title ?? "", row.statusText ?? "", row.reasonText]),
+  ];
+}
+
+/**
+ * Synthetic #37652-style session: two PRs both officially registered as
+ * closing the issue, both open and unmerged, both created 2026-09-17 with
+ * verbatim GitHub titles. Field data captured from the live run after 4162ac9.
+ */
+function twoClosingSession(coverage: "exhausted" | "mid_run" = "exhausted"): InvestigationSessionDTO {
+  const candidates: ResolutionPrescanCandidateDTO[] = [
+    candidate({
+      pullNumber: 37651,
+      title: "[Fizz] Fix `view-transition-class` being restored as the name",
+      enumeratedBy: ["issue_body_mention", "graphql_closed_by"],
+      structuredClosingReference: true,
+      merged: false,
+      mergedAt: null,
+      prCreatedAt: "2026-09-17T09:12:00Z",
+    }),
+    candidate({
+      pullNumber: 37653,
+      title: "Fix Fizz view transition class restoration",
+      enumeratedBy: ["graphql_closed_by"],
+      structuredClosingReference: true,
+      merged: false,
+      mergedAt: null,
+      prCreatedAt: "2026-09-17T13:40:00Z",
+    }),
+  ];
+  if (coverage === "mid_run") {
+    candidates.push(candidate({ pullNumber: 37654, detailState: "failed" }));
+  }
+  return {
+    mode: "snapshot",
+    dataSource: "snapshot",
+    actor: "test_driver",
+    status: "investigated",
+    runStatus: "not_verified",
+    task: { owner: "facebook", repository: "react", issueNumber: 37652, description: "investigate" },
+    issue: {
+      owner: "facebook",
+      repository: "react",
+      number: 37652,
+      title: "[Fizz] view-transition-class is restored as the name",
+      state: "open",
+      createdAt: "2026-09-17T02:00:00Z",
+    },
+    verification: {
+      status: "not_verified",
+      evidenceCoverage: 0.5,
+      prematureCompletion: false,
+      missingRequirementIds: [],
+      unsupportedClaimIds: [],
+      checks: [],
+    },
+    evidence: [
+      { id: "ev-issue", kind: "issue", summary: "Issue #37652 is open", trust: "external_untrusted" },
+    ],
+    relations: [],
+    claims: [],
+    claimEvidence: [],
+    steps: [],
+    attempts: [],
+    report: { conclusion: "", polarity: "unknown", uncertainty: "", openQuestions: [] },
+    runtimeBudget: { maxLlmCalls: 8, maxWallClockMs: 60000 },
+    resolutionPrescan: {
+      state: coverage === "mid_run" ? "incomplete" : "completed",
+      startedAt: "2026-09-23T00:00:00.000Z",
+      completedAt: "2026-09-23T00:00:01.200Z",
+      llmCalls: 0 as const,
+      candidatesEnumerated: candidates.length,
+      candidatesTruncated: false,
+      candidates,
+    },
+    attributionCoverage: {
+      state: coverage,
+      prescanState: coverage === "mid_run" ? "incomplete" : "completed",
+      candidatesEnumerated: candidates.length,
+      candidatesAdjudicated: coverage === "mid_run" ? 2 : candidates.length,
+      unadjudicatedCandidates: coverage === "mid_run" ? [37654] : [],
+      unenumeratedCandidates: 0,
+      budgetExhausted: coverage === "mid_run",
+    },
+  } satisfies InvestigationSessionDTO;
+}
+
 function candidate(
   overrides: Partial<ResolutionPrescanCandidateDTO> & { pullNumber: number },
 ): ResolutionPrescanCandidateDTO {

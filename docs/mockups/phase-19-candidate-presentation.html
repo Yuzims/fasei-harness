@@ -92,7 +92,7 @@
       <div class="agg">Bug: <code>FragmentInstance.compareDocumentPosition</code> alternates between <code>FOLLOWING</code> and <code>IMPLEMENTATION_SPECIFIC</code> on every other render · 打开</div>
       <div class="agg"><b>为什么</b></div>
       <div class="agg">· GitHub 官方记录里，只有 PR #37626（[DOM] Keep Fragment sibling positions stable across renders）被标记为修复本 Issue，但它还在等待评审合并。</div>
-      <div class="agg">· 其余已合并的相关 PR（#32722、#34069、#37162、#37163、#37579）全部在本 Issue 创建（9 月 12 日）之前就已合并，时间上不可能修这个 bug。</div>
+      <div class="agg">· 其余已合并的相关 PR（#32722、#34069、#37162、#37163、#37579）全部在本 Issue 提出之前合并，GitHub 记录里也都没有登记为修复本 Issue。注意：报告者是在 19.3.0 版本上复现的，若其中某个 PR 晚于 19.3.0 发版才进主干，它也有可能已修复了主干上的问题——确认这一点需要核对 19.3.0 发版时间，目前证据里没有。</div>
       <div class="agg">· 另有 2 个未合并的 PR（#37142、#37607）与本 Issue 没有官方关联，只能作为线索；#37578、#37606 两个编号不是 PR。</div>
       <div class="agg">· Issue 至今没人关闭。</div>
       <div class="agg"><b>接下来</b></div>
@@ -104,13 +104,13 @@
     <div class="phase" id="cands">
       <div class="phase-head"><span class="phase-num">2</span> 相关修复 PR <span class="tag">机器预扫描找到 10 个，已全部核对（0 次 AI 调用）· 排序：官方标记修复本 Issue 的排最前（点击展开 10 条明细）</span></div>
       <div class="step"><span class="mark">·</span><span class="res">PR #37626</span><span>[DOM] Keep Fragment sibling positions stable across renders · 未合并（2026-09-14 创建）</span><span class="muted">—— 官方标记将关闭本 Issue，目前最可能真正修好它的一个</span></div>
-      <div class="step"><span class="mark">·</span><span class="res">PR #32722</span><span>Add compareDocumentPosition to fragment instances · 已合并 2025-05-06</span><span class="muted">—— 为 fragment 实例首次加入 compareDocumentPosition 支持；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></div>
-      <div class="step"><span class="mark">·</span><span class="res">PR #34069</span><span>Fix fragmentInstance#compareDocumentPosition nesting and portal cases · 已合并 2025-08-15</span><span class="muted">—— 修复 fragment 嵌套与 portal 场景下的位置判定；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复<sup>†</sup></span></div>
+      <div class="step"><span class="mark">·</span><span class="res">PR #32722</span><span>Add compareDocumentPosition to fragment instances · 已合并 2025-05-06</span><span class="muted">—— 为 fragment 实例首次加入 compareDocumentPosition 支持；于 2025-05-06 合并，早于本 Issue 提出（2026-09-12），GitHub 记录中也未登记为修复本 Issue</span></div>
+      <div class="step"><span class="mark">·</span><span class="res">PR #34069</span><span>Fix fragmentInstance#compareDocumentPosition nesting and portal cases · 已合并 2025-08-15</span><span class="muted">—— 修复 fragment 嵌套与 portal 场景下的位置判定；于 2025-08-15 合并，早于本 Issue 提出（2026-09-12），GitHub 记录中也未登记为修复本 Issue<sup>†</sup></span></div>
       <div class="step"><span class="mark">·</span><span class="res">PR #37142</span><span>[Fragment Refs] Fix DOM/Fiber containment validation · 未合并（2026-07-29 创建）</span><span class="muted">—— 修复 Fragment ref 的 DOM/Fiber 包含校验；与本 Issue 没有官方修复关联，仅作线索</span></div>
-      <div class="step"><span class="mark">·</span><span class="res">PR #37162</span><span>[DOM] Find host siblings for nested empty Fragments · 已合并 2026-08-12</span><span class="muted">—— 为嵌套空 Fragment 查找宿主兄弟节点；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></div>
-      <div class="step"><span class="mark">·</span><span class="res">PR #37163</span><span>[DOM] Fix Fragment compareDocumentPosition for documentElement and empty portals · 已合并 2026-08-12</span><span class="muted">—— 修复 documentElement 与空 portal 场景的位置判定；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></div>
+      <div class="step"><span class="mark">·</span><span class="res">PR #37162</span><span>[DOM] Find host siblings for nested empty Fragments · 已合并 2026-08-12</span><span class="muted">—— 为嵌套空 Fragment 查找宿主兄弟节点；于 2026-08-12 合并，早于本 Issue 提出（2026-09-12），GitHub 记录中也未登记为修复本 Issue</span></div>
+      <div class="step"><span class="mark">·</span><span class="res">PR #37163</span><span>[DOM] Fix Fragment compareDocumentPosition for documentElement and empty portals · 已合并 2026-08-12</span><span class="muted">—— 修复 documentElement 与空 portal 场景的位置判定；于 2026-08-12 合并，早于本 Issue 提出（2026-09-12），GitHub 记录中也未登记为修复本 Issue</span></div>
       <div class="step"><span class="mark">·</span><span class="res">#37578</span><span class="muted">—— GitHub 确认该编号不是 Pull Request，排除</span></div>
-      <div class="step"><span class="mark">·</span><span class="res">PR #37579</span><span>[DOM] Fix Fragment compareDocumentPosition(document) TypeError · 已合并 2026-09-11</span><span class="muted">—— 修复对 document 取位置时的 TypeError；合并时间早于本 Issue 创建（2026-09-12），不可能是它的修复</span></div>
+      <div class="step"><span class="mark">·</span><span class="res">PR #37579</span><span>[DOM] Fix Fragment compareDocumentPosition(document) TypeError · 已合并 2026-09-11</span><span class="muted">—— 修复对 document 取位置时的 TypeError；于 2026-09-11 合并，早于本 Issue 提出（2026-09-12），GitHub 记录中也未登记为修复本 Issue</span></div>
       <div class="step"><span class="mark">·</span><span class="res">#37606</span><span class="muted">—— GitHub 确认该编号不是 Pull Request，排除</span></div>
       <div class="step"><span class="mark">·</span><span class="res">PR #37607</span><span>[DOM] Handle non-element portal roots in Fragment document position · 未合并（2026-09-11 创建）</span><span class="muted">—— 处理非元素 portal 根的位置判定；与本 Issue 没有官方修复关联，仅作线索</span></div>
       <div class="agg" style="padding-top:10px"><b>实现注记（19-B 对照用，不进入用户可见文案）</b></div>
@@ -120,6 +120,7 @@
       <div class="agg">· 结论区（标题句 / 为什么 / 接下来）每一句都是字段模板拼装，禁止 LLM 参与文案；句子→字段全量映射见交付报告。</div>
       <div class="agg">· 「如果急需可用的修复，可以先试装 #37626 的分支验证效果」= 固定尾句模板：<span class="sha">merged===false ∧ structuredClosingReference===true</span> 时在「接下来」输出，编号取该 PR 的 <span class="sha">pullNumber</span>。</div>
       <div class="agg">· 术语禁区：认证条件 / 机器裁决 / 关闭语义 / Issue 身份 / 佐证 / 候选 / 裁决 等内部词只允许出现在折叠区「验证明细」与本实现注记内，用户可见的结论区、标题、行内文案一律使用日常语言（19-B 以文案快照测试锁死）。</div>
+      <div class="agg">· 强因果驳回句式（已包含在报告者测试版本 ∧ 该版本仍能复现 ⇒ 不可能是修复）仅当结构化事实 <span class="sha">releaseDate(testedVersion)</span> 存在时才允许出现（未来小阶段：npm registry 查询；测试版本号取自 Issue 正文，属 untrusted text，只能当 hypothesis）。在此之前，候选排除一律只用记录级句式：<span class="sha">mergedAt &lt; issue.createdAt ∧ structuredClosingReference===false</span>。</div>
     </div>
 
     <div class="phase">
